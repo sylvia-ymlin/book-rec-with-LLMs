@@ -3,6 +3,7 @@ license: mit
 title: Intelligent Book Recommendation System
 sdk: docker
 emoji: 🌖
+sdk: gradio
 app_file: app.py
 ---
 
