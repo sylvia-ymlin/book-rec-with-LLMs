@@ -17,6 +17,6 @@ jobs:
           git config --global user.email "gm.ymlin@gmail.com"
           git config --global user.name "Yangmei Lin"
           git remote add space https://ymlin105:${HF_TOKEN}@huggingface.co/spaces/ymlin105/book-rec-with-LLMs
-          git push space master --force
+          git push space master:main --force
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
