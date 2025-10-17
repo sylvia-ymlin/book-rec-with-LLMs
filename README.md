@@ -1,3 +1,11 @@
+---
+license: mit
+title: Intelligent Book Recommendation System
+sdk: docker
+emoji: 🌖
+app_file: app.py
+---
+
 # 📚 Intelligent Book Recommendation System
 
 An end-to-end machine learning system that provides personalized book recommendations using semantic search, emotion analysis, and multi-modal filtering. The system processes 5,000+ books and delivers recommendations through an interactive web dashboard.
