@@ -1,0 +1,19 @@
+name: Deploy to Hugging Face Space
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Push to Hugging Face Space
+        run: |
+          git config --global user.email "gm.ymlin@gmail.com"
+          git config --global user.name "ymlin105"
+          git remote add space https://huggingface.co/spaces/ymlin105/book-rec-with-LLM
+          git push space main --force
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
