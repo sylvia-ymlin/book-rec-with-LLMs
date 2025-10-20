@@ -139,9 +139,8 @@ This project is open source and available under the MIT License.
 
 ## 🔗 Links
 
-- [Live Demo](https://huggingface.co/spaces/your-username/book-recommender)
 - [Dataset](https://www.kaggle.com/datasets/dylanjcastillo/7k-books-with-metadata)
-- [Hugging Face Models](https://huggingface.co/models)
+- [Hugging Face Models](https://huggingface.co/spaces/ymlin105/book-rec-with-LLMs)
 
 ---
 
