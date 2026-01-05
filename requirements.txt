@@ -1,6 +1,11 @@
 # Web UI
 gradio>=5.0.0
 
+# API
+fastapi
+uvicorn[standard]
+pydantic
+
 # Data handling
 pandas
 numpy
@@ -16,6 +21,12 @@ langchain-huggingface
 # ML / NLP
 transformers>=4.40.0
 torch
+sentence-transformers
+
+# Quality & Testing
+pytest
+ruff
+httpx
 
 # Optional (for safety/logging)
 scikit-learn
