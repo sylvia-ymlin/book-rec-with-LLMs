@@ -43,10 +43,11 @@ wheels/
 ehthumbs.db
 Thumbs.db
 
-# Data files (keep only essential ones)
+# Data files (keep only essential ones in data/)
 *.csv
-!books_with_emotions.csv
-!books_descriptions.txt
+*.txt
+!data/books_with_emotions.csv
+!data/books_descriptions.txt
 
 # Model files
 *.pkl
@@ -61,3 +62,10 @@ logs/
 # Temporary files
 *.tmp
 *.temp
+
+# Linter cache
+.ruff_cache/
+
+# Vector database (generated at runtime)
+data/chroma_db/
+

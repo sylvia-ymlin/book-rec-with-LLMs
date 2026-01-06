@@ -43,7 +43,44 @@ The application is engineered as a distributed system using a microservices patt
 - **User Interface (Gradio)**: A decoupled frontend service that consumes the REST API.
 - **Containerization (Docker)**: The entire stack is containerized, ensuring environment consistency across development and production.
 
-## 4. Experimental Results
+## 4. Project Structure
+
+The repository is organized into distinct modules for clarity and maintainability.
+
+```
+book-recommender/
+├── app.py                 # Gradio UI entry point
+├── requirements.txt       # Python dependencies
+├── Dockerfile             # Container configuration
+├── docker-compose.yml     # Multi-service orchestration
+├── Makefile               # Development shortcuts
+│
+├── src/                   # Core application logic
+│   ├── config.py          # Centralized configuration
+│   ├── recommender.py     # Recommendation engine
+│   ├── vector_db.py       # ChromaDB integration
+│   ├── etl.py             # Data loading utilities
+│   ├── main.py            # FastAPI service
+│   └── utils.py           # Shared helpers
+│
+├── data/                  # Dataset files
+│   ├── books_with_emotions.csv
+│   └── books_descriptions.txt
+│
+├── assets/                # Static resources
+│   └── cover-not-found.jpg
+│
+├── notebooks/             # Exploratory analysis
+│   ├── data-exploration.ipynb
+│   ├── sentiment-analysis.ipynb
+│   ├── text-classification.ipynb
+│   └── vector-search.ipynb
+│
+└── tests/                 # Unit tests
+    └── test_api.py
+```
+
+## 5. Experimental Results
 
 The system was evaluated on a curated subset of the dataset.
 
@@ -52,7 +89,7 @@ The system was evaluated on a curated subset of the dataset.
 - **Inference Latency**: The average retrieval time for a top-k semantic search ($k=50$) is <200ms on standard hardware (excluding model loading time).
 - **Throughput**: Batch processing of emotion analysis achieved a rate of 8.39 books/second.
 
-## 5. Usage and Installation
+## 6. Usage and Installation
 
 ### Prerequisites
 - Docker Engine 20.10+
@@ -83,7 +120,7 @@ To deploy the system locally, execute the following commands:
    - **API Documentation**: `http://localhost:8000/docs`
    - **Web Interface**: `http://localhost:7860`
 
-## 6. References
+## 7. References
 
 1. **Sentence-BERT**: Reimers, N., & Gurevych, I. (2019). Sentence-BERT: Sentence Embeddings using Siamese BERT-Networks.
 2. **RoBERTa**: Liu, Y., et al. (2019). RoBERTa: A Robustly Optimized BERT Pretraining Approach.
