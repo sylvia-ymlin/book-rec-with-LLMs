@@ -17,11 +17,18 @@ def _first_words(text: str, n: int = 30) -> str:
 def generate_highlights(isbn: str, persona: Dict[str, Any], books: pd.DataFrame) -> Dict[str, Any]:
     """
     Produce concise selling points for a book, optionally tailored by persona.
-    Returns { highlights: List[str], title: str, authors: str, category: str, persona_summary: str }
+    Returns { highlights: List[str], title: str, authors: str, category: str, description: str }
     """
     book_row = books[books["isbn13"].astype(str) == str(isbn)]
     if book_row.empty:
-        return {"highlights": ["未找到该书的详细信息。"], "persona_summary": persona.get("summary", ""), "title": "", "authors": "", "category": ""}
+        return {
+            "highlights": ["Book details not found in our collection."],
+            "persona_summary": persona.get("summary", ""),
+            "title": "",
+            "authors": "Unknown",
+            "category": "",
+            "description": ""
+        }
 
     row = book_row.iloc[0]
     title = str(row.get("title", ""))
@@ -33,29 +40,47 @@ def generate_highlights(isbn: str, persona: Dict[str, Any], books: pd.DataFrame)
     matches: List[str] = []
     top_authors = set(persona.get("top_authors", []))
     top_categories = set(persona.get("top_categories", []))
-    authors = [a.strip() for a in authors_raw.split(";") if a.strip()]
+    authors = [a.strip() for a in authors_raw.split(";") if a.strip() and a.strip().lower() != "unknown"]
 
     if any(a in top_authors for a in authors):
-        matches.append("契合你的偏好作者")
+        matches.append("Matches your favorite authors")
     if category and category in top_categories:
-        matches.append("符合你常看类别")
+        matches.append("Aligns with your reading preferences")
 
     desc_snippet = _first_words(desc, 30)
     bullets: List[str] = []
+    
     if matches:
-        bullets.append("、".join(matches) + "：更对你的口味")
+        bullets.append(" • ".join(matches))
+    
     if authors:
-        bullets.append(f"作者：{', '.join(authors[:3])}")
+        bullets.append(f"By: {', '.join(authors[:3])}")
+    
     if category:
-        bullets.append(f"类别：{category}")
+        bullets.append(f"Category: {category}")
+    
     if desc_snippet:
-        bullets.append(f"简介摘要：{desc_snippet}")
-    bullets.append("适合：对该主题感兴趣、偏好同类作品的读者")
+        bullets.append(f"Summary: {desc_snippet}")
+    
+    bullets.append("Perfect for readers who love this genre and thematic exploration")
+
+    # Handle author display
+    if authors and authors_raw.lower() != "unknown":
+        author_display = ", ".join(authors)
+    else:
+        author_display = "Unknown"
 
     return {
         "title": title,
-        "authors": ", ".join(authors) if authors else authors_raw,
+        "authors": author_display,
         "category": category,
+        "description": desc,
         "highlights": bullets[:5],
         "persona_summary": persona.get("summary", ""),
+        "meta": {
+            "title": title,
+            "authors": author_display,
+            "category": category,
+            "description": desc
+        }
     }

@@ -11,7 +11,7 @@ def build_persona(fav_isbns: List[str], books: pd.DataFrame) -> Dict[str, Any]:
     """Aggregate a simple persona from favorites: top authors and categories."""
     if not isinstance(books, pd.DataFrame) or books.empty or not fav_isbns:
         return {
-            "summary": "暂无画像。先收藏几本你喜欢的书，获得更个性化的卖点。",
+            "summary": "No profile yet. Start by adding your favorite books to see personalized recommendations.",
             "top_authors": [],
             "top_categories": [],
         }
@@ -23,11 +23,13 @@ def build_persona(fav_isbns: List[str], books: pd.DataFrame) -> Dict[str, Any]:
     for _, row in fav_df.iterrows():
         # Authors are ';' separated in our dataset
         try:
-            authors_list.extend([a.strip() for a in str(row.get("authors", "")).split(";") if a.strip()])
+            author_str = str(row.get("authors", "")).strip()
+            if author_str and author_str.lower() != "unknown":
+                authors_list.extend([a.strip() for a in author_str.split(";") if a.strip() and a.strip().lower() != "unknown"])
         except Exception:
             pass
         cat = str(row.get("simple_categories", "")).strip()
-        if cat:
+        if cat and cat.lower() != "unknown":
             categories_list.append(cat)
 
     top_authors = [a for a, _ in Counter(authors_list).most_common(3)]
@@ -35,19 +37,19 @@ def build_persona(fav_isbns: List[str], books: pd.DataFrame) -> Dict[str, Any]:
 
     if not top_authors and not top_categories:
         return {
-            "summary": "画像尚不明确，继续收藏以完善偏好画像。",
+            "summary": "Your profile is taking shape. Keep adding books to refine your taste profile.",
             "top_authors": [],
             "top_categories": [],
         }
 
     parts: List[str] = []
     if top_authors:
-        parts.append(f"偏爱作者：{', '.join(top_authors)}")
+        parts.append(f"You love authors: {', '.join(top_authors)}")
     if top_categories:
-        parts.append(f"常看类别：{', '.join(top_categories)}")
+        parts.append(f"You often read: {', '.join(top_categories)}")
 
     return {
-        "summary": "；".join(parts),
+        "summary": " | ".join(parts),
         "top_authors": top_authors,
         "top_categories": top_categories,
     }
