@@ -75,3 +75,57 @@ async def get_tones():
     if not recommender:
          raise HTTPException(status_code=503, detail="Service not ready")
     return {"tones": recommender.get_tones()}
+
+
+@app.get("/benchmark")
+async def run_benchmark():
+    """
+    Run performance benchmark and return latency metrics.
+    Tests vector search and full recommendation pipeline.
+    """
+    import time
+    import statistics
+    
+    if not recommender:
+        raise HTTPException(status_code=503, detail="Service not ready")
+    
+    test_queries = [
+        "a romantic comedy set in New York",
+        "a philosophical novel about the meaning of life",
+        "a fast-paced thriller with plot twists",
+        "a coming-of-age story about friendship",
+        "a science fiction story about space exploration",
+    ]
+    
+    # Benchmark vector search
+    vector_latencies = []
+    for query in test_queries:
+        start = time.perf_counter()
+        recommender.vector_db.search(query, k=50)
+        vector_latencies.append((time.perf_counter() - start) * 1000)
+    
+    # Benchmark full recommendation
+    full_latencies = []
+    for query in test_queries:
+        start = time.perf_counter()
+        recommender.get_recommendations(query, "All", "All")
+        full_latencies.append((time.perf_counter() - start) * 1000)
+    
+    return {
+        "vector_search": {
+            "runs": len(vector_latencies),
+            "mean_ms": round(statistics.mean(vector_latencies), 2),
+            "median_ms": round(statistics.median(vector_latencies), 2),
+            "min_ms": round(min(vector_latencies), 2),
+            "max_ms": round(max(vector_latencies), 2),
+        },
+        "full_recommendation": {
+            "runs": len(full_latencies),
+            "mean_ms": round(statistics.mean(full_latencies), 2),
+            "median_ms": round(statistics.median(full_latencies), 2),
+            "min_ms": round(min(full_latencies), 2),
+            "max_ms": round(max(full_latencies), 2),
+        },
+        "dataset_size": len(recommender.books),
+    }
+

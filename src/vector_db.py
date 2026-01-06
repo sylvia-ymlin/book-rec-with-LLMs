@@ -1,17 +1,18 @@
 from typing import List, Any
 from langchain_chroma import Chroma
-from langchain_huggingface import HuggingFaceEndpointEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.document_loaders import TextLoader
 from langchain_text_splitters import CharacterTextSplitter
-from src.config import DESCRIPTIONS_TXT, CHROMA_DB_DIR, EMBEDDING_MODEL, HF_TOKEN
+from src.config import DESCRIPTIONS_TXT, CHROMA_DB_DIR, EMBEDDING_MODEL
 from src.utils import setup_logger
 
 logger = setup_logger(__name__)
 
+
 class VectorDB:
     """
     Singleton wrapper for the ChromaDB vector database.
-    Ensures only one instance of the database connection exists.
+    Uses local sentence-transformers for embedding generation.
     """
     _instance = None
     
@@ -19,6 +20,7 @@ class VectorDB:
         if cls._instance is None:
             cls._instance = super(VectorDB, cls).__new__(cls)
             cls._instance.db = None
+            cls._instance.embeddings = None
         return cls._instance
 
     def __init__(self):
@@ -26,28 +28,34 @@ class VectorDB:
             self._initialize_db()
 
     def _initialize_db(self):
-        """Initialize ChromaDB with persistence."""
+        """Initialize ChromaDB with local embeddings."""
         try:
-            embeddings = HuggingFaceEndpointEmbeddings(
-                model=EMBEDDING_MODEL,
-                huggingfacehub_api_token=HF_TOKEN
+            # Use local sentence-transformers model (no API calls)
+            logger.info(f"Loading embedding model: {EMBEDDING_MODEL}")
+            self.embeddings = HuggingFaceEmbeddings(
+                model_name=EMBEDDING_MODEL,
+                model_kwargs={'device': 'cpu'},
+                encode_kwargs={'normalize_embeddings': True}
             )
+            logger.info("Embedding model loaded successfully")
 
             if CHROMA_DB_DIR.exists() and any(CHROMA_DB_DIR.iterdir()):
                 logger.info(f"Loading existing vector database from {CHROMA_DB_DIR}")
                 self.db = Chroma(
                     persist_directory=str(CHROMA_DB_DIR),
-                    embedding_function=embeddings
+                    embedding_function=self.embeddings
                 )
+                logger.info(f"Loaded {self.db._collection.count()} documents from vector database")
             else:
                 logger.info("Creating new vector database...")
                 raw_documents = TextLoader(str(DESCRIPTIONS_TXT)).load()
                 text_splitter = CharacterTextSplitter(chunk_size=1, chunk_overlap=0, separator="\n")
                 documents = text_splitter.split_documents(raw_documents)
                 
+                logger.info(f"Generating embeddings for {len(documents)} documents...")
                 self.db = Chroma.from_documents(
                     documents,
-                    embedding=embeddings,
+                    embedding=self.embeddings,
                     persist_directory=str(CHROMA_DB_DIR)
                 )
                 logger.info(f"Vector database created and saved to {CHROMA_DB_DIR}")
