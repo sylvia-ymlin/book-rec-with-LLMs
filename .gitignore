@@ -46,6 +46,7 @@ Thumbs.db
 # Data files (keep only essential ones in data/)
 *.csv
 *.txt
+!requirements.txt
 !data/books_with_emotions.csv
 # !data/books_descriptions.txt (Too large for git, 178MB)
 
@@ -62,6 +63,7 @@ logs/
 # Temporary files
 *.tmp
 *.temp
+*.gz
 
 # Linter cache
 .ruff_cache/

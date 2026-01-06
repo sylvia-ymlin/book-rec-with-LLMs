@@ -45,3 +45,7 @@ trl
 bitsandbytes
 tqdm
 prometheus-client
+
+# Infrastructure
+redis
+huggingface-hub>=0.23.0
