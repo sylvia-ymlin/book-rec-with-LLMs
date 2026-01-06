@@ -74,19 +74,49 @@ The project follows a microservices-inspired architecture:
 
 ### Deployment
 
+**Option 1: Client-Server Architecture (Recommended for Development)**
+
 1.  **Clone the repository**:
     ```bash
     git clone [repository-url]
-    cd book-recommender
+    cd book-rec-with-LLMs
     ```
 
-2.  **Start Services**:
+2.  **Install dependencies**:
+    ```bash
+    make setup
+    # or: pip install -r requirements.txt
+    ```
+
+3.  **Start API Server** (Terminal 1):
+    ```bash
+    make run
+    # Starts FastAPI on http://localhost:6006
+    ```
+
+4.  **Start UI** (Terminal 2):
+    ```bash
+    make run-ui
+    # Starts Gradio UI on http://0.0.0.0:7860
+    ```
+
+5.  **Access the Interface**:
+    Navigate to `http://localhost:7860` in a web browser.
+
+**Option 2: Docker Deployment**
+
+1.  **Start Services**:
     ```bash
     docker-compose up --build
     ```
 
-3.  **Access the Interface**:
+2.  **Access the Interface**:
     Navigate to `http://localhost:7860` in a web browser.
+
+**Notes:**
+- Redis is optional; caching will be disabled if Redis is unavailable
+- Book covers are fetched in real-time from Google Books API and Open Library
+- First-time vector database initialization may take a few minutes
 
 ## Project Structure
 

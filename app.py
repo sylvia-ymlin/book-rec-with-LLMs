@@ -1,27 +1,33 @@
 import gradio as gr
 import logging
 import os
+import requests
+import json
 from typing import List, Tuple
-from src.recommender import BookRecommender
 from src.utils import setup_logger
+
+# --- Configuration ---
+API_URL = os.getenv("API_URL", "http://localhost:6006")  # Localhost via SSH Tunnel
 
 # --- Initialize Logger ---
 logger = setup_logger(__name__)
 
-# --- Module Initialization (Lazy Loading to prevent crash) ---
-recommender = None
-shopping_agent = None
+# --- Module Initialization ---
+# (We no longer load model locally; we query the remote API)
+categories = ["All", "Fiction", "History", "Science", "Technology"] # Fallback/Mock for now
+tones = ["All", "Happy", "Surprising", "Angry", "Suspenseful", "Sad"]
 
-try:
-    logger.info("Initializing BookRecommender...")
-    recommender = BookRecommender()
-    categories = recommender.get_categories()
-    tones = recommender.get_tones()
-except Exception as e:
-    logger.error(f"Failed to initialize recommender: {e}")
-    recommender = None
-    categories = ["All"]
-    tones = ["All"]
+def fetch_categories():
+    try:
+        resp = requests.get(f"{API_URL}/categories", timeout=2)
+        if resp.status_code == 200:
+            return ["All"] + resp.json()
+    except:
+        pass
+    return categories
+
+# Try to fetch real categories on startup
+categories = fetch_categories()
 
 # Initialize Shopping Agent (Mock or Real)
 # Note: Real agent requires FAISS index. We'll handle checks later.
@@ -36,10 +42,25 @@ except ImportError:
 def recommend_books(query: str, category: str, tone: str) -> List[Tuple[str, str]]:
     try:
         if not query.strip(): return []
-        if not recommender: return []
         
-        results = recommender.get_recommendations(query, category, tone)
-        return [(item["thumbnail"], f"{item['title']}\n{item['authors']}") for item in results]
+        payload = {
+            "query": query,
+            "category": category if category else "All",
+            "tone": tone if tone else "All"
+        }
+        
+        logger.info(f"Sending request to {API_URL}/recommend")
+        response = requests.post(f"{API_URL}/recommend", json=payload, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            results = data.get("recommendations", [])
+            # Format: (Image URL, Caption Text)
+            return [(item["thumbnail"], f"{item['title']}\n{item['authors']}") for item in results]
+        else:
+            logger.error(f"API Error: {response.text}")
+            return []
+            
     except Exception as e:
         logger.error(f"Error in recommend_books: {e}")
         return []
@@ -119,4 +140,10 @@ with gr.Blocks(title="AI E-Commerce Platform", theme=gr.themes.Soft()) as dashbo
             btn_gen.click(generate_marketing_copy, [m_name, m_feat, m_aud], m_out)
 
 if __name__ == "__main__":
-    dashboard.launch(server_name="0.0.0.0", server_port=7860)
+    import os
+    assets_path = os.path.join(os.path.dirname(__file__), "assets")
+    dashboard.launch(
+        server_name="0.0.0.0", 
+        server_port=7860,
+        allowed_paths=[assets_path]
+    )

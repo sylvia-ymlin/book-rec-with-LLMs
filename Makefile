@@ -4,7 +4,7 @@ setup:
 	pip install -r requirements.txt
 
 run:
-	uvicorn src.main:app --reload
+	uvicorn src.main:app --reload --port 6006
 
 run-ui:
 	python app.py

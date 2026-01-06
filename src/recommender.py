@@ -5,6 +5,7 @@ from src.vector_db import VectorDB
 from src.config import TOP_K_INITIAL, TOP_K_FINAL
 from src.cache import CacheManager
 from src.utils import setup_logger
+from src.cover_fetcher import fetch_book_cover
 
 logger = setup_logger(__name__)
 
@@ -112,13 +113,16 @@ class BookRecommender:
                 authors_str = f"{', '.join(authors[:-1])}, and {authors[-1]}"
             else:
                 authors_str = row["authors"]
+            
+            # Fetch book cover in real-time from Google Books API
+            thumbnail = fetch_book_cover(str(row["isbn13"]), row["title"])
                 
             results.append({
                 "isbn": row["isbn13"],
                 "title": row["title"],
                 "authors": authors_str,
                 "description": truncated_desc,
-                "thumbnail": row["large_thumbnail"],
+                "thumbnail": thumbnail,
                 "caption": f"{row['title']} by {authors_str}: {truncated_desc}"
             })
         return results

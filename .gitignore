@@ -71,6 +71,4 @@ logs/
 # Vector database (generated at runtime)
 data/chroma_db/
 
-# Personal interview prep (do not push)
-INTERVIEW_PREP.md
 
