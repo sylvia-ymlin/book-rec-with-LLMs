@@ -3,7 +3,7 @@ import logging
 import os
 import requests
 import json
-from typing import List, Tuple
+from typing import List, Tuple, Any
 from src.utils import setup_logger
 
 # --- Configuration ---
@@ -39,9 +39,11 @@ except ImportError:
     logger.warning("Shopping Agent module not found or failed to import.")
 
 # --- Business Logic: Tab 1 (Discovery) ---
-def recommend_books(query: str, category: str, tone: str) -> List[Tuple[str, str]]:
+def recommend_books(query: str, category: str, tone: str):
+    """Fetch recommendations and return both gallery items and raw data."""
     try:
-        if not query.strip(): return []
+        if not query.strip():
+            return [], []
         
         payload = {
             "query": query,
@@ -55,15 +57,34 @@ def recommend_books(query: str, category: str, tone: str) -> List[Tuple[str, str
         if response.status_code == 200:
             data = response.json()
             results = data.get("recommendations", [])
-            # Format: (Image URL, Caption Text)
-            return [(item["thumbnail"], f"{item['title']}\n{item['authors']}") for item in results]
+            gallery_items = [(item["thumbnail"], f"{item['title']}\n{item['authors']}") for item in results]
+            return gallery_items, results
         else:
             logger.error(f"API Error: {response.text}")
-            return []
+            return [], []
             
     except Exception as e:
         logger.error(f"Error in recommend_books: {e}")
-        return []
+        return [], []
+
+
+def show_book_details(evt: Any, recs: List[dict]):
+    """Populate detail panel when a gallery item is selected."""
+    try:
+        if recs is None:
+            return "", "", "", ""
+        idx = evt.index if evt and hasattr(evt, "index") else None
+        if idx is None or idx >= len(recs):
+            return "", "", "", ""
+        book = recs[idx]
+        title_block = f"### {book['title']}\n**Authors:** {book['authors']}\n**ISBN:** {book['isbn']}"
+        desc_block = f"**Description**\n\n{book['description']}"
+        rank_block = f"**Rank:** #{idx + 1}"  # simple positional rank
+        comments_block = "**Comments (sample):**\n- Loved the pacing and tone.\n- Great pick for this category."
+        return title_block, rank_block, comments_block, desc_block
+    except Exception as e:
+        logger.error(f"Error showing book details: {e}")
+        return "", "", "", ""
 
 def clear_discovery():
     return "", "All", "All", []
@@ -106,6 +127,7 @@ with gr.Blocks(title="AI E-Commerce Platform", theme=gr.themes.Soft()) as dashbo
         
         # --- Tab 1: Discovery ---
         with gr.TabItem("🔍 Smart Discovery (RecSys)"):
+            rec_state = gr.State([])  # store full recommendation data
             with gr.Row():
                 with gr.Column(scale=3):
                     q_input = gr.Textbox(label="Describe what you want (Semantic Search)", placeholder="e.g., A sci-fi novel about space exploration...")
@@ -115,8 +137,16 @@ with gr.Blocks(title="AI E-Commerce Platform", theme=gr.themes.Soft()) as dashbo
             
             btn_rec = gr.Button("Find Books", variant="primary")
             gallery = gr.Gallery(label="Recommendations", columns=4, height="auto")
-            
-            btn_rec.click(recommend_books, [q_input, cat_input, tone_input], gallery)
+            with gr.Row():
+                with gr.Column(scale=2):
+                    title_info = gr.Markdown(label="Book")
+                    desc_info = gr.Markdown(label="Description")
+                with gr.Column(scale=1):
+                    rank_info = gr.Markdown(label="Rank")
+                    comments_info = gr.Markdown(label="Comments")
+
+            btn_rec.click(recommend_books, [q_input, cat_input, tone_input], [gallery, rec_state])
+            gallery.select(show_book_details, [rec_state], [title_info, rank_info, comments_info, desc_info])
 
         # --- Tab 2: AI Assistant ---
         with gr.TabItem("💬 Shopping Assistant (RAG)"):

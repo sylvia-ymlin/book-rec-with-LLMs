@@ -21,12 +21,13 @@ API Rate Limits:
 Author: Modified 2026-01-06
 """
 import requests
-from typing import Optional
+from pathlib import Path
 import time
 from functools import lru_cache
 
-# Placeholder image for books without covers
-PLACEHOLDER_COVER = "https://via.placeholder.com/128x192.png?text=No+Cover"
+# Placeholder image for books without covers (local asset)
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PLACEHOLDER_COVER = str(PROJECT_ROOT / "assets" / "cover-not-found.jpg")
 
 @lru_cache(maxsize=1000)
 def fetch_book_cover(isbn: str, title: str = "") -> str:
