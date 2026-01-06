@@ -23,6 +23,5 @@ ENV PYTHONPATH=/app
 EXPOSE 8000
 EXPOSE 7860
 
-# Default command: Run the API
-# You can override this to run "python app.py" for the UI
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Default command: Run the Gradio UI for Hugging Face Spaces
+CMD ["python", "app.py"]
