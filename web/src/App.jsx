@@ -1,0 +1,415 @@
+import React, { useState } from "react";
+import { Bookmark, Heart, Search, Layers, Smile, Sparkles, Star, Trophy, BarChart3, X, MessageCircle, MessageSquare, Info, Send } from "lucide-react";
+import { recommend, addFavorite, getPersona, getHighlights } from "./api";
+
+// --- 文艺风格组件 ---
+
+const CATEGORIES = ["全部", "文学", "历史", "哲学", "科技", "艺术"];
+const MOODS = ["全部", "静谧治愈", "迷雾重重", "赤诚热血", "孤寂忧郁", "意外惊喜"];
+
+const StudyButton = ({ children, active, color, className, onClick }) => {
+  const colors = {
+    purple: "bg-[#b392ac] text-white hover:bg-[#9d7799]",
+    peach: "bg-[#f4acb7] text-white hover:bg-[#e89ba3]",
+    tab: "bg-transparent text-[#b392ac] border-b-2 border-[#b392ac]",
+  };
+  return (
+    <button 
+      onClick={onClick}
+      className={`px-4 py-2 text-sm font-bold transition-all ${colors[color] || colors.purple} ${className || ""}`}
+    >
+      {children}
+    </button>
+  );
+};
+
+const StudyCard = ({ children, className }) => (
+  <div className={`bg-white border-2 border-[#333] shadow-md ${className || ""}`}>
+    {children}
+  </div>
+);
+
+const mapCategory = (c) => ({
+  "全部": "All",
+  "文学": "Fiction",
+  "历史": "History",
+  "哲学": "Philosophy",
+  "科技": "Science",
+  "艺术": "Art",
+}[c] || "All");
+
+const mapMood = (m) => ({
+  "全部": "All",
+  "静谧治愈": "Happy",
+  "迷雾重重": "Suspenseful",
+  "赤诚热血": "Angry",
+  "孤寂忧郁": "Sad",
+  "意外惊喜": "Surprising",
+}[m] || "All");
+
+const App = () => {
+  const [selectedBook, setSelectedBook] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState("");
+  const [myCollection, setMyCollection] = useState([]); 
+  const [showMyShelf, setShowMyShelf] = useState(false);
+  const [books, setBooks] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchCategory, setSearchCategory] = useState("全部");
+  const [searchMood, setSearchMood] = useState("全部");
+
+  const handleSend = (text) => {
+    if (!text) return;
+    const newMsgs = [...messages, { role: 'user', content: text }];
+    setMessages(newMsgs);
+    setInput("");
+    setTimeout(() => {
+      setMessages([...newMsgs, { role: 'ai', content: `基于《${selectedBook?.title || ''}》和您的阅读心迹，我建议您关注本书的意象表达，那里的情感留白非常契合您的品味。` }]);
+    }, 600);
+  };
+
+  const toggleCollect = async (book) => {
+    try {
+      await addFavorite(book.isbn);
+      if (myCollection.some(b => b.isbn === book.isbn)) {
+        setMyCollection(myCollection.filter(b => b.isbn !== book.isbn));
+      } else {
+        setMyCollection([...myCollection, book]);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const openBook = async (book) => {
+    setSelectedBook(book);
+    setMessages([]);
+    try {
+      const res = await getHighlights(book.isbn);
+      const meta = res?.meta || {};
+      setSelectedBook({ ...book, aiHighlight: (res?.highlights || []).join("\n") || '—', suggestedQuestions: [
+        `这本书适合什么读者？`,
+        `作者还有类似作品吗？`,
+        `能概述主要内容吗？`
+      ], desc: meta?.description || book.desc });
+    } catch (e) {
+      // keep default
+    }
+  };
+
+  const startDiscovery = async () => {
+    setLoading(true); 
+    setError("");
+    try {
+      const recs = await recommend(searchQuery || 'time travel', mapCategory(searchCategory), mapMood(searchMood));
+      const mapped = (recs || []).map((r, idx) => ({
+        id: r.isbn,
+        title: r.title,
+        author: r.authors,
+        category: searchCategory,
+        mood: searchMood,
+        rank: idx + 1,
+        rating: 4,
+        tags: [],
+        desc: r.description,
+        img: r.thumbnail,
+        isbn: r.isbn,
+        aiHighlight: '—',
+        suggestedQuestions: [
+          `适合我当前心境吗？`,
+          `是否有同类推荐？`,
+          `这本书的核心亮点是什么？`
+        ]
+      }));
+      setBooks(mapped);
+    } catch (e) {
+      setError(e.message || '获取推荐失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getRecommendedBooks = () => {
+    if (myCollection.length === 0) return books.slice(0, 3);
+    return books.filter(b => !myCollection.some(cb => cb.isbn === b.isbn)).slice(0, 3);
+  };
+
+  const currentViewBooks = showMyShelf ? myCollection : books;
+
+  return (
+    <div className="min-h-screen bg-[#faf9f6] text-[#444] font-serif tracking-tight">
+      <header className="max-w-5xl mx-auto pt-10 px-4 flex justify-between items-end mb-12">
+        <div>
+          <div className="border border-[#333] px-4 py-1 bg-white shadow-[2px_2px_0px_0px_#eee] inline-block mb-2">
+            <h1 className="text-xl font-bold uppercase tracking-[0.2em] text-[#333]">纸间留白</h1>
+          </div>
+          <p className="text-[10px] text-gray-400 font-medium tracking-widest">在时间的褶皱里，寻找文字的共鸣</p>
+        </div>
+        <div className="flex gap-2">
+          <StudyButton 
+            active={showMyShelf} 
+            color={showMyShelf ? "purple" : "tab"}
+            onClick={() => setShowMyShelf(!showMyShelf)}
+          >
+            <Bookmark className="w-4 h-4 inline mr-1" /> {showMyShelf ? "重返长廊" : "私人书斋"}
+          </StudyButton>
+        </div>
+      </header>
+
+      <main className="max-w-5xl mx-auto px-4 pb-20">
+        {!showMyShelf && (
+          <>
+            {myCollection.length > 0 && (
+              <div className="mb-12 animate-in fade-in slide-in-from-top-4 duration-700">
+                <h4 className="flex items-center gap-2 text-[10px] font-black uppercase text-[#b392ac] mb-4 tracking-widest">
+                  <Sparkles className="w-3.5 h-3.5" /> 墨色余温 · 灵魂契合
+                </h4>
+                <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
+                  {getRecommendedBooks().map(book => (
+                    <div 
+                      key={book.id} 
+                      onClick={() => openBook(book)}
+                      className="min-w-[280px] flex gap-4 bg-white border border-[#333] p-3 shadow-sm hover:shadow-md cursor-pointer transition-all"
+                    >
+                      <img src={book.img} className="w-20 h-28 object-cover border border-[#eee]" />
+                      <div className="flex flex-col justify-between">
+                        <div>
+                          <h5 className="text-[12px] font-bold text-[#333]">{book.title}</h5>
+                          <p className="text-[10px] text-gray-400 mt-1">文字感应: 契合您的"{book.mood}"倾向</p>
+                        </div>
+                        <div className="flex gap-1">
+                          {book.tags.slice(0, 2).map(t => <span key={t} className="text-[8px] px-1.5 py-0.5 bg-[#f8f9fa] border border-[#eee] text-[#999]">{t}</span>)}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="max-w-4xl mx-auto mb-16 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+                <div className="md:col-span-6 flex items-center bg-white border border-[#ddd] p-2 shadow-sm">
+                  <Search className="w-4 h-4 mr-3 text-gray-300 ml-2" />
+                  <input 
+                    className="w-full outline-none text-sm placeholder-gray-400 bg-transparent font-serif"
+                    placeholder="寻觅一个话题、一段心境或是一个梦..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+                <div className="md:col-span-3 flex items-center bg-white border border-[#ddd] p-2 shadow-sm">
+                  <Layers className="w-4 h-4 mr-3 text-gray-300 ml-2" />
+                  <select 
+                    className="w-full outline-none text-sm bg-transparent text-gray-500 font-serif"
+                    value={searchCategory}
+                    onChange={(e) => setSearchCategory(e.target.value)}
+                  >
+                    {CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                  </select>
+                </div>
+                <div className="md:col-span-3 flex items-center bg-white border border-[#ddd] p-2 shadow-sm">
+                  <Smile className="w-4 h-4 mr-3 text-gray-300 ml-2" />
+                  <select 
+                    className="w-full outline-none text-sm bg-transparent text-gray-500 font-serif"
+                    value={searchMood}
+                    onChange={(e) => setSearchMood(e.target.value)}
+                  >
+                    {MOODS.map(mood => <option key={mood} value={mood}>{mood}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="flex justify-center">
+                <StudyButton active color="purple" className="px-12 py-2" onClick={startDiscovery}>
+                  开启发现之旅
+                </StudyButton>
+              </div>
+              {loading && <div className="text-center text-xs text-gray-400">加载中...</div>}
+              {error && <div className="text-center text-xs text-red-400">{error}</div>}
+            </div>
+          </>
+        )}
+
+        {showMyShelf && (
+          <div className="mb-8 flex items-center gap-4 text-xs font-bold text-[#b392ac] bg-[#e5d9f2]/30 p-4 border border-[#b392ac]/20">
+            <BarChart3 className="w-4 h-4" /> 
+            书斋札记：您似乎对 {myCollection.map(b => b.mood).filter((v, i, a) => a.indexOf(v) === i).join("、")} 类的文字情有独钟
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
+          {currentViewBooks.length > 0 ? currentViewBooks.map((book, idx) => (
+            <div 
+              key={idx}
+              onClick={() => openBook(book)}
+              className="group cursor-pointer transform hover:-translate-y-1 transition-all"
+            >
+              <div className="bg-white border border-[#eee] p-1 relative shadow-sm group-hover:shadow-md overflow-hidden">
+                <img src={book.img} alt={book.title} className="w-full aspect-[3/4] object-cover opacity-90 group-hover:opacity-100 transition-opacity" />
+                <div className="absolute inset-0 bg-white/80 flex items-center justify-center p-4 opacity-0 group-hover:opacity-100 transition-opacity text-center px-4">
+                  <p className="text-[10px] font-bold text-[#b392ac] leading-relaxed italic">
+                    {book.aiHighlight}
+                  </p>
+                </div>
+                {myCollection.some(b => b.isbn === book.isbn) && (
+                  <div className="absolute top-1 right-1 bg-[#f4acb7] p-1 shadow-sm">
+                    <Heart className="w-3 h-3 text-white fill-current" />
+                  </div>
+                )}
+              </div>
+              <h3 className="mt-3 text-[12px] font-bold text-[#555] truncate">{book.title}</h3>
+              <div className="flex justify-between items-center mt-1">
+                <span className="text-[9px] text-gray-400 tracking-tighter">{book.author}</span>
+                <span className="text-[9px] bg-[#f8f9fa] border border-[#eee] px-1 text-[#999]">{book.mood}</span>
+              </div>
+            </div>
+          )) : (
+            <div className="col-span-full py-20 text-center text-gray-400 text-xs italic">
+              此处尚无笔墨，去"长廊"寻觅一些灵感吧。
+            </div>
+          )}
+        </div>
+
+        {selectedBook && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/5 backdrop-blur-sm animate-in fade-in duration-300 overflow-y-auto">
+            <StudyCard className="relative bg-white max-w-5xl w-full shadow-2xl border-[#333] my-8">
+              <button 
+                onClick={() => setSelectedBook(null)}
+                className="absolute top-4 right-4 text-gray-300 hover:text-gray-600 transition-colors z-10"
+              >
+                <X className="w-6 h-6" />
+              </button>
+
+              <div className="grid md:grid-cols-12 gap-8 py-4">
+                <div className="md:col-span-4 flex flex-col items-center md:items-start border-r border-[#f5f5f5] pr-4">
+                  <div className="border border-[#eee] p-1 bg-white shadow-sm mb-4 w-48">
+                    <img src={selectedBook.img} alt="cover" className="w-full aspect-[3/4] object-cover" />
+                  </div>
+                  <h2 className="text-xl font-bold text-[#333] mb-1">{selectedBook.title}</h2>
+                  <p className="text-xs text-[#999] mb-4 tracking-tighter">{selectedBook.author} • 卷号: {selectedBook.isbn}</p>
+                  <div className="bg-[#fff9f9] border border-[#f4acb7] p-4 w-full relative mb-6">
+                    <Sparkles className="w-3 h-3 text-[#f4acb7] absolute -top-1.5 -left-1.5 fill-current" />
+                    <h4 className="text-[9px] font-bold text-[#f4acb7] uppercase mb-1 tracking-widest">文字的直觉</h4>
+                    <p className="text-[11px] font-bold text-[#f4acb7] italic leading-relaxed">
+                      {selectedBook.aiHighlight}
+                    </p>
+                  </div>
+                  <div className="w-full space-y-4">
+                    <div className="space-y-1">
+                      <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1">
+                        <Trophy className="w-3 h-3" /> 评分
+                      </h4>
+                      <div className="flex justify-between items-center bg-[#faf9f6] p-2 border border-[#eee]">
+                        <span className="text-[11px] font-bold text-[#735d78]">长廊排行 #{selectedBook.rank}</span>
+                        <div className="flex gap-0.5 text-[#ffcad4]">
+                          {[1,2,3,4,5].map(i => <Star key={i} className={`w-3 h-3 ${i <= selectedBook.rating ? 'fill-current' : ''}`} />)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="md:col-span-8 flex flex-col space-y-6">
+                  <div className="space-y-2">
+                    <h4 className="flex items-center gap-2 text-[10px] font-bold uppercase text-gray-400 tracking-wider">
+                      <MessageCircle className="w-3.5 h-3.5" /> 文本印迹
+                    </h4>
+                    <div className="flex flex-wrap gap-2 p-3 bg-[#faf9f6] border border-[#eee]">
+                      {selectedBook.tags.map(tag => (
+                        <span key={tag} className="px-2 py-0.5 bg-white border border-[#eee] text-[10px] text-[#b392ac] font-bold">
+                          {tag}
+                        </span>
+                      ))}
+                      <span className="text-[10px] px-2 py-0.5 bg-[#e5d9f2]/40 text-[#735d78] font-bold border border-dashed border-[#b392ac]/30">{selectedBook.mood}</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="flex items-center gap-2 text-[10px] font-bold uppercase text-gray-400 tracking-wider">
+                      <Info className="w-3.5 h-3.5" /> 书籍概要
+                    </h4>
+                    <div className="p-4 bg-white border border-[#eee] text-[12px] leading-relaxed text-[#666] italic border-l-[4px] border-l-[#b392ac]">
+                      "{selectedBook.desc}"
+                    </div>
+                  </div>
+
+                  <div className="flex-grow flex flex-col border border-[#eee] bg-[#faf9f6] overflow-hidden h-[300px]">
+                    <div className="p-2 border-b border-[#eee] bg-white flex justify-between items-center">
+                      <span className="text-[10px] font-bold text-[#b392ac] flex items-center gap-2 uppercase tracking-widest">
+                        <MessageSquare className="w-3 h-3" /> 书斋对谈
+                      </span>
+                    </div>
+                    <div className="flex-grow overflow-y-auto p-4 space-y-3">
+                      <div className="flex justify-start">
+                        <div className="max-w-[85%] p-2 bg-white border border-[#eee] text-[11px] text-[#735d78] shadow-sm">
+                          您好。基于您的馆藏偏好，我发现此书的"{selectedBook.mood}"氛围与您的藏书极度契合。想探讨其中的微言大义吗？
+                        </div>
+                      </div>
+                      {messages.map((m, i) => (
+                        <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`max-w-[80%] p-2 border text-[11px] shadow-sm ${
+                            m.role === 'user' 
+                              ? 'bg-[#b392ac] text-white border-[#b392ac]' 
+                              : 'bg-white text-[#666] border-[#eee]'
+                          }`}>
+                            {m.content}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="p-3 bg-white border-t border-[#eee] space-y-3">
+                      <div className="flex flex-wrap gap-2">
+                        {(selectedBook.suggestedQuestions || []).map((q, idx) => (
+                          <button 
+                            key={idx}
+                            onClick={() => handleSend(q)}
+                            className="text-[9px] px-2 py-1 bg-[#f8f9fa] border border-[#eee] text-gray-500 hover:border-[#b392ac] hover:text-[#b392ac] transition-colors"
+                          >
+                            {q}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <input 
+                          value={input}
+                          onChange={(e) => setInput(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && handleSend(input)}
+                          className="flex-grow border border-[#eee] p-2 text-[11px] outline-none focus:border-[#b392ac] bg-[#faf9f6] font-serif" 
+                          placeholder="向书斋助理提问..." 
+                        />
+                        <button onClick={() => handleSend(input)} className="bg-[#333] text-white p-2">
+                          <Send className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <StudyButton 
+                      active 
+                      color={myCollection.some(b => b.isbn === selectedBook.isbn) ? "peach" : "purple"} 
+                      className="flex-grow py-3 text-sm flex items-center justify-center gap-2 font-bold"
+                      onClick={() => toggleCollect(selectedBook)}
+                    >
+                      <Bookmark className={`w-4 h-4 ${myCollection.some(b => b.isbn === selectedBook.isbn) ? 'fill-current' : ''}`} />
+                      {myCollection.some(b => b.isbn === selectedBook.isbn) ? "已入藏书馆" : "加入藏书馆"}
+                    </StudyButton>
+                  </div>
+                </div>
+              </div>
+            </StudyCard>
+          </div>
+        )}
+      </main>
+
+      <footer className="mt-16 text-center text-[9px] font-medium text-gray-300 uppercase tracking-widest pb-10 border-t border-[#eee] pt-10">
+        纸间留白 // 2026 您的私人书斋
+      </footer>
+    </div>
+  );
+};
+
+export default App;

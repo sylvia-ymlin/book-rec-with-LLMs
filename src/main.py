@@ -1,13 +1,17 @@
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional, Dict, Any
 import time
 import prometheus_client
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 
 from src.recommender import BookRecommender
 from src.utils import setup_logger
+from src.user.profile_store import add_favorite, list_favorites
+from src.marketing.persona import build_persona
+from src.marketing.highlights import generate_highlights
 
 logger = setup_logger(__name__)
 
@@ -19,6 +23,20 @@ app = FastAPI(
     title="Book Recommender API",
     description="API for Intelligent Book Recommendation System",
     version="1.0.0"
+)
+
+# Allow local frontend dev origins
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # --- Observability Middleware ---
@@ -78,6 +96,16 @@ class BookResponse(BaseModel):
 class RecommendationResponse(BaseModel):
     recommendations: List[BookResponse]
 
+
+class FavoriteRequest(BaseModel):
+    user_id: Optional[str] = "local"
+    isbn: str
+
+
+class HighlightsRequest(BaseModel):
+    isbn: str
+    user_id: Optional[str] = "local"
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint to verify service status."""
@@ -113,6 +141,46 @@ async def get_tones():
     if not recommender:
          raise HTTPException(status_code=503, detail="Service not ready")
     return {"tones": recommender.get_tones()}
+
+
+# --- Favorites & Persona & Highlights ---
+@app.post("/favorites/add")
+async def favorites_add(req: FavoriteRequest):
+    if not recommender:
+        raise HTTPException(status_code=503, detail="Service not ready")
+    try:
+        count = add_favorite(req.user_id or "local", req.isbn)
+        return {"status": "ok", "favorites_count": count}
+    except Exception as e:
+        logger.error(f"favorites_add error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/user/{user_id}/persona")
+async def user_persona(user_id: str):
+    if not recommender:
+        raise HTTPException(status_code=503, detail="Service not ready")
+    try:
+        favs = list_favorites(user_id)
+        persona = build_persona(favs, recommender.books)
+        return {"user_id": user_id, "favorites": favs, "persona": persona}
+    except Exception as e:
+        logger.error(f"user_persona error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/marketing/highlights")
+async def marketing_highlights(req: HighlightsRequest):
+    if not recommender:
+        raise HTTPException(status_code=503, detail="Service not ready")
+    try:
+        favs = list_favorites(req.user_id or "local")
+        persona = build_persona(favs, recommender.books)
+        result = generate_highlights(req.isbn, persona, recommender.books)
+        return {"persona": persona, "highlights": result.get("highlights", []), "meta": result}
+    except Exception as e:
+        logger.error(f"marketing_highlights error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/benchmark")
