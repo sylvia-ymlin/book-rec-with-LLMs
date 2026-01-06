@@ -2,10 +2,10 @@ import React, { useState } from "react";
 import { Bookmark, Heart, Search, Layers, Smile, Sparkles, Star, Trophy, BarChart3, X, MessageCircle, MessageSquare, Info, Send } from "lucide-react";
 import { recommend, addFavorite, getPersona, getHighlights } from "./api";
 
-// --- 文艺风格组件 ---
+// --- Elegant Book Discovery UI ---
 
-const CATEGORIES = ["全部", "文学", "历史", "哲学", "科技", "艺术"];
-const MOODS = ["全部", "静谧治愈", "迷雾重重", "赤诚热血", "孤寂忧郁", "意外惊喜"];
+const CATEGORIES = ["All", "Fiction", "History", "Philosophy", "Science", "Art"];
+const MOODS = ["All", "Happy", "Suspenseful", "Angry", "Sad", "Surprising"];
 
 const StudyButton = ({ children, active, color, className, onClick }) => {
   const colors = {
@@ -29,24 +29,6 @@ const StudyCard = ({ children, className }) => (
   </div>
 );
 
-const mapCategory = (c) => ({
-  "全部": "All",
-  "文学": "Fiction",
-  "历史": "History",
-  "哲学": "Philosophy",
-  "科技": "Science",
-  "艺术": "Art",
-}[c] || "All");
-
-const mapMood = (m) => ({
-  "全部": "All",
-  "静谧治愈": "Happy",
-  "迷雾重重": "Suspenseful",
-  "赤诚热血": "Angry",
-  "孤寂忧郁": "Sad",
-  "意外惊喜": "Surprising",
-}[m] || "All");
-
 const App = () => {
   const [selectedBook, setSelectedBook] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -58,8 +40,8 @@ const App = () => {
   const [error, setError] = useState("");
   
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchCategory, setSearchCategory] = useState("全部");
-  const [searchMood, setSearchMood] = useState("全部");
+  const [searchCategory, setSearchCategory] = useState("All");
+  const [searchMood, setSearchMood] = useState("All");
 
   const handleSend = (text) => {
     if (!text) return;
@@ -67,7 +49,7 @@ const App = () => {
     setMessages(newMsgs);
     setInput("");
     setTimeout(() => {
-      setMessages([...newMsgs, { role: 'ai', content: `基于《${selectedBook?.title || ''}》和您的阅读心迹，我建议您关注本书的意象表达，那里的情感留白非常契合您的品味。` }]);
+      setMessages([...newMsgs, { role: 'ai', content: `Based on "${selectedBook?.title || ''}" and your reading taste, I recommend paying attention to the thematic elements—they truly resonate with your preferences.` }]);
     }, 600);
   };
 
@@ -91,9 +73,9 @@ const App = () => {
       const res = await getHighlights(book.isbn);
       const meta = res?.meta || {};
       setSelectedBook({ ...book, aiHighlight: (res?.highlights || []).join("\n") || '—', suggestedQuestions: [
-        `这本书适合什么读者？`,
-        `作者还有类似作品吗？`,
-        `能概述主要内容吗？`
+        `Who is the target audience for this book?`,
+        `Does the author have similar works?`,
+        `Can you summarize the main content?`
       ], desc: meta?.description || book.desc });
     } catch (e) {
       // keep default
@@ -104,7 +86,7 @@ const App = () => {
     setLoading(true); 
     setError("");
     try {
-      const recs = await recommend(searchQuery || 'time travel', mapCategory(searchCategory), mapMood(searchMood));
+      const recs = await recommend(searchQuery || 'adventure', searchCategory, searchMood);
       const mapped = (recs || []).map((r, idx) => ({
         id: r.isbn,
         title: r.title,
@@ -119,14 +101,14 @@ const App = () => {
         isbn: r.isbn,
         aiHighlight: '—',
         suggestedQuestions: [
-          `适合我当前心境吗？`,
-          `是否有同类推荐？`,
-          `这本书的核心亮点是什么？`
+          `Matches my current mood?`,
+          `Any similar recommendations?`,
+          `What's the core highlight?`
         ]
       }));
       setBooks(mapped);
     } catch (e) {
-      setError(e.message || '获取推荐失败');
+      setError(e.message || 'Failed to get recommendations');
     } finally {
       setLoading(false);
     }
@@ -144,9 +126,9 @@ const App = () => {
       <header className="max-w-5xl mx-auto pt-10 px-4 flex justify-between items-end mb-12">
         <div>
           <div className="border border-[#333] px-4 py-1 bg-white shadow-[2px_2px_0px_0px_#eee] inline-block mb-2">
-            <h1 className="text-xl font-bold uppercase tracking-[0.2em] text-[#333]">纸间留白</h1>
+            <h1 className="text-xl font-bold uppercase tracking-[0.2em] text-[#333]">Paper Shelf</h1>
           </div>
-          <p className="text-[10px] text-gray-400 font-medium tracking-widest">在时间的褶皱里，寻找文字的共鸣</p>
+          <p className="text-[10px] text-gray-400 font-medium tracking-widest">Discover books that resonate with your soul</p>
         </div>
         <div className="flex gap-2">
           <StudyButton 
@@ -154,7 +136,7 @@ const App = () => {
             color={showMyShelf ? "purple" : "tab"}
             onClick={() => setShowMyShelf(!showMyShelf)}
           >
-            <Bookmark className="w-4 h-4 inline mr-1" /> {showMyShelf ? "重返长廊" : "私人书斋"}
+            <Bookmark className="w-4 h-4 inline mr-1" /> {showMyShelf ? "Back to Gallery" : "My Collection"}
           </StudyButton>
         </div>
       </header>
@@ -165,7 +147,7 @@ const App = () => {
             {myCollection.length > 0 && (
               <div className="mb-12 animate-in fade-in slide-in-from-top-4 duration-700">
                 <h4 className="flex items-center gap-2 text-[10px] font-black uppercase text-[#b392ac] mb-4 tracking-widest">
-                  <Sparkles className="w-3.5 h-3.5" /> 墨色余温 · 灵魂契合
+                  <Sparkles className="w-3.5 h-3.5" /> Soul-Matched Recommendations
                 </h4>
                 <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
                   {getRecommendedBooks().map(book => (
@@ -178,7 +160,7 @@ const App = () => {
                       <div className="flex flex-col justify-between">
                         <div>
                           <h5 className="text-[12px] font-bold text-[#333]">{book.title}</h5>
-                          <p className="text-[10px] text-gray-400 mt-1">文字感应: 契合您的"{book.mood}"倾向</p>
+                          <p className="text-[10px] text-gray-400 mt-1">Resonates with your "{book.mood}" preference</p>
                         </div>
                         <div className="flex gap-1">
                           {book.tags.slice(0, 2).map(t => <span key={t} className="text-[8px] px-1.5 py-0.5 bg-[#f8f9fa] border border-[#eee] text-[#999]">{t}</span>)}
@@ -196,7 +178,7 @@ const App = () => {
                   <Search className="w-4 h-4 mr-3 text-gray-300 ml-2" />
                   <input 
                     className="w-full outline-none text-sm placeholder-gray-400 bg-transparent font-serif"
-                    placeholder="寻觅一个话题、一段心境或是一个梦..."
+                    placeholder="Search for a topic, mood, or dream..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
@@ -224,10 +206,10 @@ const App = () => {
               </div>
               <div className="flex justify-center">
                 <StudyButton active color="purple" className="px-12 py-2" onClick={startDiscovery}>
-                  开启发现之旅
+                  Start Discovery
                 </StudyButton>
               </div>
-              {loading && <div className="text-center text-xs text-gray-400">加载中...</div>}
+              {loading && <div className="text-center text-xs text-gray-400">Loading...</div>}
               {error && <div className="text-center text-xs text-red-400">{error}</div>}
             </div>
           </>
@@ -236,7 +218,7 @@ const App = () => {
         {showMyShelf && (
           <div className="mb-8 flex items-center gap-4 text-xs font-bold text-[#b392ac] bg-[#e5d9f2]/30 p-4 border border-[#b392ac]/20">
             <BarChart3 className="w-4 h-4" /> 
-            书斋札记：您似乎对 {myCollection.map(b => b.mood).filter((v, i, a) => a.indexOf(v) === i).join("、")} 类的文字情有独钟
+            Your collection shows a preference for: {myCollection.map(b => b.mood).filter((v, i, a) => a.indexOf(v) === i).join(", ")}
           </div>
         )}
 
@@ -268,7 +250,7 @@ const App = () => {
             </div>
           )) : (
             <div className="col-span-full py-20 text-center text-gray-400 text-xs italic">
-              此处尚无笔墨，去"长廊"寻觅一些灵感吧。
+              No books here yet. Start discovering to build your collection.
             </div>
           )}
         </div>
@@ -289,10 +271,10 @@ const App = () => {
                     <img src={selectedBook.img} alt="cover" className="w-full aspect-[3/4] object-cover" />
                   </div>
                   <h2 className="text-xl font-bold text-[#333] mb-1">{selectedBook.title}</h2>
-                  <p className="text-xs text-[#999] mb-4 tracking-tighter">{selectedBook.author} • 卷号: {selectedBook.isbn}</p>
+                  <p className="text-xs text-[#999] mb-4 tracking-tighter">{selectedBook.author} • ISBN: {selectedBook.isbn}</p>
                   <div className="bg-[#fff9f9] border border-[#f4acb7] p-4 w-full relative mb-6">
                     <Sparkles className="w-3 h-3 text-[#f4acb7] absolute -top-1.5 -left-1.5 fill-current" />
-                    <h4 className="text-[9px] font-bold text-[#f4acb7] uppercase mb-1 tracking-widest">文字的直觉</h4>
+                    <h4 className="text-[9px] font-bold text-[#f4acb7] uppercase mb-1 tracking-widest">AI Insight</h4>
                     <p className="text-[11px] font-bold text-[#f4acb7] italic leading-relaxed">
                       {selectedBook.aiHighlight}
                     </p>
@@ -300,10 +282,10 @@ const App = () => {
                   <div className="w-full space-y-4">
                     <div className="space-y-1">
                       <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1">
-                        <Trophy className="w-3 h-3" /> 评分
+                        <Trophy className="w-3 h-3" /> Rating
                       </h4>
                       <div className="flex justify-between items-center bg-[#faf9f6] p-2 border border-[#eee]">
-                        <span className="text-[11px] font-bold text-[#735d78]">长廊排行 #{selectedBook.rank}</span>
+                        <span className="text-[11px] font-bold text-[#735d78]">Rank #{selectedBook.rank}</span>
                         <div className="flex gap-0.5 text-[#ffcad4]">
                           {[1,2,3,4,5].map(i => <Star key={i} className={`w-3 h-3 ${i <= selectedBook.rating ? 'fill-current' : ''}`} />)}
                         </div>
@@ -315,7 +297,7 @@ const App = () => {
                 <div className="md:col-span-8 flex flex-col space-y-6">
                   <div className="space-y-2">
                     <h4 className="flex items-center gap-2 text-[10px] font-bold uppercase text-gray-400 tracking-wider">
-                      <MessageCircle className="w-3.5 h-3.5" /> 文本印迹
+                      <MessageCircle className="w-3.5 h-3.5" /> Key Themes
                     </h4>
                     <div className="flex flex-wrap gap-2 p-3 bg-[#faf9f6] border border-[#eee]">
                       {selectedBook.tags.map(tag => (
@@ -329,7 +311,7 @@ const App = () => {
 
                   <div className="space-y-2">
                     <h4 className="flex items-center gap-2 text-[10px] font-bold uppercase text-gray-400 tracking-wider">
-                      <Info className="w-3.5 h-3.5" /> 书籍概要
+                      <Info className="w-3.5 h-3.5" /> Summary
                     </h4>
                     <div className="p-4 bg-white border border-[#eee] text-[12px] leading-relaxed text-[#666] italic border-l-[4px] border-l-[#b392ac]">
                       "{selectedBook.desc}"
@@ -339,13 +321,13 @@ const App = () => {
                   <div className="flex-grow flex flex-col border border-[#eee] bg-[#faf9f6] overflow-hidden h-[300px]">
                     <div className="p-2 border-b border-[#eee] bg-white flex justify-between items-center">
                       <span className="text-[10px] font-bold text-[#b392ac] flex items-center gap-2 uppercase tracking-widest">
-                        <MessageSquare className="w-3 h-3" /> 书斋对谈
+                        <MessageSquare className="w-3 h-3" /> Discussion
                       </span>
                     </div>
                     <div className="flex-grow overflow-y-auto p-4 space-y-3">
                       <div className="flex justify-start">
                         <div className="max-w-[85%] p-2 bg-white border border-[#eee] text-[11px] text-[#735d78] shadow-sm">
-                          您好。基于您的馆藏偏好，我发现此书的"{selectedBook.mood}"氛围与您的藏书极度契合。想探讨其中的微言大义吗？
+                          Hello! Based on your collection preferences, I found this book's {selectedBook.mood} atmosphere pairs beautifully with your taste. Would you like to explore its themes?
                         </div>
                       </div>
                       {messages.map((m, i) => (
@@ -378,7 +360,7 @@ const App = () => {
                           onChange={(e) => setInput(e.target.value)}
                           onKeyDown={(e) => e.key === 'Enter' && handleSend(input)}
                           className="flex-grow border border-[#eee] p-2 text-[11px] outline-none focus:border-[#b392ac] bg-[#faf9f6] font-serif" 
-                          placeholder="向书斋助理提问..." 
+                          placeholder="Ask a question..." 
                         />
                         <button onClick={() => handleSend(input)} className="bg-[#333] text-white p-2">
                           <Send className="w-3.5 h-3.5" />
@@ -395,7 +377,7 @@ const App = () => {
                       onClick={() => toggleCollect(selectedBook)}
                     >
                       <Bookmark className={`w-4 h-4 ${myCollection.some(b => b.isbn === selectedBook.isbn) ? 'fill-current' : ''}`} />
-                      {myCollection.some(b => b.isbn === selectedBook.isbn) ? "已入藏书馆" : "加入藏书馆"}
+                      {myCollection.some(b => b.isbn === selectedBook.isbn) ? "In Collection" : "Add to Collection"}
                     </StudyButton>
                   </div>
                 </div>
@@ -406,7 +388,7 @@ const App = () => {
       </main>
 
       <footer className="mt-16 text-center text-[9px] font-medium text-gray-300 uppercase tracking-widest pb-10 border-t border-[#eee] pt-10">
-        纸间留白 // 2026 您的私人书斋
+        Paper Shelf // 2026 Your Personal Library
       </footer>
     </div>
   );
