@@ -5,12 +5,17 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
-- Performance benchmarking (`benchmarks/benchmark.py`, `benchmarks/results.md`)
-- `/benchmark` API endpoint for live performance testing
-- Chinese resume descriptions in interview prep document
-- Live production benchmark: **0.3-0.4s** backend latency
-- Unit tests for Recommender and VectorDB components
-- GitHub Actions CI workflow for automated testing and linting
+- **Super App Architecture**: Transformed into "End-to-End AI E-Commerce Platform" with 3-tab UI.
+- **Data**: Integrated Amazon Books 200k Dataset.
+- **Features**:
+  - Discovery Tab (Redis + ChromaDB).
+  - Assistant Tab (RAG Shopping Agent).
+  - Marketing Tab (Content Gen + Guardrails).
+- **Benchmarks**: Added `/benchmark` endpoint (0.3s latency).
+- **CI**: Added GitHub Actions workflow (`ci.yml`).
+
+### Changed
+- **Docs**: Renamed `INTERVIEW_PREP.md` to `interview_prep.md` and updated to academic style.
 
 
 ### Changed

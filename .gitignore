@@ -47,7 +47,7 @@ Thumbs.db
 *.csv
 *.txt
 !data/books_with_emotions.csv
-!data/books_descriptions.txt
+# !data/books_descriptions.txt (Too large for git, 178MB)
 
 # Model files
 *.pkl

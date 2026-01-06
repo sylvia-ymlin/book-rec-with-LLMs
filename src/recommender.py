@@ -3,6 +3,7 @@ from typing import List, Dict, Any
 from src.etl import load_books_data
 from src.vector_db import VectorDB
 from src.config import TOP_K_INITIAL, TOP_K_FINAL
+from src.cache import CacheManager
 from src.utils import setup_logger
 
 logger = setup_logger(__name__)
@@ -14,11 +15,13 @@ class BookRecommender:
     Attributes:
         books (pd.DataFrame): The dataset containing book metadata and emotions.
         vector_db (VectorDB): The vector database instance for semantic search.
+        cache (CacheManager): Redis cache manager.
     """
     def __init__(self) -> None:
         """Initialize the recommender by loading data and the vector database."""
         self.books = load_books_data()
         self.vector_db = VectorDB()
+        self.cache = CacheManager()
         
     def get_recommendations(
         self, 
@@ -28,20 +31,35 @@ class BookRecommender:
     ) -> List[Dict[str, Any]]:
         """
         Generate book recommendations based on query, category, and tone.
-        Returns a list of dictionaries with book details.
         """
         try:
             if not query or not query.strip():
                 return []
 
+            # Check Cache
+            cache_key = self.cache.generate_key("rec", q=query, c=category, t=tone)
+            cached_result = self.cache.get(cache_key)
+            if cached_result:
+                logger.info(f"Returning cached results for key: {cache_key}")
+                return cached_result
+
             logger.info(f"Processing request: query='{query}', category='{category}', tone='{tone}'")
             
             # 1. Semantic Search
             recs = self.vector_db.search(query, k=TOP_K_INITIAL)
-            books_list = [int(rec.page_content.strip('"').split()[0]) for rec in recs]
+            # Handle potential inconsistent ISBN formats (str vs int)
+            books_list = []
+            for rec in recs:
+                isbn_str = rec.page_content.strip('"').split()[0]
+                try:
+                     # New dataset IDs might be strings (ASIN) or ints
+                     books_list.append(isbn_str) 
+                except:
+                     continue
             
-            # 2. Filter by ISBN
-            book_recs = self.books[self.books["isbn13"].isin(books_list)].head(TOP_K_INITIAL)
+            # 2. Filter by ISBN (Handle both string and int ISBNs from new dataset)
+            # Ensure ISBN column type matches
+            book_recs = self.books[self.books["isbn13"].astype(str).isin(books_list)].head(TOP_K_INITIAL)
             
             # 3. Filter by Category
             if category and category != "All":
@@ -61,7 +79,12 @@ class BookRecommender:
                 if tone in tone_map:
                     book_recs = book_recs.sort_values(by=tone_map[tone], ascending=False)
 
-            return self._format_results(book_recs)
+            results = self._format_results(book_recs)
+            
+            # Set Cache
+            self.cache.set(cache_key, results)
+            
+            return results
 
         except Exception as e:
             logger.error(f"Error getting recommendations: {str(e)}")

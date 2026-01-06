@@ -1,16 +1,54 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import Response
 from pydantic import BaseModel
 from typing import List
+import time
+import prometheus_client
+from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+
 from src.recommender import BookRecommender
 from src.utils import setup_logger
 
 logger = setup_logger(__name__)
+
+# --- Prometheus Metrics ---
+REQUEST_COUNT = Counter("http_requests_total", "Total count of HTTP requests", ["method", "endpoint", "status_code"])
+REQUEST_LATENCY = Histogram("http_request_duration_seconds", "HTTP request latency in seconds", ["method", "endpoint"])
 
 app = FastAPI(
     title="Book Recommender API",
     description="API for Intelligent Book Recommendation System",
     version="1.0.0"
 )
+
+# --- Observability Middleware ---
+@app.middleware("http")
+async def prometheus_middleware(request: Request, call_next):
+    method = request.method
+    path = request.url.path
+    
+    # Skip noise endpoints
+    if path in ["/metrics", "/health"]:
+        return await call_next(request)
+        
+    start_time = time.perf_counter()
+    try:
+        response = await call_next(request)
+        status = str(response.status_code)
+    except Exception as e:
+        status = "500"
+        raise e
+    finally:
+        process_time = time.perf_counter() - start_time
+        REQUEST_COUNT.labels(method=method, endpoint=path, status_code=status).inc()
+        REQUEST_LATENCY.labels(method=method, endpoint=path).observe(process_time)
+        
+    return response
+
+@app.get("/metrics")
+async def metrics():
+    """Expose Prometheus metrics."""
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 # Initialize Recommender (Singleton)
 # We do this on startup so the first request is fast
