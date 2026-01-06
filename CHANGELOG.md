@@ -5,8 +5,10 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
-- Performance benchmarking script (`benchmarks/benchmark.py`)
+- Performance benchmarking (`benchmarks/benchmark.py`, `benchmarks/results.md`)
+- `/benchmark` API endpoint for live performance testing
 - Chinese resume descriptions in interview prep document
+- Live production benchmark: **0.3-0.4s** backend latency
 
 ### Changed
 - Reorganized project structure: `data/`, `assets/`, `notebooks/` directories
