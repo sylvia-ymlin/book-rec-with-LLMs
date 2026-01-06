@@ -9,6 +9,9 @@ All notable changes to this project will be documented in this file.
 - `/benchmark` API endpoint for live performance testing
 - Chinese resume descriptions in interview prep document
 - Live production benchmark: **0.3-0.4s** backend latency
+- Unit tests for Recommender and VectorDB components
+- GitHub Actions CI workflow for automated testing and linting
+
 
 ### Changed
 - Reorganized project structure: `data/`, `assets/`, `notebooks/` directories
