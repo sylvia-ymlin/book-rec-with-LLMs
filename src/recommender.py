@@ -145,7 +145,8 @@ class BookRecommender:
                 "caption": f"{row['title']} by {authors_str}: {truncated_desc}",
                 "tags": tags,
                 "emotions": emotions,
-                "review_highlights": review_highlights
+                "review_highlights": review_highlights,
+                "average_rating": float(row.get("average_rating", 0.0))
             })
         logger.info(f"Sample result: {results[0] if results else 'EMPTY'}")
         return results

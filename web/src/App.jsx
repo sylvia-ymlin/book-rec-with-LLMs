@@ -94,8 +94,9 @@ const App = () => {
         category: searchCategory,
         mood: searchMood,
         rank: idx + 1,
-        rating: 4,
+        rating: r.average_rating || 0,
         tags: r.tags || [],
+        review_highlights: r.review_highlights || [],
         desc: r.description,
         img: r.thumbnail,
         isbn: r.isbn,
@@ -273,69 +274,61 @@ const App = () => {
               </button>
 
               <div className="grid md:grid-cols-12 gap-8 md:gap-10 px-6 md:px-10 py-6">
-                <div className="md:col-span-4 flex flex-col items-center md:items-start border-r border-[#f5f5f5] pr-0 md:pr-6">
+                <div className="md:col-span-5 flex flex-col items-center border-r border-[#f5f5f5] pr-0 md:pr-6">
                   <div className="border border-[#eee] p-1 bg-white shadow-sm mb-4 w-52 md:w-56">
                     <img src={selectedBook.img} alt="cover" className="w-full aspect-[3/4] object-cover" />
                   </div>
-                  <h2 className="text-xl font-bold text-[#333] mb-1">{selectedBook.title}</h2>
-                  <p className="text-xs text-[#999] mb-4 tracking-tighter">{selectedBook.author} • ISBN: {selectedBook.isbn}</p>
+                  
+                  <h2 className="text-xl font-bold text-[#333] mb-1 text-center md:text-left w-full">{selectedBook.title}</h2>
+                  <p className="text-xs text-[#999] mb-4 tracking-tighter text-center md:text-left w-full">{selectedBook.author} • ISBN: {selectedBook.isbn}</p>
+                  
                   <div className="bg-[#fff9f9] border border-[#f4acb7] p-4 w-full relative mb-6">
                     <Sparkles className="w-3 h-3 text-[#f4acb7] absolute -top-1.5 -left-1.5 fill-current" />
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[11px] font-bold text-[#f4acb7]">{selectedBook.rating ? selectedBook.rating.toFixed(1) : '0.0'}</span>
+                      <div className="flex gap-0.5 text-[#f4acb7]">
+                        {[1,2,3,4,5].map(i => <Star key={i} className={`w-3 h-3 ${i <= selectedBook.rating ? 'fill-current' : ''}`} />)}
+                      </div>
+                    </div>
                     <p className="text-[11px] font-bold text-[#f4acb7] italic leading-relaxed">
                       {selectedBook.aiHighlight}
                     </p>
                   </div>
-                  <div className="w-full space-y-4">
-                    <div className="space-y-1">
-                      <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1">
-                        <Trophy className="w-3 h-3" /> Rating
-                      </h4>
-                      <div className="flex justify-between items-center bg-[#faf9f6] p-2 border border-[#eee]">
-                        <span className="text-[11px] font-bold text-[#735d78]">Rank #{selectedBook.rank}</span>
-                        <div className="flex gap-0.5 text-[#ffcad4]">
-                          {[1,2,3,4,5].map(i => <Star key={i} className={`w-3 h-3 ${i <= selectedBook.rating ? 'fill-current' : ''}`} />)}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-1">
-                      <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1">
-                        <Smile className="w-3 h-3" /> Mood
-                      </h4>
-                      <div className="flex flex-wrap gap-2 bg-[#faf9f6] p-2 border border-[#eee]">
-                        {(Object.entries(selectedBook.emotions || {})
-                          .sort((a, b) => b[1] - a[1])
-                          .slice(0, 2)).map(([emo, score]) => (
-                          <span key={emo} className="text-[9px] px-2 py-0.5 bg-white border border-[#eee] text-[#735d78] capitalize">
-                            {emo} {Math.round(score * 100)}%
-                          </span>
-                        ))}
-                        {(!selectedBook.emotions || Object.keys(selectedBook.emotions).length === 0) && (
-                          <span className="text-[9px] text-gray-300 italic">No mood data</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="md:col-span-8 flex flex-col space-y-6">
-                  <div className="space-y-2">
-                    <h4 className="flex items-center gap-2 text-[10px] font-bold uppercase text-gray-400 tracking-wider">
-                      <MessageCircle className="w-3.5 h-3.5" /> Key Themes
+                  
+                  <div className="w-full mb-6">
+                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1 mb-2">
+                      <Smile className="w-3 h-3" /> Mood
                     </h4>
-                    <div className="flex flex-wrap gap-2 p-3 bg-[#faf9f6] border border-[#eee]">
-                      {selectedBook.tags && selectedBook.tags.length > 0 ? (
-                        selectedBook.tags.map(tag => (
-                          <span key={tag} className="px-2 py-0.5 bg-white border border-[#eee] text-[10px] text-[#b392ac] font-bold">
-                            {tag}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-[10px] text-gray-300 italic">No themes found</span>
+                    <div className="flex flex-wrap gap-1">
+                      {(Object.entries(selectedBook.emotions || {})
+                        .sort((a, b) => b[1] - a[1])
+                        .slice(0, 2)).map(([emo, score]) => (
+                        <span key={emo} className="text-[9px] text-[#735d78] capitalize">
+                          {emo} {Math.round(score * 100)}%
+                        </span>
+                      ))}
+                      {(!selectedBook.emotions || Object.keys(selectedBook.emotions).length === 0) && (
+                        <span className="text-[9px] text-gray-300 italic">No mood data</span>
                       )}
                     </div>
                   </div>
+                  
+                  {selectedBook.review_highlights && selectedBook.review_highlights.length > 0 && (
+                    <div className="w-full mt-auto space-y-2 text-left">
+                      {selectedBook.review_highlights.slice(0, 3).map((highlight, idx) => {
+                        const isCompleteSentence = /^[A-Z]/.test(highlight.trim());
+                        const prefix = isCompleteSentence ? '' : '...';
+                        return (
+                          <p key={idx} className="text-[10px] text-[#666] leading-relaxed italic pl-2">
+                            - "{prefix}{highlight}"
+                          </p>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
 
+                <div className="md:col-span-7 flex flex-col space-y-6">
                   <div className="space-y-2">
                     <h4 className="flex items-center gap-2 text-[10px] font-bold uppercase text-gray-400 tracking-wider">
                       <Info className="w-3.5 h-3.5" /> Summary
