@@ -115,7 +115,8 @@ class BookRecommender:
                 authors_str = row["authors"]
             
             # Fetch book cover in real-time from Google Books API
-            thumbnail = fetch_book_cover(str(row["isbn13"]), row["title"])
+            thumbnail, api_authors = fetch_book_cover(str(row["isbn13"]), row["title"])
+            authors_str = api_authors if api_authors != "Unknown" else authors_str
                 
             results.append({
                 "isbn": row["isbn13"],

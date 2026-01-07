@@ -30,55 +30,55 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PLACEHOLDER_COVER = str(PROJECT_ROOT / "assets" / "cover-not-found.jpg")
 
 @lru_cache(maxsize=1000)
-def fetch_book_cover(isbn: str, title: str = "") -> str:
+def fetch_book_cover(isbn: str, title: str = "") -> tuple[str, str]:
     """
-    Fetch book cover URL from Google Books API or Open Library.
-    
-    Args:
-        isbn: ISBN-13 of the book
-        title: Book title (used for placeholder text)
-    
+    Fetch book cover URL (Google Books -> Open Library) and best-effort authors.
+
     Returns:
-        URL of the book cover image
+        (cover_url, authors_str)
     """
+    cover = PLACEHOLDER_COVER
+    authors_str = "Unknown"
+
     # Try Google Books API first
     try:
         url = f"https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn}"
         response = requests.get(url, timeout=2)
-        
+
         if response.status_code == 200:
             data = response.json()
             if data.get("totalItems", 0) > 0:
                 items = data.get("items", [])
                 if items:
-                    image_links = items[0].get("volumeInfo", {}).get("imageLinks", {})
-                    # Try to get the largest available image
-                    cover = (
+                    volume = items[0].get("volumeInfo", {})
+                    image_links = volume.get("imageLinks", {})
+                    cover_candidate = (
                         image_links.get("extraLarge") or
                         image_links.get("large") or
                         image_links.get("medium") or
                         image_links.get("small") or
                         image_links.get("thumbnail")
                     )
-                    if cover:
-                        # Use HTTPS
-                        return cover.replace("http://", "https://")
-    except Exception as e:
-        pass  # Fall through to Open Library
-    
-    # Try Open Library as fallback
-    try:
-        # Open Library cover API
-        url = f"https://covers.openlibrary.org/b/isbn/{isbn}-M.jpg"
-        # Quick HEAD request to check if cover exists
-        response = requests.head(url, timeout=1)
-        if response.status_code == 200:
-            return url
+                    if cover_candidate:
+                        cover = cover_candidate.replace("http://", "https://")
+
+                    authors = volume.get("authors") or []
+                    if authors:
+                        authors_str = ", ".join(authors)
     except Exception:
-        pass
-    
-    # Return placeholder if no cover found
-    return PLACEHOLDER_COVER
+        pass  # Fall through to Open Library
+
+    # Try Open Library as fallback for cover (author data not available there)
+    if cover == PLACEHOLDER_COVER:
+        try:
+            url = f"https://covers.openlibrary.org/b/isbn/{isbn}-M.jpg"
+            response = requests.head(url, timeout=1)
+            if response.status_code == 200:
+                cover = url
+        except Exception:
+            pass
+
+    return cover, authors_str
 
 
 def fetch_covers_batch(books_data: list) -> list:
@@ -94,7 +94,10 @@ def fetch_covers_batch(books_data: list) -> list:
     for book in books_data:
         isbn = book.get("isbn", "")
         title = book.get("title", "")
-        book["thumbnail"] = fetch_book_cover(isbn, title)
+        cover, authors = fetch_book_cover(isbn, title)
+        book["thumbnail"] = cover
+        if authors != "Unknown":
+            book["authors"] = authors
         # Small delay to avoid rate limiting
         time.sleep(0.05)
     

@@ -265,9 +265,9 @@ const App = () => {
                 <X className="w-6 h-6" />
               </button>
 
-              <div className="grid md:grid-cols-12 gap-8 py-4">
-                <div className="md:col-span-4 flex flex-col items-center md:items-start border-r border-[#f5f5f5] pr-4">
-                  <div className="border border-[#eee] p-1 bg-white shadow-sm mb-4 w-48">
+              <div className="grid md:grid-cols-12 gap-8 md:gap-10 px-6 md:px-10 py-6">
+                <div className="md:col-span-4 flex flex-col items-center md:items-start border-r border-[#f5f5f5] pr-0 md:pr-6">
+                  <div className="border border-[#eee] p-1 bg-white shadow-sm mb-4 w-52 md:w-56">
                     <img src={selectedBook.img} alt="cover" className="w-full aspect-[3/4] object-cover" />
                   </div>
                   <h2 className="text-xl font-bold text-[#333] mb-1">{selectedBook.title}</h2>
