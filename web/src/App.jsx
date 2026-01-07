@@ -95,10 +95,11 @@ const App = () => {
         mood: searchMood,
         rank: idx + 1,
         rating: 4,
-        tags: [],
+        tags: r.tags || [],
         desc: r.description,
         img: r.thumbnail,
         isbn: r.isbn,
+        emotions: r.emotions || {},
         aiHighlight: '—',
         suggestedQuestions: [
           `Matches my current mood?`,
@@ -245,7 +246,13 @@ const App = () => {
               <h3 className="mt-3 text-[12px] font-bold text-[#555] truncate">{book.title}</h3>
               <div className="flex justify-between items-center mt-1">
                 <span className="text-[9px] text-gray-400 tracking-tighter">{book.author}</span>
-                <span className="text-[9px] bg-[#f8f9fa] border border-[#eee] px-1 text-[#999]">{book.mood}</span>
+                {book.emotions && Object.keys(book.emotions).length > 0 ? (
+                  <span className="text-[9px] bg-[#f8f9fa] border border-[#eee] px-1 text-[#999] capitalize">
+                    {Object.entries(book.emotions).reduce((a, b) => a[1] > b[1] ? a : b)[0]}
+                  </span>
+                ) : (
+                  <span className="text-[9px] bg-[#f8f9fa] border border-[#eee] px-1 text-[#999]">—</span>
+                )}
               </div>
             </div>
           )) : (
@@ -274,7 +281,6 @@ const App = () => {
                   <p className="text-xs text-[#999] mb-4 tracking-tighter">{selectedBook.author} • ISBN: {selectedBook.isbn}</p>
                   <div className="bg-[#fff9f9] border border-[#f4acb7] p-4 w-full relative mb-6">
                     <Sparkles className="w-3 h-3 text-[#f4acb7] absolute -top-1.5 -left-1.5 fill-current" />
-                    <h4 className="text-[9px] font-bold text-[#f4acb7] uppercase mb-1 tracking-widest">AI Insight</h4>
                     <p className="text-[11px] font-bold text-[#f4acb7] italic leading-relaxed">
                       {selectedBook.aiHighlight}
                     </p>
@@ -291,6 +297,24 @@ const App = () => {
                         </div>
                       </div>
                     </div>
+
+                    <div className="space-y-1">
+                      <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1">
+                        <Smile className="w-3 h-3" /> Mood
+                      </h4>
+                      <div className="flex flex-wrap gap-2 bg-[#faf9f6] p-2 border border-[#eee]">
+                        {(Object.entries(selectedBook.emotions || {})
+                          .sort((a, b) => b[1] - a[1])
+                          .slice(0, 2)).map(([emo, score]) => (
+                          <span key={emo} className="text-[9px] px-2 py-0.5 bg-white border border-[#eee] text-[#735d78] capitalize">
+                            {emo} {Math.round(score * 100)}%
+                          </span>
+                        ))}
+                        {(!selectedBook.emotions || Object.keys(selectedBook.emotions).length === 0) && (
+                          <span className="text-[9px] text-gray-300 italic">No mood data</span>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -300,12 +324,15 @@ const App = () => {
                       <MessageCircle className="w-3.5 h-3.5" /> Key Themes
                     </h4>
                     <div className="flex flex-wrap gap-2 p-3 bg-[#faf9f6] border border-[#eee]">
-                      {selectedBook.tags.map(tag => (
-                        <span key={tag} className="px-2 py-0.5 bg-white border border-[#eee] text-[10px] text-[#b392ac] font-bold">
-                          {tag}
-                        </span>
-                      ))}
-                      <span className="text-[10px] px-2 py-0.5 bg-[#e5d9f2]/40 text-[#735d78] font-bold border border-dashed border-[#b392ac]/30">{selectedBook.mood}</span>
+                      {selectedBook.tags && selectedBook.tags.length > 0 ? (
+                        selectedBook.tags.map(tag => (
+                          <span key={tag} className="px-2 py-0.5 bg-white border border-[#eee] text-[10px] text-[#b392ac] font-bold">
+                            {tag}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-[10px] text-gray-300 italic">No themes found</span>
+                      )}
                     </div>
                   </div>
 

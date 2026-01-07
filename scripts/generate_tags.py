@@ -16,8 +16,10 @@ Notes:
 from __future__ import annotations
 
 import argparse
+import html
 import logging
 import re
+import unicodedata
 from pathlib import Path
 from typing import Iterable, List
 
@@ -36,9 +38,25 @@ DOMAIN_STOPWORDS = {
     "reader", "readers", "reading", "write", "writes", "writing", "written",
     "character", "characters", "plot", "series", "chapter", "chapters", "pages",
     "edition", "copy", "copies", "hardcover", "paperback", "kindle",
+    # HTML / noise
+    "amp", "nbsp", "lt", "gt",
+    # Very common filler
+    "com", "http", "https", "www",
 }
 
 TOKEN_RE = re.compile(r"^[a-zA-Z][a-zA-Z\-']{2,}$")
+
+
+def normalize_text(text: str) -> str:
+    """Clean text: HTML decode, strip control chars, collapse spaces."""
+    t = html.unescape(str(text))
+    t = unicodedata.normalize("NFKC", t)
+    # Remove stray HTML entities and URLs
+    t = re.sub(r"&[a-zA-Z]+;", " ", t)
+    t = re.sub(r"https?://\S+", " ", t)
+    # Collapse whitespace
+    t = re.sub(r"\s+", " ", t)
+    return t.strip()
 
 
 def filter_tokens(tokens: Iterable[str], max_tokens: int) -> List[str]:
@@ -52,6 +70,8 @@ def filter_tokens(tokens: Iterable[str], max_tokens: int) -> List[str]:
         if t in seen:
             continue
         if t in DOMAIN_STOPWORDS:
+            continue
+        if len(t) < 3:
             continue
         if not TOKEN_RE.match(t):
             continue
@@ -114,7 +134,7 @@ def main():
     if "description" not in df.columns:
         raise ValueError("Input CSV must have a 'description' column")
 
-    corpus = df["description"].fillna("").astype(str).tolist()
+    corpus = [normalize_text(x) for x in df["description"].fillna("").astype(str).tolist()]
     tags = compute_tags(
         corpus,
         top_n=args.top_n,
