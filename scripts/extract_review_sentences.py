@@ -26,7 +26,8 @@ from typing import List
 
 import numpy as np
 import pandas as pd
-from sentence_transformers import SentenceTransformer
+import torch
+from transformers import AutoTokenizer, AutoModel
 from sklearn.metrics.pairwise import cosine_similarity
 from tqdm import tqdm
 
@@ -113,16 +114,58 @@ def extract_representative_sentences(
 
 
 def load_model(device: str | int | None):
-    """Load sentence transformer model."""
+    """Load sentence transformer model via transformers."""
     logger.info("Loading model: %s", MODEL_NAME)
     
+    # Determine device
     if isinstance(device, str) and device.lower() == "mps":
+        device_obj = torch.device("mps")
         logger.info("Using MPS (Apple GPU)")
-        return SentenceTransformer(MODEL_NAME, device="mps")
+    elif isinstance(device, int) and device >= 0:
+        device_obj = torch.device(f"cuda:{device}")
+        logger.info(f"Using CUDA device {device}")
+    else:
+        device_obj = torch.device("cpu")
+        logger.info("Using CPU")
     
-    device_str = f"cuda:{device}" if isinstance(device, int) and device >= 0 else "cpu"
-    logger.info(f"Using device: {device_str}")
-    return SentenceTransformer(MODEL_NAME, device=device_str)
+    # Load tokenizer and model
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+    model = AutoModel.from_pretrained(MODEL_NAME).to(device_obj)
+    model.eval()
+    
+    return tokenizer, model, device_obj
+
+
+def encode_sentences(sentences: List[str], tokenizer, model, device_obj, batch_size: int = 32) -> np.ndarray:
+    """Encode sentences using the model (mean pooling)."""
+    embeddings = []
+    
+    for i in range(0, len(sentences), batch_size):
+        batch = sentences[i:i+batch_size]
+        
+        # Tokenize
+        encoded = tokenizer(
+            batch, 
+            padding=True, 
+            truncation=True, 
+            max_length=512,
+            return_tensors="pt"
+        ).to(device_obj)
+        
+        # Get embeddings
+        with torch.no_grad():
+            model_output = model(**encoded)
+            # Mean pooling of last hidden state
+            attention_mask = encoded['attention_mask']
+            last_hidden = model_output.last_hidden_state
+            mask_expanded = attention_mask.unsqueeze(-1).expand(last_hidden.size()).float()
+            sum_hidden = (last_hidden * mask_expanded).sum(1)
+            sum_mask = mask_expanded.sum(1)
+            mean_embeddings = sum_hidden / sum_mask.clamp(min=1e-9)
+        
+        embeddings.append(mean_embeddings.cpu().numpy())
+    
+    return np.vstack(embeddings) if embeddings else np.array([])
 
 
 def main():
@@ -152,7 +195,7 @@ def main():
     
     # Load model
     device = int(args.device) if args.device.lstrip('-').isdigit() else args.device
-    model = load_model(device)
+    tokenizer, model, device_obj = load_model(device)
     
     # Process each book
     review_highlights = []
@@ -170,7 +213,7 @@ def main():
             continue
         
         # Embed sentences
-        embeddings = model.encode(sentences, batch_size=args.batch_size, show_progress_bar=False)
+        embeddings = encode_sentences(sentences, tokenizer, model, device_obj, batch_size=args.batch_size)
         
         # Cluster similar sentences
         clusters = cluster_sentences(sentences, embeddings, threshold=args.similarity_threshold)
@@ -191,7 +234,14 @@ def main():
     df["review_highlights"] = review_highlights
     
     logger.info("Writing output to %s", args.output)
-    df.to_csv(args.output, index=False)
+    
+    # Use csv writer instead of pandas to_csv (more reliable)
+    import csv
+    with open(args.output, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+        writer.writerow(df.columns)
+        for idx, row in df.iterrows():
+            writer.writerow(row.values)
     
     # Print sample
     logger.info("Sample review highlights:")
