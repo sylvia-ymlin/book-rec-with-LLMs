@@ -232,7 +232,15 @@ const App = () => {
               className="group cursor-pointer transform hover:-translate-y-1 transition-all"
             >
               <div className="bg-white border border-[#eee] p-1 relative shadow-sm group-hover:shadow-md overflow-hidden">
-                <img src={book.img} alt={book.title} className="w-full aspect-[3/4] object-cover opacity-90 group-hover:opacity-100 transition-opacity" />
+                <img
+                  src={book.img}
+                  alt={book.title}
+                  className="w-full aspect-[3/4] object-cover opacity-90 group-hover:opacity-100 transition-opacity"
+                  onError={e => {
+                    e.target.onerror = null;
+                    e.target.src = "http://localhost:6006/assets/cover-not-found.jpg";
+                  }}
+                />
                 <div className="absolute inset-0 bg-white/80 flex items-center justify-center p-4 opacity-0 group-hover:opacity-100 transition-opacity text-center px-4">
                   <p className="text-[10px] font-bold text-[#b392ac] leading-relaxed italic">
                     {book.aiHighlight}
@@ -318,7 +326,9 @@ const App = () => {
                       <Info className="w-3.5 h-3.5" /> Summary
                     </h4>
                     <div className="p-4 bg-white border border-[#eee] text-[12px] leading-relaxed text-[#666] italic border-l-[4px] border-l-[#b392ac]">
-                      "{selectedBook.desc}"
+                      <div style={{maxHeight: '180px', overflowY: 'auto', whiteSpace: 'pre-line'}}>
+                        {selectedBook.desc}
+                      </div>
                     </div>
                   </div>
 

@@ -79,3 +79,30 @@ Use SSH Tunneling to securely access the remote API without exposing ports publi
 ssh -L 6006:localhost:6006 root@<IP> -p <PORT>
 ```
 Visit `http://localhost:6006/docs` in your browser.
+
+## 图片兜底与路径适配说明
+
+### 现象
+- 书籍图片缺失时，前端 `<img src="/assets/cover-not-found.jpg">` 无法正常显示默认图片。
+- 原因：开发环境下前端端口（如 5173）与后端端口（如 6006）不同，`/assets` 路径实际指向前端静态目录，无法访问后端 FastAPI 挂载的静态资源。
+
+### 解决方案
+- 后端 FastAPI 通过 `app.mount("/assets", StaticFiles(directory="assets"), name="assets")` 挂载静态资源。
+- 前端图片加载失败时，自动切换为后端 API 地址的兜底图片：
+
+```jsx
+<img
+  src={book.img}
+  alt={book.title}
+  onError={e => {
+    e.target.onerror = null;
+    e.target.src = "http://localhost:6006/assets/cover-not-found.jpg";
+  }}
+/>
+```
+- 这样无论图片链接是否有效，缺失时都能正常显示默认封面。
+
+### 生产环境建议
+- 生产部署时建议用 nginx 统一代理 `/assets` 到后端或静态目录，保证前后端一致。
+
+---
