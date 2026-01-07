@@ -94,6 +94,7 @@ class BookResponse(BaseModel):
     caption: str
     tags: List[str] = []
     emotions: Dict[str, float] = {}
+    review_highlights: List[str] = []
 
 class RecommendationResponse(BaseModel):
     recommendations: List[BookResponse]

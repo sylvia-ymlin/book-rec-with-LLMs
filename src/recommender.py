@@ -131,6 +131,10 @@ class BookRecommender:
                 "anger": float(row.get("anger", 0.0)),
                 "surprise": float(row.get("surprise", 0.0)),
             }
+            
+            # Parse review highlights from semicolon-separated string
+            highlights_raw = str(row.get("review_highlights", "")).strip()
+            review_highlights = [h.strip() for h in highlights_raw.split(";") if h.strip()] if highlights_raw else []
                 
             results.append({
                 "isbn": row["isbn13"],
@@ -140,7 +144,8 @@ class BookRecommender:
                 "thumbnail": thumbnail,
                 "caption": f"{row['title']} by {authors_str}: {truncated_desc}",
                 "tags": tags,
-                "emotions": emotions
+                "emotions": emotions,
+                "review_highlights": review_highlights
             })
         logger.info(f"Sample result: {results[0] if results else 'EMPTY'}")
         return results
