@@ -10,6 +10,9 @@ All notable changes to this project will be documented in this file.
   - Optimized spacing between elements (reduced excessive whitespace)
   - Removed mood/emotion display from detail modal for cleaner interface
   - Review highlights positioned directly after AI highlight box
+ - **Summary Quality**: Smarter sentence-based summaries with HTML entity cleanup
+   - Prefer Google Books description when available
+   - Fallback to dataset description with HTML unescape and sentence truncation
 
 ### Added - 2024-01-XX
 - **Review Highlights Feature**: Semantic sentence extraction with clustering

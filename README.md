@@ -94,6 +94,14 @@ The project follows a modern full-stack architecture:
     # Starts FastAPI on http://localhost:6006
     ```
 
+#### 🔄 自动热重载说明
+
+开发环境下，后端通过 Uvicorn 的 `--reload` 参数启动（见 `make run`），会自动监控 Python 代码变动。
+
+**每当你修改后端源码，服务会自动重启（热重载），无需手动重启。**
+
+这是 FastAPI/Uvicorn 的内置开发特性，极大提升开发效率。
+
 4.  **Install and start frontend** (Terminal 2):
     ```bash
     cd web

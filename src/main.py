@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import time
@@ -19,11 +20,15 @@ logger = setup_logger(__name__)
 REQUEST_COUNT = Counter("http_requests_total", "Total count of HTTP requests", ["method", "endpoint", "status_code"])
 REQUEST_LATENCY = Histogram("http_request_duration_seconds", "HTTP request latency in seconds", ["method", "endpoint"])
 
+
 app = FastAPI(
     title="Book Recommender API",
     description="API for Intelligent Book Recommendation System",
     version="1.0.0"
 )
+
+# 挂载静态目录，确保前端能访问 /assets/cover-not-found.jpg
+app.mount("/assets", StaticFiles(directory="assets"), name="assets")
 
 # Allow local frontend dev origins
 app.add_middleware(
@@ -181,7 +186,13 @@ async def marketing_highlights(req: HighlightsRequest):
         favs = list_favorites(req.user_id or "local")
         persona = build_persona(favs, recommender.books)
         result = generate_highlights(req.isbn, persona, recommender.books)
-        return {"persona": persona, "highlights": result.get("highlights", []), "meta": result}
+        # highlights和meta.description都unescape
+        from html import unescape
+        highlights = [unescape(h) for h in result.get("highlights", [])]
+        meta = result.copy()
+        if "description" in meta:
+            meta["description"] = unescape(meta["description"])
+        return {"persona": persona, "highlights": highlights, "meta": meta}
     except Exception as e:
         logger.error(f"marketing_highlights error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
