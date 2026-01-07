@@ -2,7 +2,7 @@
 license: mit
 title: Semantic-Based Book Recommendation Framework
 sdk: docker
-app_port: 7860
+app_port: 8000
 ---
 
 # Semantic-Based Book Recommendation Framework using Large Language Model Embeddings
@@ -57,10 +57,10 @@ This project presents a comprehensive, multi-modal recommendation and e-commerce
 
 ## System Architecture
 
-The project follows a microservices-inspired architecture:
+The project follows a modern full-stack architecture:
 
-*   **Frontend**: Built with Gradio 6.0, providing a multi-tab interface for distinct module interactions.
-*   **Backend API**: FastAPI service orchestration (integrated within the Gradio app for demonstration).
+*   **Frontend**: React 18 + Vite, providing an intuitive book search and recommendation interface.
+*   **Backend API**: FastAPI service for recommendation logic and data retrieval.
 *   **Data Layer**:
     *   **Amazon Books Dataset**: 200,000+ records processed via custom ETL pipelines.
     *   **Vector Store**: ChromaDB for embedding storage and similarity search.
@@ -70,11 +70,12 @@ The project follows a microservices-inspired architecture:
 
 ### Prerequisites
 *   Python 3.10+
-*   Docker and Docker Compose
+*   Node.js 18+ and npm/yarn
+*   Docker and Docker Compose (optional)
 
 ### Deployment
 
-**Option 1: Client-Server Architecture (Recommended for Development)**
+**Option 1: Development Mode**
 
 1.  **Clone the repository**:
     ```bash
@@ -82,10 +83,9 @@ The project follows a microservices-inspired architecture:
     cd book-rec-with-LLMs
     ```
 
-2.  **Install dependencies**:
+2.  **Install backend dependencies**:
     ```bash
-    make setup
-    # or: pip install -r requirements.txt
+    pip install -r requirements.txt
     ```
 
 3.  **Start API Server** (Terminal 1):
@@ -94,14 +94,16 @@ The project follows a microservices-inspired architecture:
     # Starts FastAPI on http://localhost:6006
     ```
 
-4.  **Start UI** (Terminal 2):
+4.  **Install and start frontend** (Terminal 2):
     ```bash
-    make run-ui
-    # Starts Gradio UI on http://0.0.0.0:7860
+    cd web
+    npm install
+    npm run dev
+    # Starts React app on http://localhost:5173
     ```
 
 5.  **Access the Interface**:
-    Navigate to `http://localhost:7860` in a web browser.
+    Navigate to `http://localhost:5173` in a web browser.
 
 **Option 2: Docker Deployment**
 
@@ -111,7 +113,8 @@ The project follows a microservices-inspired architecture:
     ```
 
 2.  **Access the Interface**:
-    Navigate to `http://localhost:7860` in a web browser.
+    API will be available at `http://localhost:8000`
+    Frontend development server should be started separately (see Option 1, step 4)
 
 **Notes:**
 - Redis is optional; caching will be disabled if Redis is unavailable
@@ -168,7 +171,7 @@ To deploy the system locally, execute the following commands:
 
    The services will be available at:
    - **API Documentation**: `http://localhost:8000/docs`
-   - **Web Interface**: `http://localhost:7860`
+   - **Frontend**: Start separately with `npm run dev` (see above)
 
 ## 7. References
 

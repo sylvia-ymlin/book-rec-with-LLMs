@@ -204,12 +204,12 @@ persona = getPersona(userId)
 - **Method:** Rule-based persona matching (Top-3 authors/categories)
 - **Future:** Could upgrade to LLM refinement (e.g., GPT for polish)
 
-### Why React + Vite (not Gradio)?
+### Why React + Vite?
 - **Rationale:** 
-  - Gradio good for prototypes, React needed for custom UX
+  - React needed for custom UX and production-grade interface
   - Vite super fast (no webpack pain)
-  - Tailwind CDN avoids npm build complexity
-- **Fallback:** Gradio UI (app.py) still available on port 7860
+  - Tailwind CSS for modern styling
+- **Architecture:** React frontend (port 5173) + FastAPI backend (port 6006/8000)
 
 ### Why Persona from Favorites (not search history)?
 - **Rationale:** User intent explicit in favorites, not implicit in queries
@@ -345,13 +345,6 @@ npm run dev
 # Connect to http://localhost:6006 backend
 ```
 
-**Terminal 3 (Optional): Gradio Legacy UI**
-```bash
-python app.py
-# Starts on http://localhost:7860
-# Alternative UI for testing
-```
-
 ### Production Workflow
 - React builds with `npm run build` → static files
 - FastAPI serves as single backend
@@ -422,13 +415,13 @@ Expected highlight: "虽不在您常读类型，但情节深度与科幻的想�
 ✅ **Modular backend design** → easy to add /highlights, /persona endpoints  
 ✅ **React UI responsiveness** → users see results instantly  
 ✅ **JSON-first approach** → no DB setup friction, iterate fast  
-✅ **API-driven architecture** → Gradio + React both work  
+✅ **API-driven architecture** → React frontend with FastAPI backend  
 ✅ **Persona concept** → users feel "understood" by the system  
 
 ### Challenges Overcome
-🔧 **Port conflicts** (Gradio:7860 vs React:5173 vs FastAPI:6006) → Makefile organization  
+🔧 **Port configuration** (React:5173 vs FastAPI:6006/8000) → Makefile organization  
 🔧 **CORS issues** (frontend can't reach backend) → Added CORSMiddleware  
-🔧 **Image loading** (external URLs not allowed in Gradio) → Runtime fetching + local fallback  
+🔧 **Image loading** (external URLs) → Runtime fetching + local fallback  
 🔧 **Timeout errors** (cold startup > 10s) → Increased client timeouts, optimized startup  
 
 ### Design Philosophy Validated
@@ -461,12 +454,11 @@ book-rec-with-LLMs/
 │   │   └── main.jsx            # Entry point
 │   ├── index.html              # HTML + Tailwind CDN
 │   └── package.json            # Dependencies
-├── app.py                      # Gradio UI (legacy)
 ├── Makefile                    # Commands
 ├── requirements.txt            # Python deps
 └── data/
-    ├── books_processed.csv     # Metadata
-    └── user_profiles.json      # ✨ NEW: User data
+    ├── books_processed.csv     # Metadata + review highlights
+    └── user_profiles.json      # User data
 ```
 
 ---
@@ -486,7 +478,6 @@ feat: add React UI and backend personalization features
   * src/marketing/highlights.py: Persona-aware selling points
   * 3 new API endpoints in FastAPI
 
-- Maintain Gradio UI as optional fallback
 - Add CORS support, update timeouts, improve infrastructure
 ```
 

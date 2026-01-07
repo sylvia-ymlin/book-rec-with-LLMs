@@ -275,14 +275,16 @@ const App = () => {
 
               <div className="grid md:grid-cols-12 gap-8 md:gap-10 px-6 md:px-10 py-6">
                 <div className="md:col-span-5 flex flex-col items-center border-r border-[#f5f5f5] pr-0 md:pr-6">
-                  <div className="border border-[#eee] p-1 bg-white shadow-sm mb-4 w-52 md:w-56">
+                  <div className="border border-[#eee] p-1 bg-white shadow-sm mb-2 w-52 md:w-56">
                     <img src={selectedBook.img} alt="cover" className="w-full aspect-[3/4] object-cover" />
                   </div>
                   
+                  <p className="text-xs text-[#999] mb-2 tracking-tighter text-center w-full">{selectedBook.author}</p>
+                
                   <h2 className="text-xl font-bold text-[#333] mb-1 text-center md:text-left w-full">{selectedBook.title}</h2>
-                  <p className="text-xs text-[#999] mb-4 tracking-tighter text-center md:text-left w-full">{selectedBook.author} • ISBN: {selectedBook.isbn}</p>
+                  <p className="text-xs text-[#999] mb-2 tracking-tighter text-center md:text-left w-full">ISBN: {selectedBook.isbn}</p>
                   
-                  <div className="bg-[#fff9f9] border border-[#f4acb7] p-4 w-full relative mb-6">
+                  <div className="bg-[#fff9f9] border border-[#f4acb7] p-4 w-full relative mb-4">
                     <Sparkles className="w-3 h-3 text-[#f4acb7] absolute -top-1.5 -left-1.5 fill-current" />
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-[11px] font-bold text-[#f4acb7]">{selectedBook.rating ? selectedBook.rating.toFixed(1) : '0.0'}</span>
@@ -295,26 +297,8 @@ const App = () => {
                     </p>
                   </div>
                   
-                  <div className="w-full mb-6">
-                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1 mb-2">
-                      <Smile className="w-3 h-3" /> Mood
-                    </h4>
-                    <div className="flex flex-wrap gap-1">
-                      {(Object.entries(selectedBook.emotions || {})
-                        .sort((a, b) => b[1] - a[1])
-                        .slice(0, 2)).map(([emo, score]) => (
-                        <span key={emo} className="text-[9px] text-[#735d78] capitalize">
-                          {emo} {Math.round(score * 100)}%
-                        </span>
-                      ))}
-                      {(!selectedBook.emotions || Object.keys(selectedBook.emotions).length === 0) && (
-                        <span className="text-[9px] text-gray-300 italic">No mood data</span>
-                      )}
-                    </div>
-                  </div>
-                  
                   {selectedBook.review_highlights && selectedBook.review_highlights.length > 0 && (
-                    <div className="w-full mt-auto space-y-2 text-left">
+                    <div className="w-full space-y-2 text-left">
                       {selectedBook.review_highlights.slice(0, 3).map((highlight, idx) => {
                         const isCompleteSentence = /^[A-Z]/.test(highlight.trim());
                         const prefix = isCompleteSentence ? '' : '...';

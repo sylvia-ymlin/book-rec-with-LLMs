@@ -23,20 +23,6 @@ services:
       - redis_data:/data
     restart: unless-stopped
 
-  ui:
-    build: .
-    command: python app.py
-    ports:
-      - "7860:7860"
-    volumes:
-      - ./data:/app/data
-    environment:
-      - GRADIO_SERVER_NAME=0.0.0.0
-      - API_URL=http://api:8000
-    depends_on:
-      - api
-    restart: unless-stopped
-
 volumes:
   chroma_data:
   redis_data:
