@@ -234,14 +234,7 @@ def main():
     df["review_highlights"] = review_highlights
     
     logger.info("Writing output to %s", args.output)
-    
-    # Use csv writer instead of pandas to_csv (more reliable)
-    import csv
-    with open(args.output, 'w', newline='', encoding='utf-8') as f:
-        writer = csv.writer(f)
-        writer.writerow(df.columns)
-        for idx, row in df.iterrows():
-            writer.writerow(row.values)
+    df.to_csv(args.output, index=False)
     
     # Print sample
     logger.info("Sample review highlights:")
