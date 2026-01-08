@@ -1,0 +1,18 @@
+#!/usr/bin/expect
+
+set host "connect.nmb2.seetacloud.com"
+set port "15054"
+set user "root"
+set password "9Dml+WZeqp5b"
+set local_dir "."
+set remote_dir "/root/autodl-tmp/book-rec-with-LLMs"
+
+# Sync Recall Models
+spawn scp -P $port $local_dir/data/model/recall/itemcf.pkl $local_dir/data/model/recall/usercf.pkl $local_dir/data/model/recall/popularity.pkl $user@$host:$remote_dir/data/model/recall/
+set timeout -1
+expect {
+    "password:" { send "$password\r" }
+}
+expect eof
+
+puts "Recall Models Sync Complete!"

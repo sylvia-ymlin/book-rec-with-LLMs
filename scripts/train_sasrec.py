@@ -55,8 +55,8 @@ def train_sasrec():
     max_len = 50
     hidden_dim = 64
     batch_size = 128
-    epochs = 3
-    lr = 0.001
+    epochs = 30 # Increased from 3
+    lr = 1e-4   # Aligned with optimizer
     
     data_dir = Path('data/rec')
     logger.info("Loading sequences...")
@@ -81,7 +81,7 @@ def train_sasrec():
     logger.info(f"Training on {device}")
     
     model = SASRec(num_items, max_len, hidden_dim).to(device)
-    optimizer = optim.Adam(model.parameters(), lr=lr)
+    optimizer = optim.Adam(model.parameters(), lr=1e-4) # Reduced LR
     
     # BCE Loss for Pos/Neg
     criterion = nn.BCEWithLogitsLoss()
@@ -99,23 +99,15 @@ def train_sasrec():
             seq_emb = model(seq) # [B, L, H]
             
             # Mask padding (0) in targets
-            # pos has 0 where padding exists (shifted)
-            # But we should use original seq mask.
-            # Only calculate loss for non-zero targets
             mask = (pos != 0)
             
             # Get Item Embeddings for Pos and Neg
             pos_emb = model.item_emb(pos) # [B, L, H]
             neg_emb = model.item_emb(neg) # [B, L, H]
             
-            # Calculate logits (Dot Product)
-            # [B, L, H] * [B, L, H] -> [B, L]
+            # Calculate logits
             pos_logits = (seq_emb * pos_emb).sum(dim=-1)
             neg_logits = (seq_emb * neg_emb).sum(dim=-1)
-            
-            # Loss
-            # Pos -> 1, Neg -> 0
-            # Apply mask to flat vectors
             
             pos_logits = pos_logits[mask]
             neg_logits = neg_logits[mask]
@@ -127,6 +119,10 @@ def train_sasrec():
             
             optimizer.zero_grad()
             loss.backward()
+            
+            # Clip Gradient
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            
             optimizer.step()
             
             total_loss += loss.item()

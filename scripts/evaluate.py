@@ -32,21 +32,26 @@ def evaluate_baseline(sample_n=1000):
     # 3. Predict & Metric
     k = 10
     hits = 0
-    mrr = 0.0
+    mrr_sum = 0.0
     
     # Cache for speed analysis
     total_time = 0
     
     results = []
     
-    for _, row in tqdm(eval_df.iterrows(), total=len(eval_df), desc="Evaluating"):
+    for idx, (_, row) in tqdm(enumerate(eval_df.iterrows()), total=len(eval_df), desc="Evaluating"):
         user_id = row['user_id']
         target_isbn = row['isbn']
         
         # Get Recs
         try:
-            # We need higher recall from service to check rank
-            recs = service.get_recommendations(user_id, top_k=50) # Get top 50
+            recs = service.get_recommendations(user_id, top_k=50) 
+            
+            if not recs:
+                if idx < 5: 
+                    logger.warning(f"Empty recs for user {user_id}")
+                continue
+            
             rec_isbns = [r[0] for r in recs]
             
             # Check Hit
@@ -58,7 +63,9 @@ def evaluate_baseline(sample_n=1000):
                     hits += 1
                 
                 # MRR (consider top 50)
-                mrr += 1.0 / (rank + 1)
+                # MRR@5 (Strict)
+                if (rank + 1) <= 5: # Check if rank is within top 5 (1-indexed)
+                    mrr_sum += 1.0 / (rank + 1)
             
         except Exception as e:
             logger.error(f"Error for user {user_id}: {e}")
@@ -66,15 +73,16 @@ def evaluate_baseline(sample_n=1000):
 
     # 4. Report
     hr_10 = hits / len(eval_df)
-    mean_mrr = mrr / len(eval_df)
+    mean_mrr = mrr_sum / len(eval_df) # Changed from mrr to mrr_sum
     
-    logger.info("="*30)
-    logger.info("  BASELINE EVALUATION RESULTS")
-    logger.info("="*30)
+    logger.info("==============================")
+    logger.info("  EVALUATION RESULTS (Strict)") # Changed title
+    logger.info("==============================")
     logger.info(f"Users Evaluated: {len(eval_df)}")
     logger.info(f"Hit Rate@10:   {hr_10:.4f}")
-    logger.info(f"MRR@50:        {mean_mrr:.4f}")
-    logger.info("="*30)
+    logger.info(f"MRR@5:         {mean_mrr:.4f}") # Changed MRR@50 to MRR@5
+    logger.info("==============================")
 
 if __name__ == "__main__":
     evaluate_baseline(sample_n=500) # Fast check
+

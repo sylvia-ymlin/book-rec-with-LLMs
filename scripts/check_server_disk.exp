@@ -1,0 +1,20 @@
+#!/usr/bin/expect
+
+set host "connect.nmb2.seetacloud.com"
+set port "15054"
+set user "root"
+set password "9Dml+WZeqp5b"
+
+spawn ssh -p $port $user@$host "echo '=== autodl-tmp Detail (Top 10) ==='; du -sh /root/autodl-tmp/* | sort -rh | head -n 10; echo ''; echo '=== output Detail (Top 10) ==='; du -sh /root/output/* | sort -rh | head -n 10"
+
+expect {
+    "password:" {
+        send "$password\r"
+        exp_continue
+    }
+    "continue connecting" {
+        send "yes\r"
+        exp_continue
+    }
+    eof
+}

@@ -15,7 +15,43 @@ class FeatureEngineer:
         # Stats cache
         self.user_stats = {}
         self.item_stats = {}
+        self.has_sasrec = False # Initialize SASRec flag
         
+    def _load_sasrec_features(self):
+        """Load Pre-trained SASRec embeddings"""
+        logger.info("Loading SASRec Embeddings...")
+        try:
+            import torch
+            import pickle
+            
+            # Load user embeddings
+            with open(self.data_dir / 'user_seq_emb.pkl', 'rb') as f:
+                self.user_seq_emb = pickle.load(f)
+                
+            # Load Item embeddings from model checkpoint
+            # We need the model state_dict to get 'item_emb.weight'
+            # Note: item_emb.weight is [num_items+1, dim]
+            # We also need item_map to map 'isbn' -> index
+            
+            with open(self.data_dir / 'item_map.pkl', 'rb') as f:
+                self.sasrec_item_map = pickle.load(f)
+                
+            # Load Model State
+            # Assuming sasrec_model.pth is in data/model/rec/sasrec_model.pth
+            # self.model_dir is data/model/recall, so parent is data/model
+            # Then we need to go to data/model/rec
+            self.sasrec_model_path = self.model_dir.parent / 'rec' / 'sasrec_model.pth'
+            state_dict = torch.load(self.sasrec_model_path, map_location='cpu')
+            # Extract item_emb.weight
+            self.sas_item_emb = state_dict['item_emb.weight'].numpy() # [N+1, H]
+            
+            self.has_sasrec = True
+            logger.info("SASRec features loaded.")
+            
+        except Exception as e:
+            logger.warning(f"Failed to load SASRec features: {e}")
+            self.has_sasrec = False
+
     def load_base_data(self):
         """Load train data to calculate static features"""
         logger.info("Loading base data for feature engineering...")
@@ -38,6 +74,9 @@ class FeatureEngineer:
         
         # Load book metadata for content features
         self._load_content_features()
+        
+        # Load SASRec (NEW)
+        self._load_sasrec_features()
 
     def _load_content_features(self):
         """Load book descriptions and other metadata"""
@@ -115,8 +154,27 @@ class FeatureEngineer:
         else:
             feats['u_auth_avg'] = feats['u_mean'] # Fallback
             feats['u_auth_match'] = 0
+            
+        # 4. SASRec Similarity (NEW)
+        if self.has_sasrec:
+            # Get User Seq Embedding
+            u_emb = self.user_seq_emb.get(user_id, None)
+            
+            # Get Item Embedding
+            # Check map
+            i_idx = self.sasrec_item_map.get(candidate_item, 0) # 0 is padding, usually items start from 1
+            
+            sas_score = 0.0
+            if u_emb is not None and i_idx > 0:
+                i_emb = self.sas_item_emb[i_idx]
+                # Dot Product
+                sas_score = float(np.dot(u_emb, i_emb))
+                
+            feats['sasrec_score'] = sas_score
+        else:
+            feats['sasrec_score'] = 0.0
         
-        # 4. Interaction Features (ItemCF)
+        # 5. Interaction Features (ItemCF)
         # Calculate similarity between candidate and user history
         # We can reuse the stored matrix in ItemCF
         # sum(sim(hist_item, candidate))
@@ -149,7 +207,7 @@ class FeatureEngineer:
         feats['icf_sum'] = icf_score
         feats['icf_max'] = icf_max
         
-        # 4. Interaction Features (UserCF)
+        # 6. Interaction Features (UserCF)
         # Similar users who rated this item
         ucf_score = 0
         usercf = self.recall_fusion.usercf

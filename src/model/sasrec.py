@@ -61,8 +61,10 @@ class SASRec(nn.Module):
         x = self.emb_dropout(x)
         
         # 3. Transformer
-        # src_key_padding_mask: True for padded positions
-        output = self.transformer(x, mask=causal_mask, src_key_padding_mask=padding_mask)
+        # Remove src_key_padding_mask to avoid NaN when all attention keys are masked
+        # It's a trade-off: model might attend to padding, but it won't crash.
+        # Since we mask the Loss, it should be fine.
+        output = self.transformer(x, mask=causal_mask)
         
         output = self.last_layernorm(output)
         

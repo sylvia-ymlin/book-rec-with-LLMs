@@ -1,0 +1,47 @@
+#!/usr/bin/expect
+
+set host "connect.nmb2.seetacloud.com"
+set port "15054"
+set user "root"
+set password "9Dml+WZeqp5b"
+set local_dir "."
+set remote_dir "/root/autodl-tmp/book-rec-with-LLMs"
+
+# 1. Create remote dir
+spawn ssh -p $port $user@$host "mkdir -p $remote_dir/data/rec; mkdir -p $remote_dir/data/model/rec"
+expect {
+    "password:" { send "$password\r" }
+    "continue connecting" { send "yes\r"; exp_continue }
+}
+expect eof
+
+# 2. Sync src
+spawn scp -P $port -r $local_dir/src $user@$host:$remote_dir/
+expect {
+    "password:" { send "$password\r" }
+}
+expect eof
+
+# 3. Sync scripts
+spawn scp -P $port -r $local_dir/scripts $user@$host:$remote_dir/
+expect {
+    "password:" { send "$password\r" }
+}
+expect eof
+
+# 4. Sync requirements
+spawn scp -P $port $local_dir/requirements.txt $user@$host:$remote_dir/
+expect {
+    "password:" { send "$password\r" }
+}
+expect eof
+
+# 5. Sync Data (Only needed files)
+# We need: user_sequences.pkl, item_map.pkl, train.csv (maybe)
+spawn scp -P $port $local_dir/data/rec/user_sequences.pkl $local_dir/data/rec/item_map.pkl $user@$host:$remote_dir/data/rec/
+expect {
+    "password:" { send "$password\r" }
+}
+expect eof
+
+puts "Deployment Complete!"

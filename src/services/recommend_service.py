@@ -61,6 +61,12 @@ class RecommendationService:
             
             X_df = pd.DataFrame(feats_list)
             
+            # Filter features to match model
+            if hasattr(self.ranker, 'feature_names_in_'):
+                valid_features = self.ranker.feature_names_in_
+                # Intersect to be safe or just reorder
+                X_df = X_df[valid_features]
+            
             # Predict
             # output is probability of class 1
             scores = self.ranker.predict_proba(X_df)[:, 1]
