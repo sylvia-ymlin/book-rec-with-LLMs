@@ -230,11 +230,22 @@ model = xgb.XGBClassifier(
 
 ## 六、实现计划
 
-### Phase 7.1: 数据准备 (Day 1)
-- [ ] 解析 `Books_rating.csv` 构建 user-item 交互表
-- [ ] 筛选活跃用户 (评论 >= 5)
-- [ ] 划分 train/val/test (80/10/10)
-- [ ] 构建正负样本
+### Phase 7.1: 数据准备 (Day 1) ✅ COMPLETED
+- [x] 解析 `Books_rating.csv` 构建 user-item 交互表
+- [x] 筛选活跃用户 (>=3次评分)
+- [x] 划分 train/val/test (时序Leave-Last-Out)
+- [x] 脚本: `scripts/split_rec_data.py`
+
+**实际数据统计** (2026-01-08):
+| 数据集 | 记录数 | 比例 |
+|--------|--------|------|
+| 训练集 (train.csv) | 1,079,966 | 76.3% |
+| 验证集 (val.csv) | 167,968 | 11.9% |
+| 测试集 (test.csv) | 167,968 | 11.9% |
+| 活跃用户 | 167,968 | >=3次评分 |
+| 书籍数 | 221,998 | |
+
+**划分策略**: 每用户按时间排序，最后1本→test, 倒数第2本→val, 其余→train
 
 ### Phase 7.2: 召回模块 (Day 1-2)
 - [ ] 实现 ItemCF (位置+时间+评分加权)
