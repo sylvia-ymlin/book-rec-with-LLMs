@@ -13,6 +13,7 @@ from src.utils import setup_logger
 from src.user.profile_store import add_favorite, list_favorites
 from src.marketing.persona import build_persona
 from src.marketing.highlights import generate_highlights
+from src.api.chat import router as chat_router # ✨ NEW
 
 logger = setup_logger(__name__)
 
@@ -23,9 +24,12 @@ REQUEST_LATENCY = Histogram("http_request_duration_seconds", "HTTP request laten
 
 app = FastAPI(
     title="Book Recommender API",
-    description="API for Intelligent Book Recommendation System",
-    version="1.0.0"
+    description="API for Intelligent Book Recommendation System (RAG Capabilities Enabled)",
+    version="2.0.0"
 )
+
+# Include Routers
+app.include_router(chat_router)
 
 # 挂载静态目录，确保前端能访问 /assets/cover-not-found.jpg
 app.mount("/assets", StaticFiles(directory="assets"), name="assets")
@@ -89,6 +93,7 @@ class RecommendationRequest(BaseModel):
     query: str
     category: str = "All"
     tone: str = "All"
+    user_id: Optional[str] = "local"
 
 class BookResponse(BaseModel):
     isbn: str
@@ -132,7 +137,8 @@ async def get_recommendations(request: RecommendationRequest):
         results = recommender.get_recommendations(
             query=request.query,
             category=request.category,
-            tone=request.tone
+            tone=request.tone,
+            user_id=request.user_id if hasattr(request, 'user_id') else "local"
         )
         return {"recommendations": results}
     except Exception as e:

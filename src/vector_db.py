@@ -1,6 +1,7 @@
 from typing import List, Any
-from langchain_chroma import Chroma
-from langchain_huggingface import HuggingFaceEmbeddings
+# Using community version to avoid 'BaseBlobParser' version conflict in langchain-chroma/core
+from langchain_community.vectorstores import Chroma
+from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.document_loaders import TextLoader
 from langchain_text_splitters import CharacterTextSplitter
 from src.config import DESCRIPTIONS_TXT, CHROMA_DB_DIR, EMBEDDING_MODEL

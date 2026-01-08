@@ -1,0 +1,27 @@
+{
+    "local": {
+        "user_id": "local",
+        "name": "Demo User",
+        "favorites": [
+            {
+                "isbn": "0001047604",
+                "title": "Aurora Leigh",
+                "authors": "Elizabeth Barrett Browning",
+                "simple_categories": "Poetry"
+            },
+            {
+                "isbn": "0060930314",
+                "title": "The Elements of Style",
+                "authors": "William Strunk Jr., E.B. White",
+                "simple_categories": "Reference"
+            },
+            {
+                "isbn": "0140449189",
+                "title": "The Republic",
+                "authors": "Plato",
+                "simple_categories": "Philosophy"
+            }
+        ],
+        "persona": "A reader who appreciates classic literature, thoughtful prose, and philosophical depth. Favors works that combine intellectual rigor with poetic expression."
+    }
+}

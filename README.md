@@ -47,13 +47,17 @@ This project presents a comprehensive, multi-modal recommendation and e-commerce
 *   **Caching Infrastructure**: Implements Redis caching to optimize latency for high-frequency queries.
 *   **Zero-Shot Re-ranking**: (In Progress) Evaluates candidate generation using LLM-based zero-shot reasoning.
 
-### 2. Conversational Shopping Assistant
-*   **RAG Architecture**: Retrieves relevant product context to ground LLM responses, reducing hallucinations.
-*   **Intent Recognition**: Classifies user queries (e.g., search, details, comparison) to route requests effectively.
+### 2. Conversational Shopping Assistant (RAG)
+*   **RAG Architecture**: Retrieves book context from ChromaDB to ground LLM responses, reducing hallucinations.
+*   **Streaming Responses**: Real-time token streaming via Server-Sent Events (SSE).
+*   **BYOK (Bring Your Own Key)**: Users provide their own OpenAI API key via frontend Settings modal.
+*   **Local LLM Support**: Ollama integration for zero-cost local inference (`llama3`).
 
-### 3. Marketing Content Generation
-*   **Automated Copywriting**: Generates marketing descriptions based on product features and target audience profiles.
-*   **Safety Guardrails**: Enforces content safety policies to ensure generated text adheres to brand guidelines.
+### 3. Personalized Marketing Highlights
+*   **LLM-Powered Generation**: Real-time personalized book highlights using user's reading persona.
+*   **Async UX**: Modal opens immediately; highlights load in background for responsive experience.
+*   **Fallback System**: Graceful degradation to template-based highlights if LLM unavailable.
+
 
 ## System Architecture
 
@@ -83,26 +87,36 @@ The project follows a modern full-stack architecture:
     cd book-rec-with-LLMs
     ```
 
-2.  **Install backend dependencies**:
+2.  **Create Conda environment**:
     ```bash
-    pip install -r requirements.txt
+    conda env create -f environment.yml
+    conda activate book-rec
     ```
 
-3.  **Start API Server** (Terminal 1):
+3.  **Initialize Vector Database** (first run only):
+    ```bash
+    python src/init_db.py
+    ```
+
+4.  **Start API Server** (Terminal 1):
     ```bash
     make run
     # Starts FastAPI on http://localhost:6006
     ```
 
-#### 🔄 自动热重载说明
+### LLM Configuration
 
-开发环境下，后端通过 Uvicorn 的 `--reload` 参数启动（见 `make run`），会自动监控 Python 代码变动。
+**Option A: Local Ollama (Free, Recommended for Dev)**
+```bash
+ollama pull llama3
+ollama serve  # if not already running
+```
 
-**每当你修改后端源码，服务会自动重启（热重载），无需手动重启。**
+**Option B: OpenAI API (Production)**
+- Click ⚙️ Settings in the web UI
+- Enter your OpenAI API Key (`sk-...`)
 
-这是 FastAPI/Uvicorn 的内置开发特性，极大提升开发效率。
-
-4.  **Install and start frontend** (Terminal 2):
+5.  **Install and start frontend** (Terminal 2):
     ```bash
     cd web
     npm install

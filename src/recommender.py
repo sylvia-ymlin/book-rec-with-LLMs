@@ -4,8 +4,10 @@ from src.etl import load_books_data
 from src.vector_db import VectorDB
 from src.config import TOP_K_INITIAL, TOP_K_FINAL
 from src.cache import CacheManager
+
 from src.utils import setup_logger, summarize_description
 from src.cover_fetcher import fetch_book_cover
+from src.marketing.personalized_highlight import get_persona_and_highlights
 
 logger = setup_logger(__name__)
 
@@ -27,23 +29,33 @@ class BookRecommender:
         # 加载 books_data.csv 的图片链接（只加载 isbn 和 image 字段）
         import pandas as pd
         try:
-            # 用新生成的带isbn的表
-            book_data_df = pd.read_csv("data/books_data_with_isbn.csv", usecols=["isbn", "image", "description"])
-            # 统一isbn为字符串
-            book_data_df["isbn"] = book_data_df["isbn"].astype(str).str.strip()
-            self.book_images = book_data_df.set_index("isbn")["image"].to_dict()
-            self.book_descriptions = book_data_df.set_index("isbn")["description"].to_dict()
-            logger.info(f"Loaded {len(self.book_images)} book images from books_data_with_isbn.csv")
+            # 用新生成的基础表
+            book_data_df = pd.read_csv("data/books_basic_info.csv")
+            # 统一isbn10为字符串
+            book_data_df["isbn10"] = book_data_df["isbn10"].astype(str).str.strip()
+            self.book_images = book_data_df.set_index("isbn10")["image"].to_dict()
+            self.book_descriptions = book_data_df.set_index("isbn10")["description"].to_dict()
+            if "authors" in book_data_df.columns:
+                self.book_authors = book_data_df.set_index("isbn10")["authors"].to_dict()
+            else:
+                self.book_authors = {}
+            if "average_rating" in book_data_df.columns:
+                self.book_ratings = book_data_df.set_index("isbn10")["average_rating"].to_dict()
+            else:
+                self.book_ratings = {}
+            logger.info(f"Loaded {len(self.book_images)} book images from books_basic_info.csv")
         except Exception as e:
-            logger.error(f"Error loading book images from books_data_with_isbn.csv: {e}")
+            logger.error(f"Error loading book images from books_data_with_isbn13.csv: {e}")
             self.book_images = {}
             self.book_descriptions = {}
+            self.book_authors = {}
         
     def get_recommendations(
-        self, 
-        query: str, 
-        category: str = "All", 
-        tone: str = "All"
+        self,
+        query: str,
+        category: str = "All",
+        tone: str = "All",
+        user_id: str = "local"
     ) -> List[Dict[str, Any]]:
         """
         Generate book recommendations based on query, category, and tone.
@@ -86,36 +98,20 @@ class BookRecommender:
         try:
             for _, row in book_recs.iterrows():
                 from html import unescape
-
-                # 统一isbn格式
-                isbn = str(row["isbn13"]).strip()
-                # 优先用 books_data_with_isbn.csv 里的图片链接和描述
-                thumbnail = self.book_images.get(isbn)
-                desc_raw = self.book_descriptions.get(isbn)
-                # 若找不到图片，尝试用主表thumbnail字段
+                isbn13 = str(row.get("isbn13", "")).strip()
+                
+                # --- PERFORMANCE FIX: Use static data, NO LLM call during search ---
+                # LLM highlights are generated on-demand when user opens book detail
+                
+                thumbnail = self.book_images.get(row.get("isbn10", "")) or self.book_images.get(isbn13)
                 if not thumbnail or pd.isna(thumbnail) or not str(thumbnail).strip():
                     thumbnail = row.get("thumbnail")
-                # 最终兜底
                 if not thumbnail or pd.isna(thumbnail) or not str(thumbnail).strip():
                     thumbnail = "/assets/cover-not-found.jpg"
-                # 保证返回的thumbnail始终为相对路径
                 if isinstance(thumbnail, str) and thumbnail.startswith("/Users/"):
                     thumbnail = "/assets/cover-not-found.jpg"
 
-                # 处理描述兜底
-                if desc_raw and str(desc_raw).strip():
-                    full_desc = unescape(str(desc_raw))
-                else:
-                    full_desc = "本书的详细介绍暂未收录，期待你的探索与发现。"
-
-                authors_str = row.get("authors", "Unknown")
-                authors = row["authors"].split(";")
-                if len(authors) == 2:
-                    authors_str = f"{authors[0]} and {authors[1]}"
-                elif len(authors) > 2:
-                    authors_str = f"{', '.join(authors[:-1])}, and {authors[-1]}"
-                else:
-                    authors_str = row["authors"]
+                average_rating = self.book_ratings.get(row.get("isbn10", "")) or self.book_ratings.get(isbn13) or 0
                 tags_raw = str(row.get("tags", "")).strip()
                 tags = [t.strip() for t in tags_raw.split(";") if t.strip()] if tags_raw else []
                 emotions = {
@@ -125,18 +121,23 @@ class BookRecommender:
                     "anger": float(row.get("anger", 0.0)),
                     "surprise": float(row.get("surprise", 0.0)),
                 }
-                highlights_raw = str(row.get("review_highlights", "")).strip()
-                review_highlights = [unescape(h.strip()) for h in highlights_raw.split(";") if h.strip()] if highlights_raw else []
+                
+                # Use static review_highlights from CSV (no LLM)
+                review_highlights_raw = str(row.get("review_highlights", ""))
+                review_highlights = [h.strip() for h in review_highlights_raw.split(";") if h.strip()][:3]
+                
                 results.append({
-                    "isbn": row["isbn13"],
-                    "title": row["title"],
-                    "authors": authors_str,
-                    "description": full_desc,
+                    "isbn": isbn13,
+                    "title": row.get("title", ""),
+                    "authors": row.get("authors", "Unknown"),
+                    "description": row.get("description", ""),
                     "thumbnail": thumbnail,
-                    "caption": f"{row['title']} by {authors_str}: {full_desc}",
+                    "caption": f"{row.get('title', '')} by {row.get('authors', 'Unknown')}: {row.get('description', '')}",
                     "tags": tags,
                     "emotions": emotions,
-                    "review_highlights": review_highlights
+                    "review_highlights": review_highlights,
+                    "persona_summary": "",  # Filled on-demand in /marketing/highlights
+                    "average_rating": average_rating
                 })
             logger.info(f"Sample result: {results[0] if results else 'EMPTY'}")
             return results
@@ -144,3 +145,4 @@ class BookRecommender:
             import traceback
             logger.error(f"Error in _format_results: {e}\n{traceback.format_exc()}")
             return []
+
