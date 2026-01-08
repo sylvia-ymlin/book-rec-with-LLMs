@@ -155,6 +155,12 @@ sim[i][j] = Σ(loc × time × rating) / sqrt(cnt[i] × cnt[j])
 |                    | 类型匹配 (是否在用户偏好中)               | 1    |
 |                    | 时间差 (距离用户最后评分)                 | 1    |
 |                    | 与用户历史书籍的相似度统计 (max/min/mean) | 3    |
+| **天池高级特征** (NEW) | | |
+| | **Last-N Interaction**: 候选书 vs 用户最后1/3本交互书的相似度 | 2 |
+| | **Embedding Distance**: 欧式距离/余弦相似度 | 2 |
+| | **Content Match**: 作者/Category/出版社是否一致 | 3 |
+| | **Time Diff**: 出版时间 vs 用户最后一次阅读时间差 | 1 |
+| | **Complexity Match**: 书籍页数/描述长度 与 用户历史偏好的一致性 | 1 |
 
 ### 3.4 XGBoost 精排
 
