@@ -9,9 +9,11 @@ load_dotenv()
 PROJECT_ROOT = Path(__file__).parent.parent.absolute()
 
 # Data Paths
+# Data Paths
 DATA_DIR = PROJECT_ROOT / "data"
+PROCESSED_DATA_DIR = DATA_DIR # Alias for clearer intent
 BOOKS_CSV = DATA_DIR / "books_with_emotions.csv"
-DESCRIPTIONS_TXT = DATA_DIR / "books_descriptions.txt"
+REVIEW_HIGHLIGHTS_TXT = DATA_DIR / "review_highlights.txt"
 CHROMA_DB_DIR = DATA_DIR / "chroma_db"
 
 # Assets

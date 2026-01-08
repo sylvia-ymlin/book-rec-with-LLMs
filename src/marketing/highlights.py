@@ -4,6 +4,7 @@ import os
 
 from src.utils import setup_logger
 from src.core.llm import LLMFactory
+from src.user.profile_store import get_cached_highlight, save_cached_highlight
 
 logger = setup_logger(__name__)
 
@@ -63,11 +64,21 @@ def generate_highlights(
     persona_summary = persona.get("summary", "a curious reader")
 
     # --- LLM Generation ---
-    try:
-        # Use local Ollama by default (llama3), fallback to mock if fails
-        llm = LLMFactory.create(provider="ollama", model_name="llama3", temperature=0.7)
-        
-        prompt = f"""You are a literary concierge. Generate a SHORT, personalized highlight (1-2 sentences max) for the following book, tailored to the reader's profile.
+    # 1. Check Cache First
+    # Assuming user_id is passed or available context. For now using 'local' if api_key not set, 
+    # but ideally should come from request context. 
+    # Since api_key is optional param here, we can infer user context implicitly or explicit param.
+    # Note: Using "local" as default user_id for cache to match single-user demo assumption.
+    user_id = "local" 
+    cached_highlight = get_cached_highlight(user_id, isbn)
+    if cached_highlight:
+        highlight_text = cached_highlight
+    else:
+        try:
+            # Use local Ollama by default (llama3), fallback to mock if fails
+            llm = LLMFactory.create(provider="ollama", model_name="llama3", temperature=0.7)
+            
+            prompt = f"""You are a literary concierge. Generate a SHORT, personalized highlight (1-2 sentences max) for the following book, tailored to the reader's profile.
 
 Book: "{title}" by {author_display}
 Category: {category}
@@ -78,13 +89,16 @@ Reader Profile: {persona_summary}
 
 Generate a compelling, personalized highlight that explains why THIS reader would enjoy this book. Be concise and engaging. Do not use phrases like "As someone who..." or "Based on your profile...". Just state the value directly."""
 
-        response = llm.invoke(prompt)
-        highlight_text = response.content.strip()
-        
-    except Exception as e:
-        logger.warning(f"LLM generation failed, falling back to template: {e}")
-        # Fallback to simple template
-        highlight_text = f"A {dominant_emotion} {category.lower() if category else 'read'} that resonates with your literary taste."
+            response = llm.invoke(prompt)
+            highlight_text = response.content.strip()
+            
+            # 2. Save to Cache
+            save_cached_highlight(user_id, isbn, highlight_text)
+            
+        except Exception as e:
+            logger.warning(f"LLM generation failed, falling back to template: {e}")
+            # Fallback to simple template
+            highlight_text = f"A {dominant_emotion} {category.lower() if category else 'read'} that resonates with your literary taste."
 
     return {
         "title": title,
