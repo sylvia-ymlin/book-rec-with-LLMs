@@ -14,6 +14,7 @@ from src.user.profile_store import add_favorite, list_favorites
 from src.marketing.persona import build_persona
 from src.marketing.highlights import generate_highlights
 from src.api.chat import router as chat_router # ✨ NEW
+from src.services.recommend_service import RecommendationService # ✨ NEW
 
 logger = setup_logger(__name__)
 
@@ -77,16 +78,23 @@ async def metrics():
     """Expose Prometheus metrics."""
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
-# Initialize Recommender (Singleton)
+# Initialize Recommender and Services (Singleton)
 # We do this on startup so the first request is fast
 recommender = None
+rec_service = None # ✨ NEW
 
 @app.on_event("startup")
 async def startup_event():
-    global recommender
+    global recommender, rec_service
     logger.info("Initializing Recommender Engine...")
     recommender = BookRecommender()
-    logger.info("Recommender Engine Initialized.")
+    
+    logger.info("Initializing Personalized Rec Service...")
+    rec_service = RecommendationService()
+    # Lazy loading is done in service, but we can pre-warm here if needed
+    # rec_service.load_resources() 
+    
+    logger.info("Engines Initialized.")
 
 # Pydantic Models
 class RecommendationRequest(BaseModel):
@@ -283,3 +291,55 @@ async def run_benchmark():
         "dataset_size": len(recommender.books),
     }
 
+
+# --- Personalized Recommendation API ---
+
+@app.get("/api/recommend/personal")
+async def personalized_recommendations(user_id: str = "local", top_k: int = 10):
+    """
+    Get personalized recommendations for a user.
+    Uses multi-channel recall (ItemCF/UserCF) + XGBoost Ranking.
+    """
+    # Demo logic: Map 'local' to a real user for demonstration
+    if user_id in ["local", "demo"]:
+        # Pick a demo user ID from active users (A1ZQ1LUQ9R6JHZ is a heavy reader)
+        user_id = "A1ZQ1LUQ9R6JHZ" 
+    
+    # Check initialization
+    if not rec_service:
+        raise HTTPException(status_code=503, detail="Service not ready")
+        
+    try:
+        recs = rec_service.get_recommendations(user_id, top_k)
+        
+        # Enrich with metadata
+        results = []
+        for isbn, score in recs:
+            # Recommender matches our singleton 'recommender'
+            meta = recommender.vector_db.get_book_details(isbn)
+            
+            # If meta missing, fallback to partial info
+            title = meta.get("title", f"ISBN: {isbn}") if meta else f"ISBN: {isbn}"
+            desc = meta.get("description", "No description available.") if meta else ""
+            thumb = meta.get("thumbnail", "") if meta else ""
+            author = meta.get("authors", "") if meta else ""
+            
+            # Format cover
+            if not thumb:
+                 thumb = "/assets/cover-not-found.jpg"
+            
+            results.append({
+                "isbn": isbn,
+                "score": float(score),
+                "title": title,
+                "author": author,
+                "description": desc,
+                "thumbnail": thumb
+            })
+            
+        return {"recommendations": results}
+        
+    except Exception as e:
+        logger.error(f"Error in personalized rec: {e}")
+        # In production, maybe return fallback popular items instead of error
+        raise HTTPException(status_code=500, detail=str(e))

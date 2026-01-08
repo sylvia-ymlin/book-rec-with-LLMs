@@ -120,6 +120,10 @@ class VectorDB:
             tokenized_corpus = [doc.lower().split() for doc in self.bm25_corpus]
             self.bm25 = BM25Okapi(tokenized_corpus)
             self.bm25_docs = df.to_dict('records') # Keep raw data for retrieval
+            
+            # Map for fast lookup
+            self.book_map = {str(rec['isbn']): rec for rec in self.bm25_docs}
+            
             logger.info(f"BM25 Index built with {len(self.bm25_corpus)} documents.")
             
         except Exception as e:
@@ -133,6 +137,12 @@ class VectorDB:
         if not self.db:
             return []
         return self.db.similarity_search(query, k=k)
+
+    def get_book_details(self, isbn: str):
+        """Get book metadata by ISBN"""
+        if hasattr(self, 'book_map'):
+            return self.book_map.get(str(isbn))
+        return None
 
     def hybrid_search(self, query: str, k: int = 5, alpha: float = 0.5, rerank: bool = False, temporal: bool = False) -> List[Any]:
         """
