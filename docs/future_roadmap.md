@@ -239,7 +239,26 @@ class OnlineLearningSystem:
 | **P0** | 完成 Phase 7 推荐系统 | 3-5 天 | 当前进行中 |
 | **P1** | 神经意图路由 | 1-2 天 | 需要标注数据 |
 | **P2** | 推理链检索 | 1-2 天 | 无 |
+| **P2** | 推理链检索 | 1-2 天 | 无 |
 | **P3** | 在线反馈学习 | 2-3 天 | 需要前端改造 |
+| **P4** | 生成式推荐 (V4.0) | 1-2 周 | 需要 LLM/Transformer |
+
+---
+
+## 🔮 V4.0: 下一代推荐范式 (The Generative Shift)
+
+*(Inspired by Meta GRs & ByteDance HLLM)*
+
+### 1. 从 Two-Stage 到 End-to-End
+目前是 **召回 -> 精排** 两阶段，存在信息割裂。
+**V4.0 目标**: 使用 Transformer (SASRec/BERT4Rec) 或 LLM 直接自回归生成推荐序列。
+- 输入: `用户交互序列: [Book_A, Book_B, Rating_5, Book_C]`
+- 输出: `Next_Book: Book_D`
+
+### 2. 多目标优化 (Multi-Objective)
+不再仅优化 `P(Click)`，而是优化长期价值 (LTV)。
+- **公式**: $Score = w_1 \cdot P(Click) + w_2 \cdot P(Rating \ge 4) + w_3 \cdot P(Finish\_Reading)$
+- **技术**: 帕累托最优 (Pareto Optimal) 或 多任务学习 (MMoE)。
 
 ---
 

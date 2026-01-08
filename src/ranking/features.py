@@ -35,6 +35,51 @@ class FeatureEngineer:
         from src.recall.fusion import RecallFusion
         self.recall_fusion = RecallFusion(self.data_dir, self.model_dir)
         self.recall_fusion.load_models()
+        
+        # Load book metadata for content features
+        self._load_content_features()
+
+    def _load_content_features(self):
+        """Load book descriptions and other metadata"""
+        logger.info("Loading content features (Complexity & Author)...")
+        try:
+            # Use processed data for descriptions and authors
+            meta_df = pd.read_csv('data/books_processed.csv', usecols=['isbn13', 'description', 'authors'])
+            # Clean ISBN
+            meta_df['isbn'] = meta_df['isbn13'].astype(str).str.replace(r'\.0$', '', regex=True)
+            
+            # 1. Description Length
+            meta_df['desc_len'] = meta_df['description'].fillna('').astype(str).apply(len)
+            self.item_desc_len = meta_df.set_index('isbn')['desc_len'].to_dict()
+            
+            # 2. Author Map
+            # Simplify: Take first author only to avoid complex split logic for now
+            meta_df['author'] = meta_df['authors'].fillna('Unknown').str.split(',').str[0].str.strip()
+            self.item_author = meta_df.set_index('isbn')['author'].to_dict()
+            
+            logger.info("Computing User-Author preferences...")
+            # Pre-compute User-Author Ratings
+            # We need train data
+            train_df = pd.read_csv(self.data_dir / 'train.csv')
+            train_df['author'] = train_df['isbn'].map(self.item_author).fillna('Unknown')
+            
+            # Group by [user, author] -> mean rating
+            # This is a large dict, but manageable (100k users * avg 10 authors = 1M keys)
+            self.user_author_stats = train_df.groupby(['user_id', 'author'])['rating'].mean().to_dict()
+            
+            # Pre-compute User Average Desc Length
+            train_df['desc_len'] = train_df['isbn'].map(self.item_desc_len)
+            user_aggs = train_df.groupby('user_id')['desc_len'].mean()
+            self.user_avg_desc_len = user_aggs.to_dict()
+            
+            logger.info(f"Loaded content stats.")
+            
+        except Exception as e:
+            logger.warning(f"Failed to load content features: {e}")
+            self.item_desc_len = {}
+            self.item_author = {}
+            self.user_author_stats = {}
+            self.user_avg_desc_len = {}
 
     def generate_features(self, user_id, candidate_item):
         """
@@ -55,7 +100,23 @@ class FeatureEngineer:
         feats['i_mean'] = i_stat['mean']
         feats['i_std'] = i_stat['std'] if not pd.isna(i_stat['std']) else 0
         
-        # 3. Interaction Features (ItemCF)
+        # 3. Content Features: 
+        # A. Complexity Match
+        u_desc_len = self.user_avg_desc_len.get(user_id, 500)
+        i_desc_len = self.item_desc_len.get(candidate_item, 0)
+        feats['len_diff'] = abs(u_desc_len - i_desc_len)
+        
+        # B. Author Affinity (NEW)
+        author = self.item_author.get(candidate_item, 'Unknown')
+        # Look up user's rating for this author. Default to user's global mean.
+        if (user_id, author) in self.user_author_stats:
+            feats['u_auth_avg'] = self.user_author_stats[(user_id, author)]
+            feats['u_auth_match'] = 1 # Indicator that use has rated this author
+        else:
+            feats['u_auth_avg'] = feats['u_mean'] # Fallback
+            feats['u_auth_match'] = 0
+        
+        # 4. Interaction Features (ItemCF)
         # Calculate similarity between candidate and user history
         # We can reuse the stored matrix in ItemCF
         # sum(sim(hist_item, candidate))
