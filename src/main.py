@@ -12,7 +12,7 @@ from src.recommender import BookRecommender
 from src.utils import setup_logger
 from src.user.profile_store import (
     add_favorite, list_favorites, remove_favorite,
-    update_book_rating, update_reading_status,
+    update_book_rating, update_reading_status, update_book_comment,
     get_favorites_with_metadata, get_reading_stats
 )
 from src.marketing.persona import build_persona
@@ -138,6 +138,7 @@ class BookUpdateRequest(BaseModel):
     isbn: str
     rating: Optional[float] = None
     status: Optional[str] = None  # "want_to_read", "reading", "finished"
+    comment: Optional[str] = None
 
 @app.get("/health")
 async def health_check():
@@ -213,7 +214,8 @@ async def favorites_list(user_id: str):
                     "mood": "Joy" if row.get("joy", 0) > 0.3 else "Neutral",
                     "rating": meta.get("rating"),
                     "status": meta.get("status", "want_to_read"),
-                    "added_at": meta.get("added_at")
+                    "added_at": meta.get("added_at"),
+                    "comment": meta.get("comment", "")
                 })
         return {"favorites": results}
     except Exception as e:
@@ -235,6 +237,10 @@ async def favorites_update(req: BookUpdateRequest):
         if req.status is not None:
             success = update_reading_status(user_id, req.isbn, req.status)
             results["status_updated"] = success
+            
+        if req.comment is not None:
+            success = update_book_comment(user_id, req.isbn, req.comment)
+            results["comment_updated"] = success
         
         return {"status": "ok", **results}
     except Exception as e:

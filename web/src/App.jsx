@@ -649,8 +649,8 @@ const App = () => {
                                   className="focus:outline-none transform hover:scale-110 transition-transform"
                                 >
                                   <Star className={`w-4 h-4 transition-colors ${star <= (userBook?.rating || 0)
-                                      ? 'text-[#f4acb7] fill-current'
-                                      : 'text-gray-200 hover:text-[#f4acb7]'
+                                    ? 'text-[#f4acb7] fill-current'
+                                    : 'text-gray-200 hover:text-[#f4acb7]'
                                     }`} />
                                 </button>
                               );
@@ -681,6 +681,25 @@ const App = () => {
                       <Bookmark className={`w-4 h-4 ${myCollection.some(b => b.isbn === selectedBook.isbn) ? 'fill-current' : ''}`} />
                       {myCollection.some(b => b.isbn === selectedBook.isbn) ? "In Collection" : "Add to Collection"}
                     </StudyButton>
+
+                    {/* My Notes Section */}
+                    {myCollection.some(b => b.isbn === selectedBook.isbn) && (
+                      <div className="mt-2 pt-3 border-t border-[#eee]">
+                        <label className="text-[10px] font-bold text-[#b392ac] uppercase tracking-wider mb-2 block flex items-center gap-2">
+                          <MessageCircle className="w-3 h-3" /> My Private Notes
+                        </label>
+                        <textarea
+                          value={myCollection.find(b => b.isbn === selectedBook.isbn)?.comment || ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setMyCollection(prev => prev.map(b => b.isbn === selectedBook.isbn ? { ...b, comment: val } : b));
+                          }}
+                          onBlur={(e) => updateBook(selectedBook.isbn, { comment: e.target.value })}
+                          className="w-full text-[11px] p-3 border border-[#eee] focus:border-[#b392ac] outline-none h-24 resize-none bg-[#fff9f9] text-[#666] placeholder:text-gray-300 shadow-inner"
+                          placeholder="Write your thoughts, review, or memorable quotes here..."
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

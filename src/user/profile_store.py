@@ -148,12 +148,36 @@ def update_reading_status(user_id: str, isbn: str, status: str) -> bool:
         favorites[isbn_str] = {
             "added_at": datetime.now().isoformat(),
             "rating": None,
-            "status": status
+            "status": status,
+            "comment": ""
         }
     else:
         favorites[isbn_str]["status"] = status
         if status == "finished" and "finished_at" not in favorites[isbn_str]:
             favorites[isbn_str]["finished_at"] = datetime.now().isoformat()
+    
+    user["favorites"] = favorites
+    store[user_id] = user
+    _save_store(store)
+    return True
+
+def update_book_comment(user_id: str, isbn: str, comment: str) -> bool:
+    store = _load_store()
+    user = store.get(user_id) or {"favorites": {}}
+    user = _migrate_favorites(user)
+    
+    favorites = user.get("favorites", {})
+    isbn_str = str(isbn)
+    
+    if isbn_str not in favorites:
+        favorites[isbn_str] = {
+            "added_at": datetime.now().isoformat(),
+            "rating": None,
+            "status": "want_to_read",
+            "comment": comment
+        }
+    else:
+        favorites[isbn_str]["comment"] = comment
     
     user["favorites"] = favorites
     store[user_id] = user
