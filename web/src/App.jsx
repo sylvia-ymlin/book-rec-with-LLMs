@@ -481,8 +481,8 @@ const App = () => {
                       >
                         <Star
                           className={`w-3.5 h-3.5 transition-colors ${star <= (book.rating || 0)
-                              ? 'text-[#f4acb7] fill-current'
-                              : 'text-gray-200 hover:text-[#f4acb7]'
+                            ? 'text-[#f4acb7] fill-current'
+                            : 'text-gray-200 hover:text-[#f4acb7]'
                             }`}
                         />
                       </button>
@@ -538,10 +538,18 @@ const App = () => {
                   <div className="bg-[#fff9f9] border border-[#f4acb7] p-4 w-full relative mb-4">
                     <Sparkles className="w-3 h-3 text-[#f4acb7] absolute -top-1.5 -left-1.5 fill-current" />
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-[11px] font-bold text-[#f4acb7]">{selectedBook.rating ? selectedBook.rating.toFixed(1) : '0.0'}</span>
-                      <div className="flex gap-0.5 text-[#f4acb7]">
-                        {[1, 2, 3, 4, 5].map(i => <Star key={i} className={`w-3 h-3 ${i <= selectedBook.rating ? 'fill-current' : ''}`} />)}
-                      </div>
+                      {(() => {
+                        const userBook = myCollection.find(b => b.isbn === selectedBook.isbn);
+                        const displayRating = userBook?.rating || 0;
+                        return (
+                          <>
+                            <span className="text-[11px] font-bold text-[#f4acb7]">{displayRating > 0 ? displayRating.toFixed(1) : '0.0'}</span>
+                            <div className="flex gap-0.5 text-[#f4acb7]">
+                              {[1, 2, 3, 4, 5].map(i => <Star key={i} className={`w-3 h-3 ${i <= displayRating ? 'fill-current' : ''}`} />)}
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
                     <p className="text-[11px] font-bold text-[#f4acb7] italic leading-relaxed">
                       {selectedBook.aiHighlight}
@@ -625,11 +633,49 @@ const App = () => {
                     </div>
                   </div>
 
-                  <div className="flex gap-3">
+                  <div className="flex flex-col gap-3">
+                    {/* User Rating & Status - Only if in collection */}
+                    {myCollection.some(b => b.isbn === selectedBook.isbn) && (
+                      <div className="p-3 bg-[#fff9f9] border border-[#f4acb7] space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-[#f4acb7] uppercase tracking-wider">My Rating</span>
+                          <div className="flex gap-0.5">
+                            {[1, 2, 3, 4, 5].map(star => {
+                              const userBook = myCollection.find(b => b.isbn === selectedBook.isbn);
+                              return (
+                                <button
+                                  key={star}
+                                  onClick={() => handleRatingChange(selectedBook.isbn, star)}
+                                  className="focus:outline-none transform hover:scale-110 transition-transform"
+                                >
+                                  <Star className={`w-4 h-4 transition-colors ${star <= (userBook?.rating || 0)
+                                      ? 'text-[#f4acb7] fill-current'
+                                      : 'text-gray-200 hover:text-[#f4acb7]'
+                                    }`} />
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-[#b392ac] uppercase tracking-wider">Status</span>
+                          <select
+                            value={myCollection.find(b => b.isbn === selectedBook.isbn)?.status || "want_to_read"}
+                            onChange={(e) => handleStatusChange(selectedBook.isbn, e.target.value)}
+                            className="bg-white border border-[#eee] text-[10px] text-gray-500 p-1 outline-none focus:border-[#b392ac] w-28 cursor-pointer"
+                          >
+                            <option value="want_to_read">Want to Read</option>
+                            <option value="reading">Reading</option>
+                            <option value="finished">Finished</option>
+                          </select>
+                        </div>
+                      </div>
+                    )}
+
                     <StudyButton
                       active
                       color={myCollection.some(b => b.isbn === selectedBook.isbn) ? "peach" : "purple"}
-                      className="flex-grow py-3 text-sm flex items-center justify-center gap-2 font-bold"
+                      className="w-full py-3 text-sm flex items-center justify-center gap-2 font-bold transition-all"
                       onClick={() => toggleCollect(selectedBook)}
                     >
                       <Bookmark className={`w-4 h-4 ${myCollection.some(b => b.isbn === selectedBook.isbn) ? 'fill-current' : ''}`} />
