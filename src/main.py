@@ -10,7 +10,11 @@ from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_
 
 from src.recommender import BookRecommender
 from src.utils import setup_logger
-from src.user.profile_store import add_favorite, list_favorites
+from src.user.profile_store import (
+    add_favorite, list_favorites, remove_favorite,
+    update_book_rating, update_reading_status,
+    get_favorites_with_metadata, get_reading_stats
+)
 from src.marketing.persona import build_persona
 from src.marketing.highlights import generate_highlights
 from src.api.chat import router as chat_router # ✨ NEW
@@ -128,6 +132,13 @@ class HighlightsRequest(BaseModel):
     isbn: str
     user_id: Optional[str] = "local"
 
+
+class BookUpdateRequest(BaseModel):
+    user_id: Optional[str] = "local"
+    isbn: str
+    rating: Optional[float] = None
+    status: Optional[str] = None  # "want_to_read", "reading", "finished"
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint to verify service status."""
@@ -185,10 +196,11 @@ async def favorites_list(user_id: str):
     if not recommender:
         raise HTTPException(status_code=503, detail="Service not ready")
     try:
-        isbn_list = list_favorites(user_id)
+        # Get favorites with metadata (rating, status)
+        favorites_meta = get_favorites_with_metadata(user_id)
         books_df = recommender.books
         results = []
-        for isbn in isbn_list:
+        for isbn, meta in favorites_meta.items():
             book_row = books_df[books_df["isbn13"].astype(str) == str(isbn)]
             if not book_row.empty:
                 row = book_row.iloc[0]
@@ -198,11 +210,57 @@ async def favorites_list(user_id: str):
                     "author": row.get("authors", "Unknown"),
                     "img": row.get("thumbnail", "/assets/cover-not-found.jpg"),
                     "category": row.get("simple_categories", ""),
-                    "mood": "Joy" if row.get("joy", 0) > 0.3 else "Neutral"
+                    "mood": "Joy" if row.get("joy", 0) > 0.3 else "Neutral",
+                    "rating": meta.get("rating"),
+                    "status": meta.get("status", "want_to_read"),
+                    "added_at": meta.get("added_at")
                 })
         return {"favorites": results}
     except Exception as e:
         logger.error(f"favorites_list error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/favorites/update")
+async def favorites_update(req: BookUpdateRequest):
+    """Update rating or reading status for a book."""
+    try:
+        user_id = req.user_id or "local"
+        results = {}
+        
+        if req.rating is not None:
+            success = update_book_rating(user_id, req.isbn, req.rating)
+            results["rating_updated"] = success
+        
+        if req.status is not None:
+            success = update_reading_status(user_id, req.isbn, req.status)
+            results["status_updated"] = success
+        
+        return {"status": "ok", **results}
+    except Exception as e:
+        logger.error(f"favorites_update error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/favorites/remove")
+async def favorites_remove(req: FavoriteRequest):
+    """Remove a book from favorites."""
+    try:
+        count = remove_favorite(req.user_id or "local", req.isbn)
+        return {"status": "ok", "favorites_count": count}
+    except Exception as e:
+        logger.error(f"favorites_remove error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/user/{user_id}/stats")
+async def user_stats(user_id: str):
+    """Get reading statistics for a user."""
+    try:
+        stats = get_reading_stats(user_id)
+        return stats
+    except Exception as e:
+        logger.error(f"user_stats error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

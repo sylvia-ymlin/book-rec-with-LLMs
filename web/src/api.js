@@ -35,6 +35,32 @@ export async function getFavorites(userId = "local") {
   return data.favorites || [];
 }
 
+export async function updateBook(isbn, updates, userId = "local") {
+  const resp = await fetch(`${API_URL}/favorites/update`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ isbn, user_id: userId, ...updates }),
+  });
+  if (!resp.ok) throw new Error(await resp.text());
+  return resp.json();
+}
+
+export async function removeFromFavorites(isbn, userId = "local") {
+  const resp = await fetch(`${API_URL}/favorites/remove`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ isbn, user_id: userId }),
+  });
+  if (!resp.ok) throw new Error(await resp.text());
+  return resp.json();
+}
+
+export async function getUserStats(userId = "local") {
+  const resp = await fetch(`${API_URL}/user/${userId}/stats`);
+  if (!resp.ok) throw new Error(await resp.text());
+  return resp.json();
+}
+
 export async function getHighlights(isbn, userId = "local") {
   const resp = await fetch(`${API_URL}/marketing/highlights`, {
     method: "POST",

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { Bookmark, Heart, Search, Layers, Smile, Sparkles, Star, Trophy, BarChart3, X, MessageCircle, MessageSquare, Info, Send } from "lucide-react";
-import { recommend, addFavorite, getPersona, getHighlights, streamChat, getFavorites } from "./api";
+import { Bookmark, Heart, Search, Layers, Smile, Sparkles, Star, Trophy, BarChart3, X, MessageCircle, MessageSquare, Info, Send, Trash2 } from "lucide-react";
+import { recommend, addFavorite, getPersona, getHighlights, streamChat, getFavorites, updateBook, removeFromFavorites, getUserStats } from "./api";
 import { Settings } from "lucide-react";
 
 // --- Elegant Book Discovery UI ---
@@ -36,14 +36,19 @@ const App = () => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [myCollection, setMyCollection] = useState([]);
+  const [readingStats, setReadingStats] = useState({ total: 0, want_to_read: 0, reading: 0, finished: 0 });
 
-  // Load favorites on startup
+  // Load favorites and stats on startup
   React.useEffect(() => {
     getFavorites("local")
       .then(favs => {
         setMyCollection(favs);
         localStorage.setItem('myCollection', JSON.stringify(favs));
       })
+      .catch(console.error);
+
+    getUserStats("local")
+      .then(stats => setReadingStats(stats))
       .catch(console.error);
   }, []);
   const [showMyShelf, setShowMyShelf] = useState(false);
@@ -114,6 +119,44 @@ const App = () => {
       }
       setMyCollection(updated);
       localStorage.setItem('myCollection', JSON.stringify(updated));
+      // Refresh stats
+      getUserStats("local").then(stats => setReadingStats(stats)).catch(console.error);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleRatingChange = async (isbn, rating) => {
+    try {
+      await updateBook(isbn, { rating });
+      // Update local state
+      setMyCollection(prev => prev.map(book =>
+        book.isbn === isbn ? { ...book, rating } : book
+      ));
+      getUserStats("local").then(stats => setReadingStats(stats)).catch(console.error);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleStatusChange = async (isbn, status) => {
+    try {
+      await updateBook(isbn, { status });
+      // Update local state
+      setMyCollection(prev => prev.map(book =>
+        book.isbn === isbn ? { ...book, status } : book
+      ));
+      getUserStats("local").then(stats => setReadingStats(stats)).catch(console.error);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleRemoveBook = async (isbn) => {
+    try {
+      await removeFromFavorites(isbn);
+      setMyCollection(prev => prev.filter(book => book.isbn !== isbn));
+      getUserStats("local").then(stats => setReadingStats(stats)).catch(console.error);
     } catch (e) {
       console.error(e);
     }
@@ -343,17 +386,40 @@ const App = () => {
         )}
 
         {showMyShelf && (
-          <div className="mb-8 flex items-center gap-4 text-xs font-bold text-[#b392ac] bg-[#e5d9f2]/30 p-4 border border-[#b392ac]/20">
-            <BarChart3 className="w-4 h-4" />
-            Your collection shows a preference for: {myCollection.map(b => b.mood).filter((v, i, a) => a.indexOf(v) === i).join(", ")}
+          <div className="mb-8 space-y-4">
+            {/* Statistics Card */}
+            <div className="grid grid-cols-4 gap-4">
+              <div className="bg-white border border-[#eee] p-4 text-center">
+                <div className="text-2xl font-bold text-[#b392ac]">{readingStats.total}</div>
+                <div className="text-[10px] text-gray-400 uppercase tracking-wider">Total Books</div>
+              </div>
+              <div className="bg-white border border-[#eee] p-4 text-center">
+                <div className="text-2xl font-bold text-[#f4acb7]">{readingStats.want_to_read}</div>
+                <div className="text-[10px] text-gray-400 uppercase tracking-wider">Want to Read</div>
+              </div>
+              <div className="bg-white border border-[#eee] p-4 text-center">
+                <div className="text-2xl font-bold text-[#9d7799]">{readingStats.reading}</div>
+                <div className="text-[10px] text-gray-400 uppercase tracking-wider">Reading</div>
+              </div>
+              <div className="bg-white border border-[#eee] p-4 text-center">
+                <div className="text-2xl font-bold text-[#735d78]">{readingStats.finished}</div>
+                <div className="text-[10px] text-gray-400 uppercase tracking-wider">Finished</div>
+              </div>
+            </div>
+
+            {/* Mood Preference */}
+            <div className="flex items-center gap-4 text-xs font-bold text-[#b392ac] bg-[#e5d9f2]/30 p-4 border border-[#b392ac]/20">
+              <BarChart3 className="w-4 h-4" />
+              Your collection shows a preference for: {myCollection.map(b => b.mood).filter((v, i, a) => a.indexOf(v) === i).join(", ") || "—"}
+            </div>
           </div>
         )}
 
+        {/* Book Grid - Enhanced for Bookshelf */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
           {currentViewBooks.length > 0 ? currentViewBooks.map((book, idx) => (
             <div
               key={idx}
-              onClick={() => openBook(book)}
               className="group cursor-pointer transform hover:-translate-y-1 transition-all"
             >
               <div className="bg-white border border-[#eee] p-1 relative shadow-sm group-hover:shadow-md overflow-hidden">
@@ -361,23 +427,36 @@ const App = () => {
                   src={book.img || PLACEHOLDER_IMG}
                   alt={book.title}
                   className="w-full aspect-[3/4] object-cover opacity-90 group-hover:opacity-100 transition-opacity"
+                  onClick={() => openBook(book)}
                   onError={e => {
                     e.target.onerror = null;
                     e.target.src = PLACEHOLDER_IMG;
                   }}
                 />
-                <div className="absolute inset-0 bg-white/80 flex items-center justify-center p-4 opacity-0 group-hover:opacity-100 transition-opacity text-center px-4">
-                  <p className="text-[10px] font-bold text-[#b392ac] leading-relaxed italic">
-                    {book.aiHighlight}
-                  </p>
-                </div>
+                {!showMyShelf && (
+                  <div className="absolute inset-0 bg-white/80 flex items-center justify-center p-4 opacity-0 group-hover:opacity-100 transition-opacity text-center px-4" onClick={() => openBook(book)}>
+                    <p className="text-[10px] font-bold text-[#b392ac] leading-relaxed italic">
+                      {book.aiHighlight}
+                    </p>
+                  </div>
+                )}
                 {myCollection.some(b => b.isbn === book.isbn) && (
                   <div className="absolute top-1 right-1 bg-[#f4acb7] p-1 shadow-sm">
                     <Heart className="w-3 h-3 text-white fill-current" />
                   </div>
                 )}
+                {/* Remove button for bookshelf */}
+                {showMyShelf && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleRemoveBook(book.isbn); }}
+                    className="absolute top-1 left-1 bg-red-400 p-1 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"
+                    title="Remove from collection"
+                  >
+                    <Trash2 className="w-3 h-3 text-white" />
+                  </button>
+                )}
               </div>
-              <h3 className="mt-3 text-[12px] font-bold text-[#555] truncate">{book.title}</h3>
+              <h3 className="mt-3 text-[12px] font-bold text-[#555] truncate" onClick={() => openBook(book)}>{book.title}</h3>
               <div className="flex justify-between items-center mt-1">
                 <span className="text-[9px] text-gray-400 tracking-tighter">{book.author}</span>
                 {book.emotions && Object.keys(book.emotions).length > 0 ? (
@@ -388,6 +467,40 @@ const App = () => {
                   <span className="text-[9px] bg-[#f8f9fa] border border-[#eee] px-1 text-[#999]">—</span>
                 )}
               </div>
+
+              {/* Rating and Status for Bookshelf View */}
+              {showMyShelf && (
+                <div className="mt-2 space-y-2">
+                  {/* Star Rating */}
+                  <div className="flex gap-0.5">
+                    {[1, 2, 3, 4, 5].map(star => (
+                      <button
+                        key={star}
+                        onClick={(e) => { e.stopPropagation(); handleRatingChange(book.isbn, star); }}
+                        className="focus:outline-none"
+                      >
+                        <Star
+                          className={`w-3.5 h-3.5 transition-colors ${star <= (book.rating || 0)
+                              ? 'text-[#f4acb7] fill-current'
+                              : 'text-gray-200 hover:text-[#f4acb7]'
+                            }`}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                  {/* Status Dropdown */}
+                  <select
+                    value={book.status || "want_to_read"}
+                    onChange={(e) => { e.stopPropagation(); handleStatusChange(book.isbn, e.target.value); }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-full text-[9px] p-1 border border-[#eee] bg-white text-gray-500 outline-none focus:border-[#b392ac]"
+                  >
+                    <option value="want_to_read">Want to Read</option>
+                    <option value="reading">Reading</option>
+                    <option value="finished">Finished</option>
+                  </select>
+                </div>
+              )}
             </div>
           )) : (
             <div className="col-span-full py-20 text-center text-gray-400 text-xs italic">
