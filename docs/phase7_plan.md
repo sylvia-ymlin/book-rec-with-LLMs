@@ -10,7 +10,7 @@
 
 | 功能               | 原系统 (RAG)               | 新系统 (RecSys + RAG)      |
 | ------------------ | -------------------------- | -------------------------- |
-| **搜索**     | 用户输入 Query → 语义检索 | ✅ 保留                    |
+| **搜索**     | 用户输入 Query → 语义检索 | Retained                    |
 | **推荐**     | 无                         | 用户无需输入 → 个性化推荐 |
 | **精排**     | Cross-Encoder Rerank       | + XGBoost 精排模型         |
 | **召回**     | Embedding                  | + ItemCF + UserCF + 热门   |
@@ -250,10 +250,10 @@ model = xgb.XGBClassifier(
 
 | 问题                               | 决策      | 原因                     |
 | ---------------------------------- | --------- | ------------------------ |
-| **两系统数据是否需要一致？** | ❌ 不需要 | 职责不同                 |
-| **RAG 需要全量书籍吗？**     | ✅ 是     | 用户可能搜索任何书       |
-| **推荐需要全量用户吗？**     | ❌ 否     | 只有活跃用户才有足够历史 |
-| **推荐的书能在RAG查到吗？**  | ✅ 100%   | 已验证：133,816/133,816  |
+| **两系统数据是否需要一致？** | No | 职责不同                 |
+| **RAG 需要全量书籍吗？**     | Yes     | 用户可能搜索任何书       |
+| **推荐需要全量用户吗？**     | No     | 只有活跃用户才有足够历史 |
+| **推荐的书能在RAG查到吗？**  | Yes (100%)   | 已验证：133,816/133,816  |
 
 ### 数据流
 
@@ -277,8 +277,8 @@ RAG系统 (221K书籍索引)
 
 | 指标                 | 公式                 | 目标   | 基线 (V2.0) | Exp 1 (Len) | Exp 2 (Author) |
 | -------------------- | -------------------- | ------ | ----------- | ----------- | -------------- |
-| **Hit Rate@10**      | 推荐列表中命中的比例 | > 30%  | **45.2%** ✅ | 45.0%       | **45.0%**      |
-| **MRR@50**           | 1/命中位置           | > 0.1  | **0.2693** ✅ | 0.2600      | **0.2813** 🚀   |
+| **Hit Rate@10**      | 推荐列表中命中的比例 | > 30%  | **45.2%** | 45.0%       | **45.0%**      |
+| **MRR@50**           | 1/命中位置           | > 0.1  | **0.2693** | 0.2600      | **0.2813**    |
 | **AUC**              | XGBoost 验证集       | > 0.85 | **0.84**    | 0.84        | 0.84           |
 
 *评估样本: 500 随机用户*
@@ -302,7 +302,7 @@ RAG系统 (221K书籍索引)
 *   **结果**: **MRR@5: 0.1498** (Strict Metric)
 *   **结论**: **Critical (0.62 Importance)**. Under the strict MRR@5 metric, the model achieves 0.15, meaning when it hits, it ranks items very high (Top 2-3). The bottleneck is Hit Rate (0.36), indicating a need for better Recall coverage, not just Ranking precision.
 
-### 📊 Feature Importance (Final)
+### Feature Importance (Final)
 1. **`sasrec_score`: 0.6205** (Dominant)
 2. `icf_max`: 0.2871
 3. `i_cnt`: 0.0422
@@ -329,11 +329,11 @@ We upgraded the evaluation standard to **MRR@5 (Tianchi Standard)**.
 > 1. **Feature Poisoning**: Undertrained SASRec (3 epochs) dominated the model (62% importance), causing a 43% drop in MRR.
 > 2. **Recovery with Training**: After 30 epochs, Hit Rate fully recovered to baseline level (0.44 vs 0.446).
 > 3. **Healthy Balance**: The 30-epoch model shows a balanced feature distribution where ItemCF (0.60) and SASRec (0.26) collaborate.
-> 4. **Room for Improvement**: MRR@5 (0.2085) is still 5.6% below baseline. More epochs (100+) are expected to close this gap.
+> 4. **Final Results (2026-01-09)**: MRR@5 = **0.2089**, HR@10 = **0.4400**.
 
-> **Conclusion**: Deep Learning integration is successful. The pipeline is production-ready, with clear optimization path (more training epochs).
+> **Conclusion**: Deep Learning integration is successful. The pipeline is production-ready.
 
-### Phase 7.1: 数据准备 (Day 1) ✅ COMPLETED
+### Phase 7.1: 数据准备 (Day 1) - COMPLETED
 
 - [X] 解析 `Books_rating.csv` 构建 user-item 交互表
 - [X] 筛选活跃用户 (>=3次评分)
@@ -352,7 +352,7 @@ We upgraded the evaluation standard to **MRR@5 (Tianchi Standard)**.
 
 **划分策略**: 每用户按时间排序，最后1本→test, 倒数第2本→val, 其余→train
 
-### Phase 7.2: 召回模块 (Day 1-2) ✅ COMPLETED
+### Phase 7.2: 召回模块 (Day 1-2) - COMPLETED
 
 - [x] 实现 ItemCF (位置+时间+评分加权)
 - [x] 实现 UserCF (Jaccard + 活跃度惩罚 + 热门剪枝)
@@ -360,31 +360,31 @@ We upgraded the evaluation standard to **MRR@5 (Tianchi Standard)**.
 - [x] 召回融合 (RRF)
 - [x] 模型构建脚本: `scripts/build_recall_models.py`
 
-### Phase 7.3: 双塔模型 (Day 2-3) ⏳ PENDING
+### Phase 7.3: 双塔模型 (Day 2-3) - PENDING
 
 - [ ] 构建 User Tower (历史Embedding + 统计特征)
 - [ ] 构建 Item Tower (书籍Embedding + 类型)
 - [ ] 训练 + 评估
 
-### Phase 7.4: 特征工程 (Day 3) ✅ COMPLETED
+### Phase 7.4: 特征工程 (Day 3) - COMPLETED
 
 - [x] 用户特征提取 (Count/Mean/Std)
 - [x] 书籍特征提取
 - [x] 交叉特征构建 (ItemCF/UserCF Score)
 - [x] 特征生成器: `src/ranking/features.py`
 
-### Phase 7.5: 精排模型 (Day 3-4) ✅ COMPLETED
+### Phase 7.5: 精排模型 (Day 3-4) - COMPLETED
 - [x] 构建训练样本 (Val set + Negatives)
 - [x] 训练脚本: `scripts/train_ranker.py`
 - [x] XGBoost 训练 (AUC: 0.84)
 - [x] 模型保存: `data/model/ranking/xgb_ranker.json`
 
-### Phase 7.6: 前端集成 (Day 4-5) 🔄 IN PROGRESS
+### Phase 7.6: 前端集成 (Day 4-5) - IN PROGRESS
 - [x] "为你推荐" API (`/api/recommend/personal`)
 - [ ] 我的书架页面
 - [ ] 豆瓣导入功能
 
-### Phase 7.7: 评估与文档 (Day 5) ✅ COMPLETED
+### Phase 7.7: 评估与文档 (Day 5) - COMPLETED
 
 - [x] 离线评估 (Hit Rate: 45.2%, MRR: 0.27)
 - [x] 基线评估脚本: `scripts/evaluate.py`

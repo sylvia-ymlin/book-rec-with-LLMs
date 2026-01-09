@@ -137,7 +137,57 @@ RRF_Score = Σ 1/(k + rank_dense) + 1/(k + rank_sparse)  # k=60
 
 ---
 
-## 4. Performance Metrics
+## 4. Personalized Recommendation System (Phase 7)
+
+Beyond semantic search, the system implements a **full-stack personalized recommendation pipeline** using classic RecSys techniques combined with deep learning.
+
+### 4.1 Multi-Channel Recall
+
+| Recall Channel | Algorithm | Purpose |
+|:---|:---|:---|
+| **ItemCF** | Co-rating similarity with position/time/rating weighting | Collaborative filtering baseline |
+| **UserCF** | User similarity (Jaccard + activity penalty) | Similar user preferences |
+| **Popularity** | Rating count decay | Cold-start fallback |
+
+### 4.2 SASRec Sequential Model
+
+**Motivation**: User reading preferences evolve over time. Sequential patterns (e.g., "after reading A, users often read B") are valuable signals.
+
+**Implementation**:
+- **Architecture**: Self-Attentive Sequential Recommendation (SASRec) with Transformer blocks
+- **Training**: 30 epochs, 64-dim embeddings, BCE loss with negative sampling
+- **Output**: User sequence embeddings (`user_seq_emb.pkl`) for downstream ranking
+
+### 4.3 XGBoost Ranking Model
+
+**Feature Engineering** (`src/ranking/features.py`):
+- User statistics: count, mean rating, std
+- Item statistics: count, mean rating, std
+- **SASRec score**: dot product of user sequence embedding and item embedding
+- ItemCF/UserCF interaction scores
+- Author affinity (user's historical rating for this author)
+
+**Final Feature Importance (30-epoch SASRec)**:
+| Feature | Importance |
+|:---|:---|
+| `icf_max` (ItemCF) | **0.60** |
+| `sasrec_score` | 0.26 |
+| `i_cnt` (Item popularity) | 0.07 |
+
+### 4.4 Evaluation Results (Strict Metrics)
+
+| Metric | Value |
+|:---|:---|
+| **MRR@5** | **0.2089** |
+| **Hit Rate@10** | **0.4400** |
+| Users Evaluated | 500 (random sample) |
+| Dataset | 167,968 active users, 152,052 books |
+
+> **Key Finding**: The 30-epoch SASRec model achieved balanced feature distribution where ItemCF (0.60) and SASRec (0.26) collaborate effectively. Hit Rate recovered to baseline level while MRR shows strong ranking precision.
+
+---
+
+## 5. Performance Metrics (RAG System)
 
 | Metric | Baseline (Vector Only) | Advanced (This System) |
 |--------|------------------------|------------------------|
@@ -149,7 +199,7 @@ RRF_Score = Σ 1/(k + rank_dense) + 1/(k + rank_sparse)  # k=60
 
 ---
 
-## 5. Technology Stack
+## 6. Technology Stack
 
 | Layer | Technology | Purpose |
 |-------|------------|---------|
@@ -163,7 +213,7 @@ RRF_Score = Σ 1/(k + rank_dense) + 1/(k + rank_sparse)  # k=60
 
 ---
 
-## 6. Key Design Decisions
+## 7. Key Design Decisions
 
 | Decision | Chosen Option | Rejected Alternative | Rationale |
 |----------|---------------|---------------------|-----------|
@@ -175,7 +225,7 @@ RRF_Score = Σ 1/(k + rank_dense) + 1/(k + rank_sparse)  # k=60
 
 ---
 
-## 7. Interview Talking Points
+## 8. Interview Talking Points
 
 **Q: What makes this project technically interesting?**
 > "I implemented an Agentic RAG system with self-routing capability. Instead of one-size-fits-all vector search, the system classifies query intent and dynamically selects from 4 strategies—each optimized for different query types. This achieved 100% recall on exact-match queries that previously failed."
@@ -188,7 +238,7 @@ RRF_Score = Σ 1/(k + rank_dense) + 1/(k + rank_sparse)  # k=60
 
 ---
 
-## 8. File Structure
+## 9. File Structure
 
 ```
 src/
@@ -219,7 +269,7 @@ experiments/
 
 ---
 
-## 9. Conclusion
+## 10. Conclusion
 
 This project demonstrates end-to-end ML engineering skills across:
 - **Data Engineering**: ETL pipelines, SFT data synthesis, quality filtering

@@ -4,7 +4,7 @@
 
 ---
 
-## 📈 版本演进路线图
+## Version Evolution Roadmap
 
 ```
 V1.0 基础RAG                V2.0 当前版本              V3.0 目标版本
@@ -32,7 +32,7 @@ V1.0 基础RAG                V2.0 当前版本              V3.0 目标版本
 
 ---
 
-## 🚀 V3.0 升级计划
+## V3.0 Upgrade Plan
 
 ### 1. 神经意图路由 (Neural Intent Router)
 
@@ -200,7 +200,7 @@ class OnlineLearningSystem:
 
 ---
 
-## 📊 技术提升对照表
+## Performance Improvement Summary
 
 | 维度 | V2.0 (当前) | V3.0 (目标) | 预期提升 |
 |------|-------------|-------------|----------|
@@ -211,7 +211,7 @@ class OnlineLearningSystem:
 
 ---
 
-## 🎯 面试叙事线
+## Interview Narrative
 
 ### 技术演进故事
 
@@ -232,7 +232,7 @@ class OnlineLearningSystem:
 
 ---
 
-## 📅 实施优先级
+## Implementation Priority
 
 | 优先级 | 功能 | 预估时间 | 依赖 |
 |--------|------|----------|------|
@@ -245,12 +245,12 @@ class OnlineLearningSystem:
 
 ---
 
-## 🎨 前端开发计划
+## Frontend Development Plan
 
 ### 当前状态
-- ✅ 基础 Chat UI
-- ✅ 书籍卡片展示
-- ✅ 与后端 API 对接
+- [x] Basic Chat UI
+- [x] Book Card Display
+- [x] Backend API Integration
 
 ### 待开发功能
 
@@ -266,7 +266,7 @@ class OnlineLearningSystem:
 
 ---
 
-## 🔮 V4.0: 下一代推荐范式 (The Generative Shift)
+## V4.0: Next-Generation Recommendation Paradigm (The Generative Shift)
 
 *(Inspired by Meta GRs & ByteDance HLLM)*
 
