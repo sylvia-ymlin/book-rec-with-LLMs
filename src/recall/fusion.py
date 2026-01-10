@@ -66,6 +66,9 @@ class RecallFusion:
         Add recommendations to candidate pool using RRF
         score += weight * (1 / (k + rank))
         """
+        if not recs:
+            return
+            
         for rank, (item, score) in enumerate(recs):
             rrf_score = weight * (1.0 / (rrf_k + rank + 1))
             candidates[item] += rrf_score

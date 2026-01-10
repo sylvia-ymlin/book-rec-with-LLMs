@@ -377,7 +377,7 @@ async def run_benchmark():
 
 # --- Personalized Recommendation API ---
 
-@app.get("/api/recommend/personal")
+@app.get("/api/recommend/personal", response_model=RecommendationResponse)
 async def personalized_recommendations(user_id: str = "local", top_k: int = 10):
     """
     Get personalized recommendations for a user.
@@ -405,7 +405,37 @@ async def personalized_recommendations(user_id: str = "local", top_k: int = 10):
             title = meta.get("title", f"ISBN: {isbn}") if meta else f"ISBN: {isbn}"
             desc = meta.get("description", "No description available.") if meta else ""
             thumb = meta.get("thumbnail", "") if meta else ""
-            author = meta.get("authors", "") if meta else ""
+            authors = meta.get("authors", "Unknown") if meta else "Unknown"
+            
+            # More robust rating/metadata mapping
+            rating = 0.0
+            if meta:
+                # Try average_rating or rating
+                rating = float(meta.get("average_rating", meta.get("rating", 0.0)))
+            
+            tags = []
+            if meta and "tags" in meta:
+                tags_raw = meta["tags"]
+                if isinstance(tags_raw, str):
+                    tags = [t.strip() for t in tags_raw.split(";") if t.strip()]
+                elif isinstance(tags_raw, list):
+                    tags = tags_raw
+            
+            emotions = {}
+            if meta:
+                emotions = {
+                    "joy": float(meta.get("joy", 0.0)),
+                    "sadness": float(meta.get("sadness", 0.0)),
+                    "fear": float(meta.get("fear", 0.0)),
+                    "anger": float(meta.get("anger", 0.0)),
+                    "surprise": float(meta.get("surprise", 0.0)),
+                }
+            
+            highlights = []
+            if meta and "review_highlights" in meta:
+                h_raw = meta["review_highlights"]
+                if isinstance(h_raw, str):
+                    highlights = [h.strip() for h in h_raw.split(";") if h.strip()][:3]
             
             # Format cover
             if not thumb:
@@ -415,9 +445,14 @@ async def personalized_recommendations(user_id: str = "local", top_k: int = 10):
                 "isbn": isbn,
                 "score": float(score),
                 "title": title,
-                "author": author,
+                "authors": authors,
                 "description": desc,
-                "thumbnail": thumb
+                "thumbnail": thumb,
+                "average_rating": rating,
+                "tags": tags,
+                "emotions": emotions,
+                "review_highlights": highlights,
+                "caption": f"{title} by {authors}"
             })
             
         return {"recommendations": results}

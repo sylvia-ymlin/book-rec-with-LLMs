@@ -19,8 +19,9 @@ class YoutubeDNNRecall:
         self.model = None
         self.item_vector_index = None # Matrix of item embeddings
         self.item_ids = None # List of item IDs corresponding to rows
-        self.user_seqs = None
-        self.item_map = None
+        self.user_seqs = {}
+        self.item_map = {}
+        self.id_to_item = {}
         self.meta = None
         
     def load(self):
@@ -99,7 +100,7 @@ class YoutubeDNNRecall:
         logger.info(f"Indexed {self.item_vector_index.shape[0]} items.")
 
     def recommend(self, user_id, history_items=None, top_k=50):
-        if self.model is None:
+        if self.model is None or self.item_vector_index is None:
             return []
             
         # 1. Get User History
@@ -109,7 +110,7 @@ class YoutubeDNNRecall:
             # Convert isbns to ids
             history = [self.item_map.get(isbn, 0) for isbn in history_items]
             history = [x for x in history if x != 0]
-        elif user_id in self.user_seqs:
+        elif self.user_seqs and user_id in self.user_seqs:
             # Offline history
             history = self.user_seqs[user_id]
         

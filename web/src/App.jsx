@@ -687,7 +687,15 @@ const App = () => {
               </div>
               <h3 className="mt-3 text-[12px] font-bold text-[#555] truncate" onClick={() => openBook(book)}>{book.title}</h3>
               <div className="flex justify-between items-center mt-1">
-                <span className="text-[9px] text-gray-400 tracking-tighter">{book.author}</span>
+                <div className="flex flex-col">
+                  <span className="text-[9px] text-gray-400 tracking-tighter truncate w-24">{book.author}</span>
+                  {!showMyShelf && book.rating > 0 && (
+                    <div className="flex items-center gap-0.5 mt-0.5">
+                      <Star className="w-2 h-2 text-[#f4acb7] fill-current" />
+                      <span className="text-[8px] font-bold text-[#f4acb7]">{book.rating.toFixed(1)}</span>
+                    </div>
+                  )}
+                </div>
                 {book.emotions && Object.keys(book.emotions).length > 0 ? (
                   <span className="text-[9px] bg-[#f8f9fa] border border-[#eee] px-1 text-[#999] capitalize">
                     {Object.entries(book.emotions).reduce((a, b) => a[1] > b[1] ? a : b)[0]}
@@ -769,12 +777,18 @@ const App = () => {
                     <div className="flex items-center justify-between mb-2">
                       {(() => {
                         const userBook = myCollection.find(b => b.isbn === selectedBook.isbn);
-                        const displayRating = userBook?.rating || 0;
+                        const displayRating = (userBook?.rating && userBook.rating > 0) ? userBook.rating : (selectedBook.rating || 0);
+                        const isUserRating = userBook?.rating && userBook.rating > 0;
                         return (
                           <>
-                            <span className="text-[11px] font-bold text-[#f4acb7]">{displayRating > 0 ? displayRating.toFixed(1) : '0.0'}</span>
-                            <div className="flex gap-0.5 text-[#f4acb7]">
-                              {[1, 2, 3, 4, 5].map(i => <Star key={i} className={`w-3 h-3 ${i <= displayRating ? 'fill-current' : ''}`} />)}
+                            <div className="flex flex-col">
+                              <span className="text-[11px] font-bold text-[#f4acb7]">
+                                {displayRating > 0 ? displayRating.toFixed(1) : '0.0'}
+                                {isUserRating ? ' (Your Rating)' : ' (Average)'}
+                              </span>
+                              <div className="flex gap-0.5 text-[#f4acb7]">
+                                {[1, 2, 3, 4, 5].map(i => <Star key={i} className={`w-3 h-3 ${i <= displayRating ? 'fill-current' : ''}`} />)}
+                              </div>
                             </div>
                           </>
                         );
