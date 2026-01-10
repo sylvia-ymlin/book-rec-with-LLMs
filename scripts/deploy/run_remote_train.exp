@@ -1,0 +1,31 @@
+#!/usr/bin/expect
+
+set host "connect.nmb2.seetacloud.com"
+set port "15054"
+set user "root"
+set password "9Dml+WZeqp5b"
+set remote_dir "/root/autodl-tmp/book-rec-with-LLMs"
+
+# Commands
+# Use absolute path for conda
+set cmd_pip "/root/miniconda3/bin/pip install pandas tqdm" 
+set cmd_train "export PYTHONPATH=.; /root/miniconda3/bin/python scripts/train_sasrec.py"
+
+spawn ssh -p $port $user@$host "cd $remote_dir; $cmd_pip; $cmd_train"
+set timeout 3600
+
+expect {
+    "password:" {
+        send "$password\r"
+        exp_continue
+    }
+    "continue connecting" {
+        send "yes\r"
+        exp_continue
+    }
+    timeout {
+        puts "Timeout waiting for command"
+        exit 1
+    }
+    eof
+}

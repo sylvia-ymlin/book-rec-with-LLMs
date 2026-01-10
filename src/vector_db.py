@@ -315,3 +315,37 @@ class VectorDB:
         
         return parent_docs
 
+    def add_book(self, book_data: dict):
+        """
+        Dynamically add a new book to the vector database and update indices.
+        """
+        from langchain_core.documents import Document
+        
+        isbn = str(book_data.get("isbn13"))
+        title = book_data.get("title", "")
+        author = book_data.get("authors", "")
+        description = book_data.get("description", "")
+        
+        # 1. Add to Chroma
+        content = f"Title: {title}\nAuthor: {author}\nDescription: {description}\nISBN: {isbn}"
+        doc = Document(
+            page_content=content, 
+            metadata={
+                "isbn": isbn, 
+                "isbn13": isbn, 
+                "title": title, 
+                "authors": author, 
+                "description": description
+            }
+        )
+        
+        if self.db:
+            self.db.add_documents([doc])
+            logger.info(f"Added book {isbn} to ChromaDB")
+            
+        # 2. Refresh BM25 to include new book (Simple implementation: Re-init)
+        # In production, we'd want incremental update, but re-init is safe and fast enough for <100k items.
+        if hasattr(self, 'bm25'):
+            logger.info("Refreshing BM25 index to include new book...")
+            self._init_bm25()
+

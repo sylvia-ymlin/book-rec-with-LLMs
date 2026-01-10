@@ -12,6 +12,15 @@ export async function recommend(query, category = "All", tone = "All", user_id =
   return data.recommendations || [];
 }
 
+export async function getPersonalizedRecommendations(user_id = "local", limit = 20) {
+  // Use URLSearchParams for query parameters
+  const params = new URLSearchParams({ user_id, limit: limit.toString() });
+  const resp = await fetch(`${API_URL}/api/recommend/personal?${params.toString()}`);
+  if (!resp.ok) throw new Error(await resp.text());
+  const data = await resp.json();
+  return data.recommendations || [];
+}
+
 export async function addFavorite(isbn, userId = "local") {
   const resp = await fetch(`${API_URL}/favorites/add`, {
     method: "POST",
@@ -82,7 +91,7 @@ export async function streamChat({ isbn, query, apiKey, provider, onChunk, onErr
         isbn,
         query,
         user_id: "local",
-        provider: provider || (apiKey ? "openai" : "mock")
+        provider: provider || "ollama"
       }),
     });
 
@@ -104,4 +113,21 @@ export async function streamChat({ isbn, query, apiKey, provider, onChunk, onErr
     if (onError) onError(e);
     else console.error(e);
   }
+}
+
+export async function addBook(bookData) {
+  const resp = await fetch(`${API_URL}/books/add`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(bookData),
+  });
+  if (!resp.ok) throw new Error(await resp.text());
+  return resp.json();
+}
+
+export async function searchGoogleBooks(query) {
+  const resp = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=5`);
+  if (!resp.ok) throw new Error("Failed to search Google Books");
+  const data = await resp.json();
+  return data.items || [];
 }

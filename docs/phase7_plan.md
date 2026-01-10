@@ -213,7 +213,7 @@ model = xgb.XGBClassifier(
       "review": "宇宙很大，生活更大",
       "status": "read",
       "marked_at": "2024-01-15",
-      "source": "douban"
+      "source": "web"
     }
   ],
   "preferences": {
@@ -360,11 +360,11 @@ We upgraded the evaluation standard to **MRR@5 (Tianchi Standard)**.
 - [x] 召回融合 (RRF)
 - [x] 模型构建脚本: `scripts/build_recall_models.py`
 
-### Phase 7.3: 双塔模型 (Day 2-3) - PENDING
+### Phase 7.3: 双塔模型 (Day 2-3) - COMPLETED
 
-- [ ] 构建 User Tower (历史Embedding + 统计特征)
-- [ ] 构建 Item Tower (书籍Embedding + 类型)
-- [ ] 训练 + 评估
+- [x] 构建 User Tower (历史Embedding + 统计特征)
+- [x] 构建 Item Tower (书籍Embedding + 类型)
+- [x] 训练 + 评估 (Training script running)
 
 ### Phase 7.4: 特征工程 (Day 3) - COMPLETED
 
@@ -382,7 +382,7 @@ We upgraded the evaluation standard to **MRR@5 (Tianchi Standard)**.
 ### Phase 7.6: 前端集成 (Day 4-5) - IN PROGRESS
 - [x] "为你推荐" API (`/api/recommend/personal`)
 - [ ] 我的书架页面
-- [ ] 豆瓣导入功能
+
 
 ### Phase 7.7: 评估与文档 (Day 5) - COMPLETED
 

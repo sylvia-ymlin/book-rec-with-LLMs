@@ -16,7 +16,7 @@ app_port: 8000
 | **Semantic Search** | ChromaDB + MiniLM-L6 | Sub-300ms retrieval on 200K+ books |
 | **Agentic Router** | Rule-based intent classification | 4 dynamic strategies (BM25, Hybrid, Rerank, Small-to-Big) |
 | **Personalized Rec** | SASRec + XGBoost | MRR@5: 0.21, HR@10: 0.44 |
-| **Conversational AI** | RAG + OpenAI/Ollama | Real-time streaming with context grounding |
+| **Conversational AI** | RAG + OpenAI/Ollama | Real-time streaming (Default: Local Ollama) |
 
 ---
 
@@ -72,7 +72,7 @@ app_port: 8000
 ### 4. Conversational Shopping Assistant
 - **RAG-Grounded Responses**: Context from ChromaDB reduces hallucinations
 - **Streaming Output**: Real-time token streaming via SSE
-- **Flexible LLM**: OpenAI API or local Ollama
+- **Flexible LLM**: Defaults to local **Ollama** (free/privacy), supports **OpenAI API** for production
 
 ---
 
@@ -144,10 +144,30 @@ web/
 └── src/api.js           # API client
 
 scripts/
-├── train_sasrec.py      # SASRec model training
-├── train_ranker.py      # XGBoost ranker training
-└── evaluate.py          # Evaluation metrics
+├── model/
+│   ├── train_sasrec.py      # SASRec model training
+│   ├── train_youtube_dnn.py # YoutubeDNN model training
+│   ├── train_ranker.py      # XGBoost ranker training
+│   └── evaluate.py          # Evaluation metrics
+├── deploy/                  # Server deployment and sync scripts
+└── data/                    # Data processing pipelines
 ```
+
+---
+
+## Feature Gallery
+
+### 1. Interactive Bookshelf & User Collection
+Manage your reading journey with personal ratings, status tracking (Want to Read, Reading, Finished), and private notes.
+
+![Book Detail Interface](docs/screenshots/book_detail_v2.png)
+
+### 2. Dynamic Import (Addressing Cold Start)
+Seamlessly import new books via **Google Books API**. New entries are immediately vector-indexed, solving the Item Cold Start problem by enabling content-based retrieval instantly without user interaction history.
+
+![Google Books Search Import](docs/screenshots/google_search_results.png)
+
+![Collection Update](docs/screenshots/collection_with_imported_book.png)
 
 ---
 

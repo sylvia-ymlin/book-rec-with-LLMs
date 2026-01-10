@@ -18,6 +18,7 @@ from src.user.profile_store import (
 from src.marketing.persona import build_persona
 from src.marketing.highlights import generate_highlights
 from src.api.chat import router as chat_router # ✨ NEW
+from src.services.chat_service import chat_service # ✨ NEW
 from src.services.recommend_service import RecommendationService # ✨ NEW
 
 logger = setup_logger(__name__)
@@ -139,6 +140,33 @@ class BookUpdateRequest(BaseModel):
     rating: Optional[float] = None
     status: Optional[str] = None  # "want_to_read", "reading", "finished"
     comment: Optional[str] = None
+
+class BookAddRequest(BaseModel):
+    isbn: str
+    title: str
+    author: str
+    description: str
+    category: Optional[str] = "General"
+    thumbnail: Optional[str] = None
+
+@app.post("/books/add")
+async def add_book_endpoint(req: BookAddRequest):
+    """
+    Dynamically add a new book to the database and vector index.
+    """
+    if not recommender:
+        raise HTTPException(status_code=503, detail="Service not ready")
+    try:
+        new_book_row = recommender.add_new_book(req.isbn, req.title, req.author, req.description, req.category, req.thumbnail)
+        if new_book_row is not None:
+             # Also update ChatService context
+            chat_service.add_book_to_context(new_book_row)
+            return {"status": "success", "message": f"Book {req.isbn} added."}
+        else:
+            raise HTTPException(status_code=400, detail="Failed to add book. Ensure ISBN is unique.")
+    except Exception as e:
+        logger.error(f"Error adding book: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/health")
 async def health_check():

@@ -1,10 +1,47 @@
 {
   "local": {
-    "favorites": [
-      "0130608556",
-      "0132681528",
-      "0070397635"
-    ],
+    "favorites": {
+      "0132681528": {
+        "added_at": "2026-01-09T15:38:10.572219",
+        "rating": null,
+        "status": "want_to_read"
+      },
+      "0070397635": {
+        "added_at": "2026-01-09T15:38:10.572222",
+        "rating": null,
+        "status": "want_to_read"
+      },
+      "0001047604": {
+        "added_at": "2026-01-09T15:45:08.712638",
+        "rating": 4.0,
+        "status": "want_to_read"
+      },
+      "9780062405845": {
+        "added_at": "2026-01-09T16:41:06.413655",
+        "rating": null,
+        "status": "want_to_read"
+      },
+      "9798868810350": {
+        "added_at": "2026-01-09T16:54:01.771784",
+        "rating": null,
+        "status": "want_to_read"
+      },
+      "9781502629494": {
+        "added_at": "2026-01-09T17:05:22.267982",
+        "rating": null,
+        "status": "want_to_read"
+      },
+      "0130608556": {
+        "added_at": "2026-01-09T18:36:52.125530",
+        "rating": null,
+        "status": "want_to_read"
+      },
+      "9781739463472": {
+        "added_at": "2026-01-09T18:37:37.237430",
+        "rating": null,
+        "status": "want_to_read"
+      }
+    },
     "cached_highlights": {
       "0078817609": "\"Unlock the secrets of C++ programming and ignite your passion for coding with 'Teach Yourself C++'! This comprehensive guide will fuel your joy in learning, as you explore the latest developments and defensive coding techniques to bring your projects to life.\"",
       "0130608556": "\"Unleash your inner coding curiosity with 'Introduction to C Programming: A Modular Approach'! With its modular structure and real-world applications, this book is perfect for those looking to build a strong foundation in programming fundamentals - and discover the thrill of creating something from scratch.\"",
@@ -12,7 +49,27 @@
       "0070397635": "\"Get ready to crunch numbers with ease! This applied mathematics textbook, written by Lial, Greenwell, and Ritchey, will unlock the power of finite math for you, just like it has for computer enthusiasts who crave problem-solving fun.\"",
       "0192802607": "\"Embrace the complexity of human emotions with Chekhov's masterful short stories, where the intricacies of love, relationships, and mortality are expertly woven together. Your affinity for precise mathematical logic will appreciate the deliberate pacing and nuanced character development that unfolds like a perfectly crafted algorithm.\"",
       "0060959479": "\"Discover how bell hooks' groundbreaking work on love and relationships can bridge the gaps in your own life, just as you've bridged mathematical concepts to uncover their underlying truths. 'All About Love: New Visions' offers a profound exploration of human connection that will resonate deeply with your affinity for authors who delve into the complexities of the human experience.\"",
-      "0001048228": "\"Get ready to unravel the intricate mysteries of the human heart with 'Pale Battalions'! This gripping tale, reminiscent of Margaret L. Lial's masterful storytelling, will keep you enthralled as Leonora and Penelope navigate the complexities of grief, family secrets, and self-discovery - all set against the stunning backdrop of Paris.\""
+      "0001048228": "\"Get ready to unravel the intricate mysteries of the human heart with 'Pale Battalions'! This gripping tale, reminiscent of Margaret L. Lial's masterful storytelling, will keep you enthralled as Leonora and Penelope navigate the complexities of grief, family secrets, and self-discovery - all set against the stunning backdrop of Paris.\"",
+      "0027657051": "\"Unlock the power of Django with hands-on guidance! With a passion for Mathematics and Computers, you'll appreciate the step-by-step approach in 'Django Unleashed', allowing you to build dynamic websites with ease.\"",
+      "0060965207": "Here's a personalized highlight for you:\n\n\"Get ready to geek out with Tom Parker's 'Never Trust a Calm Dog'! With its unique blend of humor and practical advice, this handbook is a must-read for anyone who craves clever solutions to everyday puzzles - just like the authors you admire (Margaret L. Lial, Raymond N. Greenwell, Nathan P. Ritchey, Kenneth Leroy Busbee, Joel Adams, Larry R. Nyhoff). Dive in and discover how Parker's wit and wisdom will make your day a little brighter!\"",
+      "0070519161": "\"Delve into the world of formal languages with György E. Révész's comprehensive guide, a natural extension of your love for mathematics and computer science. This technical masterpiece will delight you with its in-depth exploration of automata, decidability, and syntax analysis, building upon your existing foundation of mathematical concepts.\"",
+      "0001047604": "\"Immerse yourself in the intricate world of Elizabeth Barrett Browning's 'Aurora Leigh', where poetic masterpieces meet meticulous craftsmanship. With its unique blend of literary artistry and behind-the-scenes revisions, this book is a must-read for fans of mathematical precision and computer-like attention to detail - just like Margaret L. Lial, Raymond N. Greenwell, and their peers.\"",
+      "0070162425": "\"Uncover the harmonious marriage of mathematics and poetry in 'Optimal Statistical Decisions'. This book's clear, accessible writing style - reminiscent of the lyrical prose found in Elizabeth Barrett Browning's sonnets - will guide you through the intricacies of Bayesian statistics, illuminating the ways in which mathematical concepts can be applied to understand consumer behavior and decision-making processes.\"",
+      "9780190250737": "\"Unlock the secrets of quantum physics with Michael G. Raymer's accessible guide! As a lover of mathematics and poetry, you'll appreciate how Raymer weaves together the beauty of science and language to reveal the fascinating world of particles and waves.\"",
+      "9798868810350": "\"Discover how the harmonious marriage of math and code can unleash your creative potential in 'Hands-on Deep Learning'! With its hands-on approach, you'll find joy in exploring the intricate dance between algorithms and poetry-like insights, much like the masterful blend of words and mathematics in Elizabeth Barrett Browning's sonnets.\"",
+      "9781502629494": "\"Unleash the poet in you with 'The Power of Python'! This book's blend of coding and creativity will resonate with fans of Elizabeth Barrett Browning's sonnets, as it reveals the intuitive beauty behind Guido van Rossum's creation. Dive into the world of Python programming and discover how math meets poetry in this joy-filled journey.\"",
+      "9781739463472": "\"Experience the timeless exploration of human nature in 'The Power of Love - A Tale of Time', where the threads of past malevolence weave a tapestry of redemption, echoing the poetical depth of Elizabeth Barrett Browning's Sonnets. Discover how this thought-provoking tale illuminates the intricate dance between good and evil, resonating with your appreciation for literary masterpieces.\"",
+      "9780062405845": "Here's a personalized highlight for you:\n\n\"Sea of Rust\" is a thrilling post-apocalyptic adventure that will resonate deeply with those who appreciate the intersection of technology, humanity, and poetry. With its evocative prose and gritty robot western setting, this book is sure to captivate readers who enjoy exploring the complexities of existence through fiction, just as Elizabeth Barrett Browning did in her sonnets."
+    }
+  },
+  "test_user_123": {
+    "favorites": {
+      "9780123456789": {
+        "added_at": "2026-01-09T15:18:50.523021",
+        "rating": 4.5,
+        "status": "reading",
+        "comment": "This is a great book!"
+      }
     }
   }
 }
