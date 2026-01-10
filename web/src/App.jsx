@@ -7,7 +7,7 @@ import { Settings } from "lucide-react";
 
 const CATEGORIES = ["All", "Fiction", "History", "Philosophy", "Science", "Art"];
 const MOODS = ["All", "Happy", "Suspenseful", "Angry", "Sad", "Surprising"];
-const PLACEHOLDER_IMG = "http://localhost:6006/assets/cover-not-found.jpg";
+const PLACEHOLDER_IMG = "http://127.0.0.1:6006/assets/cover-not-found.jpg";
 
 const StudyButton = ({ children, active, color, className, onClick }) => {
   const colors = {
@@ -310,7 +310,12 @@ const App = () => {
     setError("");
     setBooks([]);  // Clear previous results immediately
     try {
-      const recs = await recommend(searchQuery || 'adventure', searchCategory, searchMood, "local");
+      let recs;
+      if (!searchQuery) {
+        recs = await getPersonalizedRecommendations("local");
+      } else {
+        recs = await recommend(searchQuery, searchCategory, searchMood, "local");
+      }
       const mapped = (recs || []).map((r, idx) => ({
         id: r.isbn,
         title: r.title,
@@ -523,36 +528,10 @@ const App = () => {
       )}
 
       <main className="max-w-5xl mx-auto px-4 pb-20">
+
+
         {!showMyShelf && (
           <>
-            {myCollection.length > 0 && (
-              <div className="mb-12 animate-in fade-in slide-in-from-top-4 duration-700">
-                <h4 className="flex items-center gap-2 text-[10px] font-black uppercase text-[#b392ac] mb-4 tracking-widest">
-                  <Sparkles className="w-3.5 h-3.5" /> Soul-Matched Recommendations
-                </h4>
-                <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
-                  {getRecommendedBooks().map(book => (
-                    <div
-                      key={book.id}
-                      onClick={() => openBook(book)}
-                      className="min-w-[280px] flex gap-4 bg-white border border-[#333] p-3 shadow-sm hover:shadow-md cursor-pointer transition-all"
-                    >
-                      <img src={book.img || PLACEHOLDER_IMG} className="w-20 h-28 object-cover border border-[#eee]" onError={e => { e.target.onerror = null; e.target.src = PLACEHOLDER_IMG; }} />
-                      <div className="flex flex-col justify-between">
-                        <div>
-                          <h5 className="text-[12px] font-bold text-[#333]">{book.title}</h5>
-                          <p className="text-[10px] text-gray-400 mt-1">Resonates with your "{book.mood}" preference</p>
-                        </div>
-                        <div className="flex gap-1">
-                          {book.tags.slice(0, 2).map(t => <span key={t} className="text-[8px] px-1.5 py-0.5 bg-[#f8f9fa] border border-[#eee] text-[#999]">{t}</span>)}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
             <div className="max-w-4xl mx-auto mb-16 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
                 <div className="md:col-span-6 flex items-center bg-white border border-[#ddd] p-2 shadow-sm">
@@ -688,6 +667,13 @@ const App = () => {
                     <Heart className="w-3 h-3 text-white fill-current" />
                   </div>
                 )}
+                {/* Rank Badge - Only in Discovery Mode */}
+                {!showMyShelf && book.rank && (
+                  <div className="absolute top-1 left-1 bg-black/70 text-white text-[10px] font-bold px-1.5 py-0.5 shadow-sm z-10 backdrop-blur-sm">
+                    #{book.rank}
+                  </div>
+                )}
+
                 {/* Remove button for bookshelf */}
                 {showMyShelf && (
                   <button
@@ -954,7 +940,7 @@ const App = () => {
       <footer className="mt-16 text-center text-[9px] font-medium text-gray-300 uppercase tracking-widest pb-10 border-t border-[#eee] pt-10">
         Paper Shelf // 2026 Your Personal Library
       </footer>
-    </div>
+    </div >
   );
 };
 

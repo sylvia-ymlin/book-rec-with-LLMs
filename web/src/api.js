@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:6006";
+const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:6006";
 
 export async function recommend(query, category = "All", tone = "All", user_id = "local") {
   const body = { query, category, tone, user_id };

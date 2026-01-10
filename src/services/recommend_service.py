@@ -74,6 +74,17 @@ class RecommendationService:
         if not candidates:
             return []
             
+        
+        # Deduplicate candidates (keep highest score across channels)
+        unique_candidates = {}
+        for item, score in candidates:
+            # If item already exists, only update if new score is higher? 
+            # Or assume fusion already handled scores.
+            # Fusion usually returns sorted list, but let's be safe.
+            if item not in unique_candidates:
+                unique_candidates[item] = score
+        
+        candidates = list(unique_candidates.items())
         candidate_items = [item for item, score in candidates]
         
         # 2. Ranking

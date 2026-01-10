@@ -40,19 +40,7 @@ app.include_router(chat_router)
 # 挂载静态目录，确保前端能访问 /assets/cover-not-found.jpg
 app.mount("/assets", StaticFiles(directory="assets"), name="assets")
 
-# Allow local frontend dev origins
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+
 
 # --- Observability Middleware ---
 @app.middleware("http")
@@ -438,3 +426,13 @@ async def personalized_recommendations(user_id: str = "local", top_k: int = 10):
         logger.error(f"Error in personalized rec: {e}")
         # In production, maybe return fallback popular items instead of error
         raise HTTPException(status_code=500, detail=str(e))
+
+# Allow local frontend dev origins
+# Added LAST so it wraps the app outermost (first to process request)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
