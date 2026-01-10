@@ -4,7 +4,7 @@ import sys
 
 def sync_to_server():
     host = "connect.nmb2.seetacloud.com"
-    port = "15054"
+    port = "26578"
     user = "root"
     password = "9Dml+WZeqp5b"
     
@@ -34,33 +34,49 @@ def sync_to_server():
     # Exclude files handled by .gitignore if using rsync, but scp is simpler for now
     
     # Let's sync folders individually to be safe
-    folders = ['src', 'scripts', 'data']
-    
+    # 2. Sync Code
+    folders = ['src', 'scripts']
     for folder in folders:
         print(f"Syncing {folder}...")
-        # scp -P PORT -r local_folder user@host:remote_path/
-        # Note: scp -r src ... works
-        
-        # We need to handle 'data' carefully. 
-        # Only sync 'data/rec' and 'data/books_processed.csv' etc?
-        # Let's sync entire 'data' but maybe exclude huge raw files if possible.
-        # But user wants 'train.csv' etc which are in 'data/rec'.
-        
         cmd_scp = f"scp -r -P {port} {local_path}/{folder} {user}@{host}:{remote_path}/"
         
-        child = pexpect.spawn(cmd_scp, timeout=3000) # Long timeout for data
+        child = pexpect.spawn(cmd_scp, timeout=300)
         i = child.expect(['password:', 'continue connecting', pexpect.EOF, pexpect.TIMEOUT])
-        
         if i == 1:
             child.sendline('yes')
             child.expect('password:')
-            
         if i == 0 or i == 1:
             child.sendline(password)
-            # Expect EOF when transfer done
             child.expect(pexpect.EOF)
-            
         print(f"Synced {folder}.")
+
+    # 3. Sync Data (Only necessary files)
+    print("Syncing data files (rec/ and books_processed.csv)...")
+    
+    # Ensure data dir exists
+    cmd_mkdir_data = f"ssh -p {port} {user}@{host} 'mkdir -p {remote_path}/data'"
+    child = pexpect.spawn(cmd_mkdir_data)
+    child.expect('password:')
+    child.sendline(password)
+    child.expect(pexpect.EOF)
+
+    # Sync books_processed.csv
+    print("Syncing books_processed.csv (350MB+)...")
+    cmd_scp_books = f"scp -P {port} {local_path}/data/books_processed.csv {user}@{host}:{remote_path}/data/"
+    child = pexpect.spawn(cmd_scp_books, timeout=1200) # 20 mins
+    child.expect('password:')
+    child.sendline(password)
+    child.expect(pexpect.EOF)
+    
+    # Sync rec/ folder
+    print("Syncing data/rec/ folder (1.5GB+)...")
+    cmd_scp_rec = f"scp -r -P {port} {local_path}/data/rec {user}@{host}:{remote_path}/data/"
+    child = pexpect.spawn(cmd_scp_rec, timeout=3600) # 60 mins
+    child.expect('password:')
+    child.sendline(password)
+    child.expect(pexpect.EOF)
+        
+    print("Sync Completed!")
         
     print("Sync Completed!")
 

@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added - 2026-01-10 (Phase 7: Optimization & Integration)
+- **Deep Learning Recall Model**: Integrated `YoutubeDNN` (50 epochs, trained on GPU) into `RecallFusion`.
+  - Serves as the primary recall channel (weight=2.0) for personalized recommendations.
+  - Implemented high-performance in-memory embedding pre-computation on startup.
+- **Deduplication Logic**:
+  - Added strict deduplication in `RecommendationService`.
+  - Filters out books already in user's favorites.
+  - Filters out duplicate titles (even if different ISBNs) using an ISBN-Title mapping.
+
+### Changed - 2026-01-10
+- **Performance Optimization**: 
+  - Enabled "Resource Pre-warming" in backend `startup_event`.
+  - Reduced cold-start latency for `/api/recommend/personal` from ~15s (lazy load) to **~19ms** (warm).
+  - Backend startup time increased slightly (`make run`) to ensure instant user response.
+- **Code Refactoring**:
+  - Moved `YoutubeDNNRecall` integration from placeholder to active use in `fusion.py`.
+  - Optimized vector DB loading to handle `langchain` deprecation warnings.
+
+### Fixed - 2026-01-10
+- **Dependency Issues**: Resolved `ModuleNotFoundError: langchain_openai` by updating environment.
+- **Critical Bugs**:
+  - Fixed `TypeError` in `list_favorites` handling (dict vs list mismatch).
+  - Fixed duplicate book display in frontend recommendations.
+  - Resolved port 6006 conflicts during reload cycles.
+
 ### Added - 2024-01-07
 - **UI Refinements**: Book detail modal layout improvements
   - Author name displayed separately below book cover

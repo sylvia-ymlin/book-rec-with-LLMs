@@ -96,8 +96,11 @@ async def startup_event():
     
     logger.info("Initializing Personalized Rec Service...")
     rec_service = RecommendationService()
-    # Lazy loading is done in service, but we can pre-warm here if needed
-    # rec_service.load_resources() 
+    # Pre-warm resources for better UX
+    try:
+        rec_service.load_resources()
+    except Exception as e:
+        logger.error(f"Failed to pre-load resources: {e}")
     
     logger.info("Engines Initialized.")
 

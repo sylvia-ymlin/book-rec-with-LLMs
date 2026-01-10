@@ -78,3 +78,4 @@ data/books_processed.csv
 # Large data files (rebuild with scripts/init_dual_index.py)
 data/chroma_chunks/
 data/review_chunks.jsonl
+*.pt
