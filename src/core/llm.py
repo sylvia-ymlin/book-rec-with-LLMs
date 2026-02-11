@@ -18,7 +18,7 @@ class LLMFactory:
     def create(
         provider: Literal["openai", "ollama", "mock"] = "openai",
         api_key: Optional[str] = None,
-        model_name: Optional[str] = None,
+        model_name: str = "gpt-3.5-turbo",
         temperature: float = 0.7
     ) -> BaseChatModel:
         """
@@ -35,9 +35,6 @@ class LLMFactory:
              ])
         
         if provider == "openai":
-            if not model_name:
-                model_name = "gpt-3.5-turbo"
-            
             if not api_key:
                 # Fallback to env var if not provided (for dev convenience)
                 import os
@@ -55,11 +52,8 @@ class LLMFactory:
             
         elif provider == "ollama":
             # Ollama usually runs locally on default port 11434
-            if not model_name:
-                model_name = "llama3" # Default for Ollama
-                
             return ChatOllama(
-                model=model_name,
+                model=model_name or "llama3",
                 temperature=temperature,
             )
             

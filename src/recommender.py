@@ -72,51 +72,17 @@ class BookRecommender:
 
         logger.info(f"Processing request: query='{query}', category='{category}', tone='{tone}'")
         
-        # 1. Agentic Retrieval (Router -> Hybrid/Rerank/Small-to-Big)
-        from src.core.router import QueryRouter
-        router = QueryRouter()
-        decision = router.route(query)
-        logger.info(f"Retrieval Strategy: {decision}")
-        
-        # Route to appropriate search method
-        if decision["strategy"] == "small_to_big":
-            recs = self.vector_db.small_to_big_search(query, k=TOP_K_INITIAL)
-        else:
-            recs = self.vector_db.hybrid_search(
-                query, 
-                k=TOP_K_INITIAL, 
-                alpha=decision.get("alpha", 0.5), 
-                rerank=decision["rerank"],
-                temporal=decision.get("temporal", False)
-            )
-
+        # 1. Semantic Search
+        recs = self.vector_db.search(query, k=TOP_K_INITIAL)
+        # Handle potential inconsistent ISBN formats (str vs int)
         books_list = []
         for rec in recs:
-            # Robust ISBN Extraction
-            isbn_str = None
-            
-            # 1. Try Metadata (Hybrid/BM25)
-            if rec.metadata and 'isbn' in rec.metadata:
-                isbn_str = str(rec.metadata['isbn'])
-            elif rec.metadata and 'isbn13' in rec.metadata:
-                isbn_str = str(rec.metadata['isbn13'])
-            
-            # 2. Try New Content Format (Title... ISBN: X)
-            elif "ISBN:" in rec.page_content:
-                try:
-                    # Find 'ISBN:' and take next token
-                    parts = rec.page_content.split("ISBN:")
-                    if len(parts) > 1:
-                        isbn_str = parts[1].strip().split()[0]
-                except:
-                    pass
-
-            # 3. Try Legacy Content Format (Start of string)
-            if not isbn_str:
-                isbn_str = rec.page_content.strip('"').split()[0]
-            
-            if isbn_str:
-                books_list.append(isbn_str)
+            isbn_str = rec.page_content.strip('"').split()[0]
+            try:
+                    # New dataset IDs might be strings (ASIN) or ints
+                    books_list.append(isbn_str) 
+            except:
+                    continue
         
         # 2. Filter by ISBN (Handle both string and int ISBNs from new dataset)
         # Ensure ISBN column type matches

@@ -58,24 +58,3 @@ def list_favorites(user_id: str) -> List[str]:
     favs: List[str] = user.get("favorites", [])
     # De-duplicate while preserving order
     return list(dict.fromkeys(favs))
-
-
-def save_cached_highlight(user_id: str, isbn: str, highlight: str) -> None:
-    """Save a generated highlight to the user's profile."""
-    store = _load_store()
-    user = store.get(user_id) or {"favorites": [], "cached_highlights": {}}
-    
-    if "cached_highlights" not in user:
-        user["cached_highlights"] = {}
-    
-    user["cached_highlights"][str(isbn)] = highlight
-    store[user_id] = user
-    _save_store(store)
-
-
-def get_cached_highlight(user_id: str, isbn: str) -> str | None:
-    """Retrieve a cached highlight if it exists."""
-    store = _load_store()
-    user = store.get(user_id) or {}
-    return user.get("cached_highlights", {}).get(str(isbn))
-

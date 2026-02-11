@@ -1,6 +1,6 @@
-from typing import Generator, Optional, Dict, Any, List
+from typing import Generator, Optional, Dict, Any
 import pandas as pd
-from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, BaseMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 
 from src.core.llm import LLMFactory
 from src.etl import load_books_data
@@ -17,7 +17,6 @@ class ChatService:
     """
     _instance = None
     _books_df = None
-    _history: Dict[str, List[BaseMessage]] = {}
 
     def __new__(cls):
         if cls._instance is None:
@@ -56,30 +55,7 @@ class ChatService:
             info += f"Emotional Tone: {', '.join(emotions)}\n"
             
         info += f"Description: {book.get('description', 'No description available.')}\n"
-        
-        # Add Review Highlights
-        reviews = book.get('review_highlights', '')
-        if reviews:
-             info += f"Review Highlights (What readers say): {reviews}\n"
-             
         return info
-
-    def _get_history_key(self, user_id: str, isbn: str) -> str:
-        return f"{user_id}:{isbn}"
-
-    def _update_history(self, key: str, human: str, ai: str):
-        if key not in self._history:
-            self._history[key] = []
-        self._history[key].append(HumanMessage(content=human))
-        self._history[key].append(AIMessage(content=ai))
-        # Limit to last 10 messages (5 turns)
-        if len(self._history[key]) > 10:
-            self._history[key] = self._history[key][-10:]
-
-    def clear_history(self, user_id: str, isbn: str):
-        key = self._get_history_key(user_id, isbn)
-        if key in self._history:
-            del self._history[key]
 
     async def chat_stream(
         self, 
@@ -103,21 +79,7 @@ class ChatService:
         persona_data = build_persona(favs, self._books_df)
         user_persona = persona_data.get("summary", "General Reader")
 
-        # 3. Construct Prompt with History
-        from src.core.context_compressor import compressor
-        
-        # Compress History (if needed)
-        key = self._get_history_key(user_id, isbn)
-        raw_history = self._history.get(key, [])
-        compressed_history = []
-        
-        # We need to await the async function, but we are in an async generator.
-        # This is fine.
-        try:
-            compressed_history = await compressor.compress_history(raw_history)
-        except:
-             compressed_history = raw_history[-10:] # Fallback
-
+        # 3. Construct Prompt
         system_prompt = (
             "You are a knowledgeable and helpful intelligent librarian. "
             "The user is asking questions about a specific book. "
@@ -130,23 +92,15 @@ class ChatService:
         
         messages = [
             SystemMessage(content=system_prompt),
-            *compressed_history,
             HumanMessage(content=user_query)
         ]
 
         # 4. Invoke LLM (Streaming)
-        full_response = ""
         try:
             llm = LLMFactory.create(provider=provider, api_key=api_key, temperature=0.5)
             # Use astream for async streaming
             async for chunk in llm.astream(messages):
-                content = chunk.content
-                full_response += content
-                yield content
-            
-            # 5. Save functionality
-            self._update_history(key, user_query, full_response)
-            
+                yield chunk.content
         except Exception as e:
             logger.error(f"LLM Error: {e}")
             yield f"Error generating response: {str(e)}. Please check your API Key."

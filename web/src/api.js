@@ -28,13 +28,6 @@ export async function getPersona(userId = "local") {
   return resp.json();
 }
 
-export async function getFavorites(userId = "local") {
-  const resp = await fetch(`${API_URL}/favorites/list/${userId}`);
-  if (!resp.ok) throw new Error(await resp.text());
-  const data = await resp.json();
-  return data.favorites || [];
-}
-
 export async function getHighlights(isbn, userId = "local") {
   const resp = await fetch(`${API_URL}/marketing/highlights`, {
     method: "POST",
@@ -44,7 +37,7 @@ export async function getHighlights(isbn, userId = "local") {
   if (!resp.ok) throw new Error(await resp.text());
   return resp.json();
 }
-export async function streamChat({ isbn, query, apiKey, provider, onChunk, onError }) {
+export async function streamChat({ isbn, query, apiKey, onChunk, onError }) {
   try {
     const resp = await fetch(`${API_URL}/chat/completions`, {
       method: "POST",
@@ -56,7 +49,7 @@ export async function streamChat({ isbn, query, apiKey, provider, onChunk, onErr
         isbn,
         query,
         user_id: "local",
-        provider: provider || (apiKey ? "openai" : "mock")
+        provider: apiKey ? "openai" : "mock"
       }),
     });
 

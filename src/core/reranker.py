@@ -57,13 +57,7 @@ class RerankerService:
         valid_docs = []
         
         for doc in docs:
-            # Handle LangChain Document object
-            if hasattr(doc, "page_content"):
-                text = doc.page_content
-            # Handle Dict
-            else:
-                text = doc.get("description") or doc.get("page_content") or str(doc)
-            
+            text = doc.get("description") or doc.get("page_content") or str(doc)
             pairs.append([query, text])
             valid_docs.append(doc)
             
@@ -76,27 +70,12 @@ class RerankerService:
         # Attach scores and sort
         scored_results = []
         for i, doc in enumerate(valid_docs):
-            score = float(scores[i])
-            if hasattr(doc, "metadata"):
-                # Handle Document
-                # Create a shallow copy to avoid mutating original if needed, 
-                # but simplistic approach is fine here
-                doc.metadata["relevance_score"] = score
-                scored_results.append(doc)
-            else:
-                # Handle Dict
-                doc_copy = doc.copy()
-                doc_copy["score"] = score
-                scored_results.append(doc_copy)
+            doc_copy = doc.copy()
+            doc_copy["score"] = float(scores[i])
+            scored_results.append(doc_copy)
             
         # Sort descending by score
-        # Sort descending by score
-        def get_score(doc):
-            if hasattr(doc, "metadata"):
-                return doc.metadata.get("relevance_score", 0)
-            return doc.get("score", 0)
-
-        scored_results.sort(key=get_score, reverse=True)
+        scored_results.sort(key=lambda x: x["score"], reverse=True)
         
         return scored_results[:top_k]
 

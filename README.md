@@ -23,12 +23,10 @@ The implementation follows a modular pipeline consisting of Data Preprocessing, 
 The dataset consists of 7,000+ books with metadata including titles, authors, and summaries. Data cleaning procedures included:
 - **Null Value Handling**: Removal of records with missing descriptions or critical metadata.
 - **Text Normalization**: Standardization of description text (unicode normalization, whitespace handling).
-- **Review Aggregation**: Concatenation of top 3 most helpful/detailed reviews to form a "Review Highlight" document for semantic search.
-- **Description Repair**: Integration of official `books_data.csv` description metadata for accurate frontend display.
-- **Quality Filtration**: Exclusion of records with content shorter than 25 words to ensure sufficient semantic content for embedding.
+- **Quality Filtration**: Exclusion of records with descriptions shorter than 25 words to ensure sufficient semantic content for embedding.
 
 ### 2.2 Vector Embeddings
-Semantic search is enabled by projecting **processed review highlights** (concatenated high-frequency user comments) into a shared vector space. This allows the system to capture the "reader's sentiment" and thematic elements as perceived by the audience, rather than just the official synopsis. We utilized the `sentence-transformers/all-MiniLM-L6-v2` model, which maps sentences to a 384-dimensional dense vector space. This model was selected for its optimal balance between inference speed and semantic accuracy (performance on the 1B Sentence Embeddings Benchmark).
+Semantic search is enabled by projecting textual descriptions into a shared vector space. We utilized the `sentence-transformers/all-MiniLM-L6-v2` model, which maps sentences to a 384-dimensional dense vector space. This model was selected for its optimal balance between inference speed and semantic accuracy (performance on the 1B Sentence Embeddings Benchmark).
 
 ### 2.3 Emotion Classification
 To support mood-based filtering, we implemented a transferable multi-label classification task. We utilized **DistilRoBERTa-base**, fine-tuned on the GoEmotions dataset. For each book description, the model predicts a probability distribution across 7 emotional dimensions: *Joy, Sadness, Anger, Fear, Surprise, Love, and Neutral*.
@@ -59,25 +57,6 @@ This project presents a comprehensive, multi-modal recommendation and e-commerce
 *   **LLM-Powered Generation**: Real-time personalized book highlights using user's reading persona.
 *   **Async UX**: Modal opens immediately; highlights load in background for responsive experience.
 *   **Fallback System**: Graceful degradation to template-based highlights if LLM unavailable.
-
-### 4. Advanced RAG Architecture (SOTA)
-This system implements state-of-the-art retrieval techniques beyond basic vector search:
-
-*   **Agentic Query Router**: Dynamically selects retrieval strategy based on query intent.
-    *   ISBN queries → Pure BM25 (100% precision on exact matches)
-    *   Keyword queries → Hybrid Search (BM25 + Dense, fast)
-    *   Complex queries → Hybrid + Cross-Encoder Reranking (high relevance)
-    *   Detail queries → Small-to-Big Retrieval (finds hidden gems)
-*   **Hybrid Search (RRF)**: Combines sparse (BM25) and dense (MiniLM) retrieval using Reciprocal Rank Fusion.
-*   **Cross-Encoder Reranking**: Uses `ms-marco-MiniLM` to rerank top candidates for semantic precision.
-*   **Temporal Dynamics**: Applies recency bias for "latest/new" queries using publication date decay.
-*   **Small-to-Big Retrieval**: Indexes 788K review sentences separately; matches specific plot details, maps back to parent book.
-*   **Context Compression**: Summarizes long chat history to prevent token overflow.
-
-### 5. SFT Data Factory
-*   **Self-Instruct Pipeline**: Generates (Query, Response) pairs from raw reviews for style alignment.
-*   **LLM-as-a-Judge**: Quality filtering on Empathy, Specificity, and Critique Depth dimensions.
-*   **DPO-Ready**: Can construct preference pairs (Chosen vs Rejected) for alignment training.
 
 
 ## System Architecture

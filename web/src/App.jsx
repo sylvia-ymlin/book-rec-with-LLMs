@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Bookmark, Heart, Search, Layers, Smile, Sparkles, Star, Trophy, BarChart3, X, MessageCircle, MessageSquare, Info, Send } from "lucide-react";
-import { recommend, addFavorite, getPersona, getHighlights, streamChat, getFavorites } from "./api";
+import { recommend, addFavorite, getPersona, getHighlights, streamChat } from "./api";
 import { Settings } from "lucide-react";
 
 // --- Elegant Book Discovery UI ---
@@ -35,17 +35,14 @@ const App = () => {
   const [selectedBook, setSelectedBook] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
-  const [myCollection, setMyCollection] = useState([]);
-
-  // Load favorites on startup
-  React.useEffect(() => {
-    getFavorites("local")
-      .then(favs => {
-        setMyCollection(favs);
-        localStorage.setItem('myCollection', JSON.stringify(favs));
-      })
-      .catch(console.error);
-  }, []);
+  const [myCollection, setMyCollection] = useState(() => {
+    try {
+      const stored = localStorage.getItem('myCollection');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
   const [showMyShelf, setShowMyShelf] = useState(false);
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -58,11 +55,10 @@ const App = () => {
   // --- NEW: Settings & Auth ---
   const [showSettings, setShowSettings] = useState(false);
   const [apiKey, setApiKey] = useState(() => localStorage.getItem("openai_key") || "");
-  const [llmProvider, setLlmProvider] = useState(() => localStorage.getItem("llm_provider") || "openai");
 
-  const saveKey = () => {
-    localStorage.setItem("openai_key", apiKey);
-    localStorage.setItem("llm_provider", llmProvider);
+  const saveKey = (key) => {
+    setApiKey(key);
+    localStorage.setItem("openai_key", key);
     setShowSettings(false);
   };
 
@@ -83,8 +79,7 @@ const App = () => {
     await streamChat({
       isbn: selectedBook.isbn,
       query: text,
-      apiKey: apiKey,
-      provider: llmProvider, // Pass the selected provider
+      apiKey: apiKey, // Pass the key (if empty, backend uses mock)
       onChunk: (chunk) => {
         currentAiMsg += chunk;
         setMessages(prev => {
@@ -123,7 +118,7 @@ const App = () => {
     // 1. Immediately show modal with placeholder
     setSelectedBook({
       ...book,
-      aiHighlight: '✨ ...',
+      aiHighlight: '✨ Generating personalized highlight...',
       suggestedQuestions: [
         `Who is the target audience for this book?`,
         `Does the author have similar works?`,
@@ -136,12 +131,9 @@ const App = () => {
     getHighlights(book.isbn)
       .then(res => {
         const meta = res?.meta || {};
-        // Strip quotes that LLM sometimes adds
-        const rawHighlight = (res?.highlights || []).join("\n") || '—';
-        const cleanHighlight = rawHighlight.replace(/^["']|["']$/g, '').trim();
         setSelectedBook(prev => ({
           ...prev,
-          aiHighlight: cleanHighlight,
+          aiHighlight: (res?.highlights || []).join("\n") || '—',
           desc: meta?.description || prev.desc
         }));
       })
@@ -164,11 +156,7 @@ const App = () => {
         title: r.title,
         author: r.authors,
         category: searchCategory,
-        mood: searchMood !== "All" ? searchMood : (
-          r.emotions && Object.keys(r.emotions).length > 0
-            ? Object.entries(r.emotions).reduce((a, b) => a[1] > b[1] ? a : b)[0]
-            : "Literary"
-        ),
+        mood: searchMood,
         rank: idx + 1,
         rating: r.average_rating || 0,
         tags: r.tags || [],
@@ -234,19 +222,6 @@ const App = () => {
             <h3 className="font-bold uppercase tracking-widest mb-4 text-[#b392ac]">Configuration</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-gray-500 mb-1">LLM Provider</label>
-                <select
-                  value={llmProvider}
-                  onChange={e => setLlmProvider(e.target.value)}
-                  className="w-full border p-2 text-sm outline-none focus:border-[#b392ac] bg-white"
-                >
-                  <option value="openai">OpenAI (Requires Key)</option>
-                  <option value="ollama">Ollama (Local Default)</option>
-                  <option value="mock">Mock (Test)</option>
-                </select>
-              </div>
-
-              <div>
                 <label className="block text-xs font-bold text-gray-500 mb-1">OpenAI API Key</label>
                 <input
                   type="password"
@@ -256,11 +231,11 @@ const App = () => {
                   onChange={e => setApiKey(e.target.value)}
                 />
                 <p className="text-[9px] text-gray-400 mt-1">
-                  Required if using OpenAI. For Ollama/Mock, this is ignored.
-                  Stored locally.
+                  Required for real AI reasoning. If empty, the system runs in <b>Mock Mode</b>.
+                  Your key is stored locally in your browser.
                 </p>
               </div>
-              <StudyButton active color="purple" className="w-full" onClick={saveKey}>
+              <StudyButton active color="purple" className="w-full" onClick={() => saveKey(apiKey)}>
                 Save Settings
               </StudyButton>
             </div>
@@ -453,7 +428,7 @@ const App = () => {
                 <div className="md:col-span-7 flex flex-col space-y-6">
                   <div className="space-y-2">
                     <h4 className="flex items-center gap-2 text-[10px] font-bold uppercase text-gray-400 tracking-wider">
-                      <Info className="w-3.5 h-3.5" /> Description
+                      <Info className="w-3.5 h-3.5" /> Summary
                     </h4>
                     <div className="p-4 bg-white border border-[#eee] text-[12px] leading-relaxed text-[#666] italic border-l-[4px] border-l-[#b392ac]">
                       <div style={{ maxHeight: '180px', overflowY: 'auto', whiteSpace: 'pre-line' }}>

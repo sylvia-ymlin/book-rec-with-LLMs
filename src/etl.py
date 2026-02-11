@@ -7,9 +7,9 @@ from src.utils import setup_logger
 
 logger = setup_logger(__name__)
 
-RAW_DATA_PATH = DATA_DIR / "raw" / "Books_rating.csv"
+RAW_DATA_PATH = DATA_DIR / "Books_rating.csv"
 PROCESSED_DATA_PATH = DATA_DIR / "books_processed.csv"
-REVIEW_HIGHLIGHTS_PATH = DATA_DIR / "review_highlights.txt"
+DESCRIPTIONS_PATH = DATA_DIR / "books_descriptions.txt"
 
 def load_books_data() -> pd.DataFrame:
     """

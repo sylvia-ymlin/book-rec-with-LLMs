@@ -171,33 +171,6 @@ async def favorites_add(req: FavoriteRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/favorites/list/{user_id}")
-async def favorites_list(user_id: str):
-    """Return user's favorite books with full details."""
-    if not recommender:
-        raise HTTPException(status_code=503, detail="Service not ready")
-    try:
-        isbn_list = list_favorites(user_id)
-        books_df = recommender.books
-        results = []
-        for isbn in isbn_list:
-            book_row = books_df[books_df["isbn13"].astype(str) == str(isbn)]
-            if not book_row.empty:
-                row = book_row.iloc[0]
-                results.append({
-                    "isbn": isbn,
-                    "title": row.get("title", ""),
-                    "author": row.get("authors", "Unknown"),
-                    "img": row.get("thumbnail", "/assets/cover-not-found.jpg"),
-                    "category": row.get("simple_categories", ""),
-                    "mood": "Joy" if row.get("joy", 0) > 0.3 else "Neutral"
-                })
-        return {"favorites": results}
-    except Exception as e:
-        logger.error(f"favorites_list error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @app.get("/user/{user_id}/persona")
 async def user_persona(user_id: str):
     if not recommender:
