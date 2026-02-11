@@ -3,7 +3,8 @@ from collections import defaultdict
 from src.recall.itemcf import ItemCF
 from src.recall.usercf import UserCF
 from src.recall.popularity import PopularityRecall
-# from src.recall.embedding import EmbeddingRecall 
+from src.recall.embedding import YoutubeDNNRecall
+from src.recall.swing import Swing
 
 logger = logging.getLogger(__name__)
 
@@ -12,8 +13,9 @@ class RecallFusion:
         self.itemcf = ItemCF(data_dir, model_dir)
         self.usercf = UserCF(data_dir, model_dir)
         self.popularity = PopularityRecall(data_dir, model_dir)
-        # self.embedding = EmbeddingRecall(data_dir, model_dir)
-        
+        self.youtube_dnn = YoutubeDNNRecall(data_dir, model_dir)
+        self.swing = Swing(data_dir, model_dir)
+
         self.models_loaded = False
         
     def load_models(self):
@@ -24,7 +26,8 @@ class RecallFusion:
         self.itemcf.load()
         self.usercf.load()
         self.popularity.load()
-        # self.embedding.load()
+        self.youtube_dnn.load()
+        self.swing.load()
         self.models_loaded = True
         
     def get_recall_items(self, user_id, history_items=None, k=100):
@@ -36,20 +39,26 @@ class RecallFusion:
             
         candidates = defaultdict(float)
         
-        # 1. ItemCF
+        # 1. YoutubeDNN (High weight for potential semantic match)
+        dnn_recs = self.youtube_dnn.recommend(user_id, history_items, top_k=k)
+        self._add_to_candidates(candidates, dnn_recs, weight=2.0)
+
+        # 2. ItemCF
         # user_id is mainly used to retrieve training history if history_items is None
         # history_items is passed for realtime inference
         icf_recs = self.itemcf.recommend(user_id, history_items, top_k=k)
         self._add_to_candidates(candidates, icf_recs, weight=1.0)
         
-        # 2. UserCF
+        # 3. UserCF
         # Only works if user_id is in training set
         ucf_recs = self.usercf.recommend(user_id, history_items, top_k=k)
         self._add_to_candidates(candidates, ucf_recs, weight=1.0)
         
-        # 3. Popularity (Filler)
-        # Only use if candidate set is small? Or always mix in?
-        # Let's mix in with lower weight or just use to fill
+        # 4. Swing
+        swing_recs = self.swing.recommend(user_id, history_items, top_k=k)
+        self._add_to_candidates(candidates, swing_recs, weight=1.0)
+
+        # 5. Popularity (Filler)
         pop_recs = self.popularity.recommend(user_id, top_k=k)
         self._add_to_candidates(candidates, pop_recs, weight=0.5)
         
@@ -62,6 +71,9 @@ class RecallFusion:
         Add recommendations to candidate pool using RRF
         score += weight * (1 / (k + rank))
         """
+        if not recs:
+            return
+            
         for rank, (item, score) in enumerate(recs):
             rrf_score = weight * (1.0 / (rrf_k + rank + 1))
             candidates[item] += rrf_score

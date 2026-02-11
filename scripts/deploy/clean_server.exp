@@ -1,0 +1,27 @@
+#!/usr/bin/expect
+
+set host "connect.nmb2.seetacloud.com"
+set port "15054"
+set user "root"
+set password "9Dml+WZeqp5b"
+
+# Commands to run
+set cmd1 "rm -rf /root/autodl-tmp/nvhpc_2024_247_Linux_x86_64_cuda_12.5.tar.gz"
+set cmd2 "rm -rf /root/autodl-tmp/nvhpc_2024_247_Linux_x86_64_cuda_12.5"
+set cmd3 "rm -rf /root/autodl-tmp/hpc_sdk"
+set cmd4 "rm -rf /root/autodl-tmp/llm-recsys"
+set cmd_check "df -h"
+
+spawn ssh -p $port $user@$host "echo 'Cleaning...'; $cmd1; $cmd2; $cmd3; $cmd4; echo 'Done.'; echo ''; $cmd_check"
+
+expect {
+    "password:" {
+        send "$password\r"
+        exp_continue
+    }
+    "continue connecting" {
+        send "yes\r"
+        exp_continue
+    }
+    eof
+}

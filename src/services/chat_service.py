@@ -87,7 +87,7 @@ class ChatService:
         user_query: str, 
         user_id: str = "local",
         api_key: Optional[str] = None,
-        provider: str = "openai"
+        provider: str = "ollama"
     ) -> Generator[str, None, None]:
         """
         Stream chat response for a specific book.
@@ -150,5 +150,15 @@ class ChatService:
         except Exception as e:
             logger.error(f"LLM Error: {e}")
             yield f"Error generating response: {str(e)}. Please check your API Key."
+
+    def add_book_to_context(self, book_data: Dict[str, Any]):
+        """Dynamically add a new book to the ChatService context."""
+        try:
+            if self._books_df is not None:
+                new_row_df = pd.DataFrame([book_data])
+                self._books_df = pd.concat([self._books_df, new_row_df], ignore_index=True)
+                logger.info(f"ChatService: Added book {book_data.get('isbn13')} to context.")
+        except Exception as e:
+            logger.error(f"ChatService: Failed to add book to context: {e}")
 
 chat_service = ChatService()

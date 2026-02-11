@@ -14,7 +14,7 @@ class ChatRequest(BaseModel):
     isbn: str
     query: str
     user_id: Optional[str] = "local"
-    provider: Optional[str] = "openai"  # openai, ollama
+    provider: Optional[str] = "ollama"  # openai, ollama
 
 async def get_llm_key(x_llm_key: Optional[str] = Header(None, alias="X-LLM-Key")):
     """Dependency to extract API Key from header."""

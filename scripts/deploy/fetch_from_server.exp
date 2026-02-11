@@ -1,0 +1,26 @@
+#!/usr/bin/expect
+
+set host "connect.nmb2.seetacloud.com"
+set port "26578"
+set user "root"
+set password "9Dml+WZeqp5b"
+set local_dir "."
+set remote_dir "/root/book-rec-with-LLMs"
+
+# Fetch YoutubeDNN Model
+spawn scp -P $port $user@$host:$remote_dir/data/model/recall/youtube_dnn.pt $local_dir/data/model/recall/
+set timeout -1
+expect {
+    "password:" { send "$password\r" }
+    "yes/no" { send "yes\r"; exp_continue }
+}
+expect eof
+
+# Fetch YoutubeDNN Meta
+spawn scp -P $port $user@$host:$remote_dir/data/model/recall/youtube_dnn_meta.pkl $local_dir/data/model/recall/
+expect {
+    "password:" { send "$password\r" }
+}
+expect eof
+
+puts "Fetch Complete!"

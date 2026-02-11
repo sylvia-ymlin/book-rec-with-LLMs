@@ -59,12 +59,10 @@ class ItemCF:
                     # --- Weight Calculation (Transfer from News Rec) ---
                     
                     # 1. Location Weight: Closer position -> Higher weight
-                    # loc_alpha = 1.0 if loc1 > loc2 else 0.7 (Directional? No, matrix should be symmetric usually, but news rec made it directional)
-                    # Let's keep it symmetric for now or follow news rec exactly?
-                    # News Rec: loc_alpha = 1.0 if loc1 > loc2 else 0.7  (Focus on "next prediction")
-                    # But here we build a symmetric recommendation usually. 
-                    # Let's use symmetric distance weight: 0.9 ** (|loc1 - loc2| - 1)
-                    loc_weight = 0.9 ** (abs(loc1 - loc2) - 1)
+                    # Direction: forward (item1 read before item2) = 1.0, backward = 0.7
+                    # This biases sim[earlier][later] > sim[later][earlier]
+                    loc_alpha = 1.0 if loc1 < loc2 else 0.7
+                    loc_weight = loc_alpha * (0.9 ** (abs(loc1 - loc2) - 1))
                     
                     # 2. Time Weight: Closer time -> Higher weight
                     # Using exponential decay based on time diff

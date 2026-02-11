@@ -1,13 +1,13 @@
 import React, { useState } from "react";
-import { Bookmark, Heart, Search, Layers, Smile, Sparkles, Star, Trophy, BarChart3, X, MessageCircle, MessageSquare, Info, Send } from "lucide-react";
-import { recommend, addFavorite, getPersona, getHighlights, streamChat, getFavorites } from "./api";
+import { Bookmark, Heart, Search, Layers, Smile, Sparkles, Star, Trophy, BarChart3, X, MessageCircle, MessageSquare, Info, Send, Trash2, User, PlusCircle, LogOut, Loader2, BookOpen } from "lucide-react";
+import { recommend, addFavorite, getPersona, getHighlights, streamChat, getFavorites, updateBook, removeFromFavorites, getUserStats, addBook, searchGoogleBooks, getPersonalizedRecommendations } from "./api";
 import { Settings } from "lucide-react";
 
 // --- Elegant Book Discovery UI ---
 
 const CATEGORIES = ["All", "Fiction", "History", "Philosophy", "Science", "Art"];
 const MOODS = ["All", "Happy", "Suspenseful", "Angry", "Sad", "Surprising"];
-const PLACEHOLDER_IMG = "http://localhost:6006/assets/cover-not-found.jpg";
+const PLACEHOLDER_IMG = "http://127.0.0.1:6006/assets/cover-not-found.jpg";
 
 const StudyButton = ({ children, active, color, className, onClick }) => {
   const colors = {
@@ -36,16 +36,63 @@ const App = () => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [myCollection, setMyCollection] = useState([]);
+  const [readingStats, setReadingStats] = useState({ total: 0, want_to_read: 0, reading: 0, finished: 0 });
 
-  // Load favorites on startup
+  // --- NEW: Multi-User & Add Book ---
+  const [userId, setUserId] = useState("local");
+  const [showAddBook, setShowAddBook] = useState(false);
+  const [addingBookId, setAddingBookId] = useState(null);
+  // Search State
+  const [googleQuery, setGoogleQuery] = useState("");
+  const [googleResults, setGoogleResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+
+  // Load favorites and stats on startup or user change
   React.useEffect(() => {
-    getFavorites("local")
-      .then(favs => {
-        setMyCollection(favs);
-        localStorage.setItem('myCollection', JSON.stringify(favs));
-      })
-      .catch(console.error);
-  }, []);
+    setLoading(true);
+    // Clear previous user state
+    setMyCollection([]);
+    setMessages([]);
+
+    Promise.all([
+      getFavorites(userId).catch(() => []),
+      getUserStats(userId).catch(() => ({ total: 0, want_to_read: 0, reading: 0, finished: 0 })),
+      getPersonalizedRecommendations(userId).catch(() => [])
+    ]).then(([favs, stats, personalRecs]) => {
+      setMyCollection(favs);
+      setReadingStats(stats);
+
+      // Map personal recs to book format
+      const mappedRecs = personalRecs.map((r, idx) => ({
+        id: r.isbn,
+        title: r.title,
+        author: r.authors,
+        category: r.category || "General",
+        mood: (
+          r.emotions && Object.keys(r.emotions).length > 0
+            ? Object.entries(r.emotions).reduce((a, b) => a[1] > b[1] ? a : b)[0]
+            : "Literary"
+        ),
+        rank: idx + 1,
+        rating: r.average_rating || 0,
+        tags: r.tags || [],
+        review_highlights: r.review_highlights || [],
+        desc: r.description,
+        img: r.thumbnail,
+        isbn: r.isbn,
+        emotions: r.emotions || {},
+        aiHighlight: '—',
+        suggestedQuestions: [
+          `Why was this recommended?`,
+          `Similar to what I've read?`,
+          `What's the core highlight?`
+        ]
+      }));
+
+      setBooks(mappedRecs);
+      setLoading(false);
+    });
+  }, [userId]);
   const [showMyShelf, setShowMyShelf] = useState(false);
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -58,7 +105,11 @@ const App = () => {
   // --- NEW: Settings & Auth ---
   const [showSettings, setShowSettings] = useState(false);
   const [apiKey, setApiKey] = useState(() => localStorage.getItem("openai_key") || "");
-  const [llmProvider, setLlmProvider] = useState(() => localStorage.getItem("llm_provider") || "openai");
+  const [llmProvider, setLlmProvider] = useState(() => {
+    const stored = localStorage.getItem("llm_provider");
+    // Force migration from mock -> ollama
+    return (stored === "mock" || !stored) ? "ollama" : stored;
+  });
 
   const saveKey = () => {
     localStorage.setItem("openai_key", apiKey);
@@ -103,17 +154,118 @@ const App = () => {
     });
   };
 
+  const handleSearchGoogle = async (e) => {
+    e.preventDefault();
+    if (!googleQuery.trim()) return;
+    setIsSearching(true);
+    setGoogleResults([]);
+    try {
+      const items = await searchGoogleBooks(googleQuery);
+      setGoogleResults(items);
+    } catch (e) {
+      console.error(e);
+      alert("Search failed: " + e.message);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleImportBook = async (item) => {
+    setAddingBookId(item.id);
+    const info = item.volumeInfo;
+    // Best effort ISBN extraction
+    let isbn = item.id;
+    if (info.industryIdentifiers) {
+      const isbn13 = info.industryIdentifiers.find(i => i.type === "ISBN_13");
+      const isbn10 = info.industryIdentifiers.find(i => i.type === "ISBN_10");
+      isbn = isbn13 ? isbn13.identifier : (isbn10 ? isbn10.identifier : item.id);
+    }
+
+    const bookData = {
+      isbn: isbn,
+      title: info.title || "Unknown Title",
+      author: info.authors ? info.authors.join(", ") : "Unknown Author",
+      description: info.description || "No description provided.",
+      category: info.categories ? info.categories[0] : "General",
+      thumbnail: info.imageLinks?.thumbnail || info.imageLinks?.smallThumbnail || null
+    };
+
+    try {
+      await addBook(bookData);
+      // Auto add to collection? Maybe user just wants to add to DB. 
+      // But usually flow is "Add to my shelf". 
+      // I will auto-add to favorite.
+      await addFavorite(bookData.isbn, userId);
+
+      alert(`Successfully imported "${bookData.title}" to your collection!`);
+      setShowAddBook(false);
+      setGoogleResults([]);
+      setGoogleQuery("");
+
+      // Refresh
+      const [favs, stats] = await Promise.all([getFavorites(userId), getUserStats(userId)]);
+      setMyCollection(favs);
+      setReadingStats(stats);
+    } catch (e) {
+      alert("Import failed: " + e.message);
+    } finally {
+      setAddingBookId(null);
+    }
+  };
+
   const toggleCollect = async (book) => {
     try {
-      await addFavorite(book.isbn);
-      let updated;
       if (myCollection.some(b => b.isbn === book.isbn)) {
-        updated = myCollection.filter(b => b.isbn !== book.isbn);
+        // Remove logic is different usually, but here toggleCollect implies add/remove?
+        // Wait, existing code uses addFavorite for toggle? 
+        // Logic below says: if in collection, filter out? But addFavorite adds.
+        // It seems toggle logic is broken in original code if it removes locally but calls addFavorite.
+        // I will fix it to check state.
+        await removeFromFavorites(book.isbn, userId);
       } else {
-        updated = [...myCollection, book];
+        await addFavorite(book.isbn, userId);
       }
-      setMyCollection(updated);
-      localStorage.setItem('myCollection', JSON.stringify(updated));
+
+      // Refresh
+      const [favs, stats] = await Promise.all([getFavorites(userId), getUserStats(userId)]);
+      setMyCollection(favs);
+      setReadingStats(stats);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleRatingChange = async (isbn, rating) => {
+    try {
+      await updateBook(isbn, { rating }, userId);
+      // Update local state
+      setMyCollection(prev => prev.map(book =>
+        book.isbn === isbn ? { ...book, rating } : book
+      ));
+      getUserStats(userId).then(stats => setReadingStats(stats)).catch(console.error);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleStatusChange = async (isbn, status) => {
+    try {
+      await updateBook(isbn, { status }, userId);
+      // Update local state
+      setMyCollection(prev => prev.map(book =>
+        book.isbn === isbn ? { ...book, status } : book
+      ));
+      getUserStats(userId).then(stats => setReadingStats(stats)).catch(console.error);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleRemoveBook = async (isbn) => {
+    try {
+      await removeFromFavorites(isbn);
+      setMyCollection(prev => prev.filter(book => book.isbn !== isbn));
+      getUserStats("local").then(stats => setReadingStats(stats)).catch(console.error);
     } catch (e) {
       console.error(e);
     }
@@ -158,7 +310,12 @@ const App = () => {
     setError("");
     setBooks([]);  // Clear previous results immediately
     try {
-      const recs = await recommend(searchQuery || 'adventure', searchCategory, searchMood, "local");
+      let recs;
+      if (!searchQuery) {
+        recs = await getPersonalizedRecommendations("local");
+      } else {
+        recs = await recommend(searchQuery, searchCategory, searchMood, "local");
+      }
       const mapped = (recs || []).map((r, idx) => ({
         id: r.isbn,
         title: r.title,
@@ -197,7 +354,38 @@ const App = () => {
     return books.filter(b => !myCollection.some(cb => cb.isbn === b.isbn)).slice(0, 3);
   };
 
-  const currentViewBooks = showMyShelf ? myCollection : books;
+  // Shelf State
+  const [shelfFilter, setShelfFilter] = useState("all");
+  const [shelfSort, setShelfSort] = useState("recent");
+
+  const getFilteredShelf = () => {
+    let filtered = [...myCollection];
+
+    // Filter
+    if (shelfFilter !== "all") {
+      filtered = filtered.filter(b => b.status === shelfFilter);
+    }
+
+    // Sort
+    if (shelfSort === "rating_high") {
+      filtered.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+    } else if (shelfSort === "rating_low") {
+      filtered.sort((a, b) => (a.rating || 0) - (b.rating || 0));
+    } else if (shelfSort === "title") {
+      filtered.sort((a, b) => a.title.localeCompare(b.title));
+    } else {
+      // Recent (default) - assuming array order is recent or using added_at if available
+      // If no date field, we reverse index (LIFO) or just keep as is if API returns newest first.
+      // Usually favorites are appended, so reverse for newest first? 
+      // API currently returns list. Let's assume order is FIFO (oldest first).
+      // So reverse for "recent".
+      filtered.reverse();
+    }
+
+    return filtered;
+  };
+
+  const currentViewBooks = showMyShelf ? getFilteredShelf() : books;
 
   return (
     <div className="min-h-screen bg-[#faf9f6] text-[#444] font-serif tracking-tight">
@@ -208,7 +396,25 @@ const App = () => {
           </div>
           <p className="text-[10px] text-gray-400 font-medium tracking-widest">Discover books that resonate with your soul</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          {/* User Switcher */}
+          <div className="flex items-center gap-2 border border-[#eee] bg-white px-2 py-1 shadow-sm mr-2" title="Switch User">
+            <User className="w-3 h-3 text-gray-400" />
+            <input
+              className="w-20 text-[10px] outline-none text-gray-600 font-bold bg-transparent placeholder-gray-300"
+              value={userId}
+              onChange={(e) => setUserId(e.target.value)}
+              placeholder="User ID"
+            />
+          </div>
+          {/* Add Book Button */}
+          <button
+            onClick={() => setShowAddBook(true)}
+            className="flex items-center gap-1 px-3 py-1 bg-white border border-[#333] shadow-sm hover:shadow-md transition-all text-[10px] font-bold uppercase tracking-widest mr-2 group"
+          >
+            <PlusCircle className="w-3 h-3 text-[#b392ac] group-hover:text-[#9d7799]" /> Add Book
+          </button>
+
           <StudyButton
             active={showMyShelf}
             color={showMyShelf ? "purple" : "tab"}
@@ -242,7 +448,6 @@ const App = () => {
                 >
                   <option value="openai">OpenAI (Requires Key)</option>
                   <option value="ollama">Ollama (Local Default)</option>
-                  <option value="mock">Mock (Test)</option>
                 </select>
               </div>
 
@@ -268,37 +473,65 @@ const App = () => {
         </div>
       )}
 
+      {/* Add Book Modal */}
+      {showAddBook && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/10 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white p-6 shadow-xl border border-[#333] w-full max-w-md relative">
+            <button onClick={() => setShowAddBook(false)} className="absolute top-2 right-2"><X className="w-4 h-4" /></button>
+            <h3 className="font-bold uppercase tracking-widest mb-4 text-[#b392ac]">Import from Google Books</h3>
+
+            <form onSubmit={handleSearchGoogle} className="flex gap-2 mb-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-2 top-2.5 w-4 h-4 text-gray-400" />
+                <input
+                  autoFocus
+                  className="w-full border p-2 pl-8 text-sm outline-none focus:border-[#b392ac]"
+                  placeholder="Search title, author, or ISBN..."
+                  value={googleQuery}
+                  onChange={e => setGoogleQuery(e.target.value)}
+                />
+              </div>
+              <StudyButton active color="purple" disabled={isSearching}>
+                {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : "Search"}
+              </StudyButton>
+            </form>
+
+            <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+              {googleResults.length === 0 && !isSearching && googleQuery && (
+                <div className="text-center text-gray-400 text-xs py-4">No results found.</div>
+              )}
+
+              {googleResults.map(item => {
+                const info = item.volumeInfo;
+                const thumb = info.imageLinks?.thumbnail || PLACEHOLDER_IMG;
+                return (
+                  <div key={item.id} className="flex gap-3 border border-[#eee] p-2 hover:bg-gray-50 transition-colors">
+                    <img src={thumb} className="w-12 h-16 object-cover bg-gray-100" />
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm font-bold text-[#333] truncate" title={info.title}>{info.title}</h4>
+                      <p className="text-[10px] text-gray-500 truncate">{info.authors?.join(", ")}</p>
+                      <p className="text-[10px] text-gray-400 mt-1 line-clamp-2">{info.description}</p>
+                    </div>
+                    <button
+                      onClick={() => handleImportBook(item)}
+                      disabled={!!addingBookId}
+                      className="self-center px-3 py-1 bg-[#b392ac] text-white text-[10px] font-bold uppercase hover:bg-[#9d7799] disabled:opacity-50"
+                    >
+                      {addingBookId === item.id ? "..." : "Import"}
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       <main className="max-w-5xl mx-auto px-4 pb-20">
+
+
         {!showMyShelf && (
           <>
-            {myCollection.length > 0 && (
-              <div className="mb-12 animate-in fade-in slide-in-from-top-4 duration-700">
-                <h4 className="flex items-center gap-2 text-[10px] font-black uppercase text-[#b392ac] mb-4 tracking-widest">
-                  <Sparkles className="w-3.5 h-3.5" /> Soul-Matched Recommendations
-                </h4>
-                <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
-                  {getRecommendedBooks().map(book => (
-                    <div
-                      key={book.id}
-                      onClick={() => openBook(book)}
-                      className="min-w-[280px] flex gap-4 bg-white border border-[#333] p-3 shadow-sm hover:shadow-md cursor-pointer transition-all"
-                    >
-                      <img src={book.img || PLACEHOLDER_IMG} className="w-20 h-28 object-cover border border-[#eee]" onError={e => { e.target.onerror = null; e.target.src = PLACEHOLDER_IMG; }} />
-                      <div className="flex flex-col justify-between">
-                        <div>
-                          <h5 className="text-[12px] font-bold text-[#333]">{book.title}</h5>
-                          <p className="text-[10px] text-gray-400 mt-1">Resonates with your "{book.mood}" preference</p>
-                        </div>
-                        <div className="flex gap-1">
-                          {book.tags.slice(0, 2).map(t => <span key={t} className="text-[8px] px-1.5 py-0.5 bg-[#f8f9fa] border border-[#eee] text-[#999]">{t}</span>)}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
             <div className="max-w-4xl mx-auto mb-16 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
                 <div className="md:col-span-6 flex items-center bg-white border border-[#ddd] p-2 shadow-sm">
@@ -343,17 +576,72 @@ const App = () => {
         )}
 
         {showMyShelf && (
-          <div className="mb-8 flex items-center gap-4 text-xs font-bold text-[#b392ac] bg-[#e5d9f2]/30 p-4 border border-[#b392ac]/20">
-            <BarChart3 className="w-4 h-4" />
-            Your collection shows a preference for: {myCollection.map(b => b.mood).filter((v, i, a) => a.indexOf(v) === i).join(", ")}
+          <div className="mb-8 space-y-4">
+            {/* Shelf Controls */}
+            <div className="flex justify-between items-center bg-white p-3 border border-[#eee] shadow-sm mb-4">
+              <div className="flex gap-2">
+                {["all", "want_to_read", "reading", "finished"].map(status => (
+                  <button
+                    key={status}
+                    onClick={() => setShelfFilter(status)}
+                    className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors border ${shelfFilter === status
+                      ? "bg-[#b392ac] text-white border-[#b392ac]"
+                      : "bg-white text-gray-400 border-[#eee] hover:border-[#b392ac]"
+                      }`}
+                  >
+                    {status.replace(/_/g, " ")}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-[9px] font-bold text-gray-400 uppercase">Sort by</span>
+                <select
+                  value={shelfSort}
+                  onChange={(e) => setShelfSort(e.target.value)}
+                  className="text-[10px] bg-transparent border-b border-[#eee] outline-none font-bold text-[#b392ac]"
+                >
+                  <option value="recent">Recently Added</option>
+                  <option value="rating_high">Rating (High to Low)</option>
+                  <option value="rating_low">Rating (Low to High)</option>
+                  <option value="title">Title (A-Z)</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Statistics Card */}
+            <div className="grid grid-cols-4 gap-4">
+              <div className="bg-white border border-[#eee] p-4 text-center">
+                <div className="text-2xl font-bold text-[#b392ac]">{readingStats.total}</div>
+                <div className="text-[10px] text-gray-400 uppercase tracking-wider">Total Books</div>
+              </div>
+              <div className="bg-white border border-[#eee] p-4 text-center">
+                <div className="text-2xl font-bold text-[#f4acb7]">{readingStats.want_to_read}</div>
+                <div className="text-[10px] text-gray-400 uppercase tracking-wider">Want to Read</div>
+              </div>
+              <div className="bg-white border border-[#eee] p-4 text-center">
+                <div className="text-2xl font-bold text-[#9d7799]">{readingStats.reading}</div>
+                <div className="text-[10px] text-gray-400 uppercase tracking-wider">Reading</div>
+              </div>
+              <div className="bg-white border border-[#eee] p-4 text-center">
+                <div className="text-2xl font-bold text-[#735d78]">{readingStats.finished}</div>
+                <div className="text-[10px] text-gray-400 uppercase tracking-wider">Finished</div>
+              </div>
+            </div>
+
+            {/* Mood Preference */}
+            <div className="flex items-center gap-4 text-xs font-bold text-[#b392ac] bg-[#e5d9f2]/30 p-4 border border-[#b392ac]/20">
+              <BarChart3 className="w-4 h-4" />
+              Your collection shows a preference for: {myCollection.map(b => b.mood).filter((v, i, a) => a.indexOf(v) === i).join(", ") || "—"}
+            </div>
           </div>
         )}
 
+        {/* Book Grid - Enhanced for Bookshelf */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
           {currentViewBooks.length > 0 ? currentViewBooks.map((book, idx) => (
             <div
               key={idx}
-              onClick={() => openBook(book)}
               className="group cursor-pointer transform hover:-translate-y-1 transition-all"
             >
               <div className="bg-white border border-[#eee] p-1 relative shadow-sm group-hover:shadow-md overflow-hidden">
@@ -361,25 +649,53 @@ const App = () => {
                   src={book.img || PLACEHOLDER_IMG}
                   alt={book.title}
                   className="w-full aspect-[3/4] object-cover opacity-90 group-hover:opacity-100 transition-opacity"
+                  onClick={() => openBook(book)}
                   onError={e => {
                     e.target.onerror = null;
                     e.target.src = PLACEHOLDER_IMG;
                   }}
                 />
-                <div className="absolute inset-0 bg-white/80 flex items-center justify-center p-4 opacity-0 group-hover:opacity-100 transition-opacity text-center px-4">
-                  <p className="text-[10px] font-bold text-[#b392ac] leading-relaxed italic">
-                    {book.aiHighlight}
-                  </p>
-                </div>
+                {!showMyShelf && (
+                  <div className="absolute inset-0 bg-white/80 flex items-center justify-center p-4 opacity-0 group-hover:opacity-100 transition-opacity text-center px-4" onClick={() => openBook(book)}>
+                    <p className="text-[10px] font-bold text-[#b392ac] leading-relaxed italic">
+                      {book.aiHighlight}
+                    </p>
+                  </div>
+                )}
                 {myCollection.some(b => b.isbn === book.isbn) && (
                   <div className="absolute top-1 right-1 bg-[#f4acb7] p-1 shadow-sm">
                     <Heart className="w-3 h-3 text-white fill-current" />
                   </div>
                 )}
+                {/* Rank Badge - Only in Discovery Mode */}
+                {!showMyShelf && book.rank && (
+                  <div className="absolute top-1 left-1 bg-black/70 text-white text-[10px] font-bold px-1.5 py-0.5 shadow-sm z-10 backdrop-blur-sm">
+                    #{book.rank}
+                  </div>
+                )}
+
+                {/* Remove button for bookshelf */}
+                {showMyShelf && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleRemoveBook(book.isbn); }}
+                    className="absolute top-1 left-1 bg-red-400 p-1 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"
+                    title="Remove from collection"
+                  >
+                    <Trash2 className="w-3 h-3 text-white" />
+                  </button>
+                )}
               </div>
-              <h3 className="mt-3 text-[12px] font-bold text-[#555] truncate">{book.title}</h3>
+              <h3 className="mt-3 text-[12px] font-bold text-[#555] truncate" onClick={() => openBook(book)}>{book.title}</h3>
               <div className="flex justify-between items-center mt-1">
-                <span className="text-[9px] text-gray-400 tracking-tighter">{book.author}</span>
+                <div className="flex flex-col">
+                  <span className="text-[9px] text-gray-400 tracking-tighter truncate w-24">{book.author}</span>
+                  {!showMyShelf && book.rating > 0 && (
+                    <div className="flex items-center gap-0.5 mt-0.5">
+                      <Star className="w-2 h-2 text-[#f4acb7] fill-current" />
+                      <span className="text-[8px] font-bold text-[#f4acb7]">{book.rating.toFixed(1)}</span>
+                    </div>
+                  )}
+                </div>
                 {book.emotions && Object.keys(book.emotions).length > 0 ? (
                   <span className="text-[9px] bg-[#f8f9fa] border border-[#eee] px-1 text-[#999] capitalize">
                     {Object.entries(book.emotions).reduce((a, b) => a[1] > b[1] ? a : b)[0]}
@@ -388,6 +704,40 @@ const App = () => {
                   <span className="text-[9px] bg-[#f8f9fa] border border-[#eee] px-1 text-[#999]">—</span>
                 )}
               </div>
+
+              {/* Rating and Status for Bookshelf View */}
+              {showMyShelf && (
+                <div className="mt-2 space-y-2">
+                  {/* Star Rating */}
+                  <div className="flex gap-0.5">
+                    {[1, 2, 3, 4, 5].map(star => (
+                      <button
+                        key={star}
+                        onClick={(e) => { e.stopPropagation(); handleRatingChange(book.isbn, star); }}
+                        className="focus:outline-none"
+                      >
+                        <Star
+                          className={`w-3.5 h-3.5 transition-colors ${star <= (book.rating || 0)
+                            ? 'text-[#f4acb7] fill-current'
+                            : 'text-gray-200 hover:text-[#f4acb7]'
+                            }`}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                  {/* Status Dropdown */}
+                  <select
+                    value={book.status || "want_to_read"}
+                    onChange={(e) => { e.stopPropagation(); handleStatusChange(book.isbn, e.target.value); }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-full text-[9px] p-1 border border-[#eee] bg-white text-gray-500 outline-none focus:border-[#b392ac]"
+                  >
+                    <option value="want_to_read">Want to Read</option>
+                    <option value="reading">Reading</option>
+                    <option value="finished">Finished</option>
+                  </select>
+                </div>
+              )}
             </div>
           )) : (
             <div className="col-span-full py-20 text-center text-gray-400 text-xs italic">
@@ -425,10 +775,24 @@ const App = () => {
                   <div className="bg-[#fff9f9] border border-[#f4acb7] p-4 w-full relative mb-4">
                     <Sparkles className="w-3 h-3 text-[#f4acb7] absolute -top-1.5 -left-1.5 fill-current" />
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-[11px] font-bold text-[#f4acb7]">{selectedBook.rating ? selectedBook.rating.toFixed(1) : '0.0'}</span>
-                      <div className="flex gap-0.5 text-[#f4acb7]">
-                        {[1, 2, 3, 4, 5].map(i => <Star key={i} className={`w-3 h-3 ${i <= selectedBook.rating ? 'fill-current' : ''}`} />)}
-                      </div>
+                      {(() => {
+                        const userBook = myCollection.find(b => b.isbn === selectedBook.isbn);
+                        const displayRating = (userBook?.rating && userBook.rating > 0) ? userBook.rating : (selectedBook.rating || 0);
+                        const isUserRating = userBook?.rating && userBook.rating > 0;
+                        return (
+                          <>
+                            <div className="flex flex-col">
+                              <span className="text-[11px] font-bold text-[#f4acb7]">
+                                {displayRating > 0 ? displayRating.toFixed(1) : '0.0'}
+                                {isUserRating ? ' (Your Rating)' : ' (Average)'}
+                              </span>
+                              <div className="flex gap-0.5 text-[#f4acb7]">
+                                {[1, 2, 3, 4, 5].map(i => <Star key={i} className={`w-3 h-3 ${i <= displayRating ? 'fill-current' : ''}`} />)}
+                              </div>
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
                     <p className="text-[11px] font-bold text-[#f4acb7] italic leading-relaxed">
                       {selectedBook.aiHighlight}
@@ -512,16 +876,73 @@ const App = () => {
                     </div>
                   </div>
 
-                  <div className="flex gap-3">
+                  <div className="flex flex-col gap-3">
+                    {/* User Rating & Status - Only if in collection */}
+                    {myCollection.some(b => b.isbn === selectedBook.isbn) && (
+                      <div className="p-3 bg-[#fff9f9] border border-[#f4acb7] space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-[#f4acb7] uppercase tracking-wider">My Rating</span>
+                          <div className="flex gap-0.5">
+                            {[1, 2, 3, 4, 5].map(star => {
+                              const userBook = myCollection.find(b => b.isbn === selectedBook.isbn);
+                              return (
+                                <button
+                                  key={star}
+                                  onClick={() => handleRatingChange(selectedBook.isbn, star)}
+                                  className="focus:outline-none transform hover:scale-110 transition-transform"
+                                >
+                                  <Star className={`w-4 h-4 transition-colors ${star <= (userBook?.rating || 0)
+                                    ? 'text-[#f4acb7] fill-current'
+                                    : 'text-gray-200 hover:text-[#f4acb7]'
+                                    }`} />
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-[#b392ac] uppercase tracking-wider">Status</span>
+                          <select
+                            value={myCollection.find(b => b.isbn === selectedBook.isbn)?.status || "want_to_read"}
+                            onChange={(e) => handleStatusChange(selectedBook.isbn, e.target.value)}
+                            className="bg-white border border-[#eee] text-[10px] text-gray-500 p-1 outline-none focus:border-[#b392ac] w-28 cursor-pointer"
+                          >
+                            <option value="want_to_read">Want to Read</option>
+                            <option value="reading">Reading</option>
+                            <option value="finished">Finished</option>
+                          </select>
+                        </div>
+                      </div>
+                    )}
+
                     <StudyButton
                       active
                       color={myCollection.some(b => b.isbn === selectedBook.isbn) ? "peach" : "purple"}
-                      className="flex-grow py-3 text-sm flex items-center justify-center gap-2 font-bold"
+                      className="w-full py-3 text-sm flex items-center justify-center gap-2 font-bold transition-all"
                       onClick={() => toggleCollect(selectedBook)}
                     >
                       <Bookmark className={`w-4 h-4 ${myCollection.some(b => b.isbn === selectedBook.isbn) ? 'fill-current' : ''}`} />
                       {myCollection.some(b => b.isbn === selectedBook.isbn) ? "In Collection" : "Add to Collection"}
                     </StudyButton>
+
+                    {/* My Notes Section */}
+                    {myCollection.some(b => b.isbn === selectedBook.isbn) && (
+                      <div className="mt-2 pt-3 border-t border-[#eee]">
+                        <label className="text-[10px] font-bold text-[#b392ac] uppercase tracking-wider mb-2 block flex items-center gap-2">
+                          <MessageCircle className="w-3 h-3" /> My Private Notes
+                        </label>
+                        <textarea
+                          value={myCollection.find(b => b.isbn === selectedBook.isbn)?.comment || ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setMyCollection(prev => prev.map(b => b.isbn === selectedBook.isbn ? { ...b, comment: val } : b));
+                          }}
+                          onBlur={(e) => updateBook(selectedBook.isbn, { comment: e.target.value })}
+                          className="w-full text-[11px] p-3 border border-[#eee] focus:border-[#b392ac] outline-none h-24 resize-none bg-[#fff9f9] text-[#666] placeholder:text-gray-300 shadow-inner"
+                          placeholder="Write your thoughts, review, or memorable quotes here..."
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -533,7 +954,7 @@ const App = () => {
       <footer className="mt-16 text-center text-[9px] font-medium text-gray-300 uppercase tracking-widest pb-10 border-t border-[#eee] pt-10">
         Paper Shelf // 2026 Your Personal Library
       </footer>
-    </div>
+    </div >
   );
 };
 

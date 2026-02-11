@@ -1,0 +1,24 @@
+#!/usr/bin/expect
+
+set host "connect.nmb2.seetacloud.com"
+set port "15054"
+set user "root"
+set password "9Dml+WZeqp5b"
+set remote_dir "/root/autodl-tmp/book-rec-with-LLMs"
+
+# 1. SCP
+spawn scp -P $port data_bundle.tar.gz $user@$host:$remote_dir/
+set timeout -1
+expect {
+    "password:" { send "$password\r" }
+}
+expect eof
+
+# 2. Untar
+spawn ssh -p $port $user@$host "cd $remote_dir; tar -xzf data_bundle.tar.gz"
+expect {
+    "password:" { send "$password\r" }
+}
+expect eof
+
+puts "Data Sync Complete!"

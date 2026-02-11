@@ -10,10 +10,15 @@ from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_
 
 from src.recommender import BookRecommender
 from src.utils import setup_logger
-from src.user.profile_store import add_favorite, list_favorites
+from src.user.profile_store import (
+    add_favorite, list_favorites, remove_favorite,
+    update_book_rating, update_reading_status, update_book_comment,
+    get_favorites_with_metadata, get_reading_stats
+)
 from src.marketing.persona import build_persona
 from src.marketing.highlights import generate_highlights
 from src.api.chat import router as chat_router # ✨ NEW
+from src.services.chat_service import chat_service # ✨ NEW
 from src.services.recommend_service import RecommendationService # ✨ NEW
 
 logger = setup_logger(__name__)
@@ -35,19 +40,7 @@ app.include_router(chat_router)
 # 挂载静态目录，确保前端能访问 /assets/cover-not-found.jpg
 app.mount("/assets", StaticFiles(directory="assets"), name="assets")
 
-# Allow local frontend dev origins
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+
 
 # --- Observability Middleware ---
 @app.middleware("http")
@@ -91,8 +84,11 @@ async def startup_event():
     
     logger.info("Initializing Personalized Rec Service...")
     rec_service = RecommendationService()
-    # Lazy loading is done in service, but we can pre-warm here if needed
-    # rec_service.load_resources() 
+    # Pre-warm resources for better UX
+    try:
+        rec_service.load_resources()
+    except Exception as e:
+        logger.error(f"Failed to pre-load resources: {e}")
     
     logger.info("Engines Initialized.")
 
@@ -127,6 +123,41 @@ class FavoriteRequest(BaseModel):
 class HighlightsRequest(BaseModel):
     isbn: str
     user_id: Optional[str] = "local"
+
+
+class BookUpdateRequest(BaseModel):
+    user_id: Optional[str] = "local"
+    isbn: str
+    rating: Optional[float] = None
+    status: Optional[str] = None  # "want_to_read", "reading", "finished"
+    comment: Optional[str] = None
+
+class BookAddRequest(BaseModel):
+    isbn: str
+    title: str
+    author: str
+    description: str
+    category: Optional[str] = "General"
+    thumbnail: Optional[str] = None
+
+@app.post("/books/add")
+async def add_book_endpoint(req: BookAddRequest):
+    """
+    Dynamically add a new book to the database and vector index.
+    """
+    if not recommender:
+        raise HTTPException(status_code=503, detail="Service not ready")
+    try:
+        new_book_row = recommender.add_new_book(req.isbn, req.title, req.author, req.description, req.category, req.thumbnail)
+        if new_book_row is not None:
+             # Also update ChatService context
+            chat_service.add_book_to_context(new_book_row)
+            return {"status": "success", "message": f"Book {req.isbn} added."}
+        else:
+            raise HTTPException(status_code=400, detail="Failed to add book. Ensure ISBN is unique.")
+    except Exception as e:
+        logger.error(f"Error adding book: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/health")
 async def health_check():
@@ -185,10 +216,11 @@ async def favorites_list(user_id: str):
     if not recommender:
         raise HTTPException(status_code=503, detail="Service not ready")
     try:
-        isbn_list = list_favorites(user_id)
+        # Get favorites with metadata (rating, status)
+        favorites_meta = get_favorites_with_metadata(user_id)
         books_df = recommender.books
         results = []
-        for isbn in isbn_list:
+        for isbn, meta in favorites_meta.items():
             book_row = books_df[books_df["isbn13"].astype(str) == str(isbn)]
             if not book_row.empty:
                 row = book_row.iloc[0]
@@ -198,11 +230,62 @@ async def favorites_list(user_id: str):
                     "author": row.get("authors", "Unknown"),
                     "img": row.get("thumbnail", "/assets/cover-not-found.jpg"),
                     "category": row.get("simple_categories", ""),
-                    "mood": "Joy" if row.get("joy", 0) > 0.3 else "Neutral"
+                    "mood": "Joy" if row.get("joy", 0) > 0.3 else "Neutral",
+                    "rating": meta.get("rating"),
+                    "status": meta.get("status", "want_to_read"),
+                    "added_at": meta.get("added_at"),
+                    "comment": meta.get("comment", "")
                 })
         return {"favorites": results}
     except Exception as e:
         logger.error(f"favorites_list error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/favorites/update")
+async def favorites_update(req: BookUpdateRequest):
+    """Update rating or reading status for a book."""
+    try:
+        user_id = req.user_id or "local"
+        results = {}
+        
+        if req.rating is not None:
+            success = update_book_rating(user_id, req.isbn, req.rating)
+            results["rating_updated"] = success
+        
+        if req.status is not None:
+            success = update_reading_status(user_id, req.isbn, req.status)
+            results["status_updated"] = success
+            
+        if req.comment is not None:
+            success = update_book_comment(user_id, req.isbn, req.comment)
+            results["comment_updated"] = success
+        
+        return {"status": "ok", **results}
+    except Exception as e:
+        logger.error(f"favorites_update error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/favorites/remove")
+async def favorites_remove(req: FavoriteRequest):
+    """Remove a book from favorites."""
+    try:
+        count = remove_favorite(req.user_id or "local", req.isbn)
+        return {"status": "ok", "favorites_count": count}
+    except Exception as e:
+        logger.error(f"favorites_remove error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/user/{user_id}/stats")
+async def user_stats(user_id: str):
+    """Get reading statistics for a user."""
+    try:
+        stats = get_reading_stats(user_id)
+        return stats
+    except Exception as e:
+        logger.error(f"user_stats error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -294,7 +377,7 @@ async def run_benchmark():
 
 # --- Personalized Recommendation API ---
 
-@app.get("/api/recommend/personal")
+@app.get("/api/recommend/personal", response_model=RecommendationResponse)
 async def personalized_recommendations(user_id: str = "local", top_k: int = 10):
     """
     Get personalized recommendations for a user.
@@ -322,7 +405,37 @@ async def personalized_recommendations(user_id: str = "local", top_k: int = 10):
             title = meta.get("title", f"ISBN: {isbn}") if meta else f"ISBN: {isbn}"
             desc = meta.get("description", "No description available.") if meta else ""
             thumb = meta.get("thumbnail", "") if meta else ""
-            author = meta.get("authors", "") if meta else ""
+            authors = meta.get("authors", "Unknown") if meta else "Unknown"
+            
+            # More robust rating/metadata mapping
+            rating = 0.0
+            if meta:
+                # Try average_rating or rating
+                rating = float(meta.get("average_rating", meta.get("rating", 0.0)))
+            
+            tags = []
+            if meta and "tags" in meta:
+                tags_raw = meta["tags"]
+                if isinstance(tags_raw, str):
+                    tags = [t.strip() for t in tags_raw.split(";") if t.strip()]
+                elif isinstance(tags_raw, list):
+                    tags = tags_raw
+            
+            emotions = {}
+            if meta:
+                emotions = {
+                    "joy": float(meta.get("joy", 0.0)),
+                    "sadness": float(meta.get("sadness", 0.0)),
+                    "fear": float(meta.get("fear", 0.0)),
+                    "anger": float(meta.get("anger", 0.0)),
+                    "surprise": float(meta.get("surprise", 0.0)),
+                }
+            
+            highlights = []
+            if meta and "review_highlights" in meta:
+                h_raw = meta["review_highlights"]
+                if isinstance(h_raw, str):
+                    highlights = [h.strip() for h in h_raw.split(";") if h.strip()][:3]
             
             # Format cover
             if not thumb:
@@ -332,9 +445,14 @@ async def personalized_recommendations(user_id: str = "local", top_k: int = 10):
                 "isbn": isbn,
                 "score": float(score),
                 "title": title,
-                "author": author,
+                "authors": authors,
                 "description": desc,
-                "thumbnail": thumb
+                "thumbnail": thumb,
+                "average_rating": rating,
+                "tags": tags,
+                "emotions": emotions,
+                "review_highlights": highlights,
+                "caption": f"{title} by {authors}"
             })
             
         return {"recommendations": results}
@@ -343,3 +461,13 @@ async def personalized_recommendations(user_id: str = "local", top_k: int = 10):
         logger.error(f"Error in personalized rec: {e}")
         # In production, maybe return fallback popular items instead of error
         raise HTTPException(status_code=500, detail=str(e))
+
+# Allow local frontend dev origins
+# Added LAST so it wraps the app outermost (first to process request)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)

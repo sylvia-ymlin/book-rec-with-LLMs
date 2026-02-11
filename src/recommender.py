@@ -2,7 +2,7 @@ import pandas as pd
 from typing import List, Dict, Any
 from src.etl import load_books_data
 from src.vector_db import VectorDB
-from src.config import TOP_K_INITIAL, TOP_K_FINAL
+from src.config import TOP_K_INITIAL, TOP_K_FINAL, DATA_DIR
 from src.cache import CacheManager
 
 from src.utils import setup_logger, summarize_description
@@ -180,3 +180,78 @@ class BookRecommender:
             logger.error(f"Error in _format_results: {e}\n{traceback.format_exc()}")
             return []
 
+    def add_new_book(self, isbn: str, title: str, author: str, description: str, category: str = "General", thumbnail: str = None) -> Any:
+        """
+        Add a new book to the system: CSV, Memory, and Vector DB.
+        Returns the new book dictionary if successful, None otherwise.
+        """
+        try:
+            import pandas as pd
+            
+            # 1. Update Persistent Storage (CSV)
+            csv_path = DATA_DIR / "books_processed.csv"
+            
+            # Define new row with all expected columns
+            new_row = {
+                "isbn13": isbn,
+                "title": title,
+                "authors": author,
+                "description": description,
+                "simple_categories": category,
+                "thumbnail": thumbnail if thumbnail else "/assets/cover-not-found.jpg",
+                "average_rating": 0.0,
+                "joy": 0.0, "sadness": 0.0, "fear": 0.0, "anger": 0.0, "surprise": 0.0,
+                "tags": "", "review_highlights": "",
+                "isbn10": str(isbn)[:10] # Approximation
+            }
+            
+            # Check for duplicates in memory first
+            isbn_s = str(isbn)
+            if isbn_s in self.book_images or (hasattr(self, 'books') and str(isbn) in self.books['isbn13'].astype(str).values):
+                logger.warning(f"Book {isbn} already exists. Skipping add.")
+                return None
+                
+            # Append to CSV
+            if csv_path.exists():
+                # Read just the header to align columns
+                header_df = pd.read_csv(csv_path, nrows=0)
+                csv_columns = header_df.columns.tolist()
+                
+                # Filter/Order new_row to match CSV structure
+                ordered_row = {}
+                for col in csv_columns:
+                    ordered_row[col] = new_row.get(col, "") # Default to empty string if missing
+                
+                # Append to CSV
+                pd.DataFrame([ordered_row]).to_csv(csv_path, mode='a', header=False, index=False)
+            else:
+                 pd.DataFrame([new_row]).to_csv(csv_path, index=False)
+                 
+            # 2. Update In-Memory DataFrame (self.books)
+            # Add 'large_thumbnail' which load_books_data adds
+            new_row["large_thumbnail"] = new_row["thumbnail"]
+            
+            # Append to self.books
+            if self.books is not None:
+                self.books = pd.concat([self.books, pd.DataFrame([new_row])], ignore_index=True)
+            
+            # 3. Update In-Memory Lookups (for get_recommendations speed)
+            self.book_images[isbn_s] = new_row["thumbnail"]
+            self.book_descriptions[isbn_s] = description
+            self.book_authors[isbn_s] = author
+            self.book_ratings[isbn_s] = 0.0
+            
+            # 3. Update In-Memory Lookups (for get_recommendations speed)
+            self.book_descriptions[str(isbn)] = description
+            
+            # 4. Update Vector DB (Chroma + BM25)
+            self.vector_db.add_book(new_row)
+            
+            logger.info(f"Successfully added book {isbn}: {title}")
+            return new_row
+            
+        except Exception as e:
+            logger.error(f"Error adding new book: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return None

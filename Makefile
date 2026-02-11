@@ -9,6 +9,19 @@ env-update:
 run:
 	uvicorn src.main:app --reload --port 6006
 
+# Data Pipeline
+data-pipeline:
+	python scripts/run_pipeline.py
+
+data-validate:
+	python scripts/data/validate_data.py
+
+data-prep:
+	python scripts/run_pipeline.py --skip-models
+
+train-models:
+	python scripts/run_pipeline.py --stage models
+
 # Quality
 test:
 	pytest tests/
@@ -26,3 +39,4 @@ docker-build:
 
 docker-up:
 	docker-compose up
+
