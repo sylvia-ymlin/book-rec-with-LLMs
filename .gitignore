@@ -72,3 +72,5 @@ logs/
 data/chroma_db/
 
 
+web/node_modules/
+data/books_processed.csv

@@ -64,7 +64,7 @@ Technically, the system is built as a containerized microservice using **FastAPI
 
 ### Similarities
 *   **Vector Database**: Usage of specialized vector stores (ChromaDB) and HNSW indexing.
-*   **Microservices**: Separation of concerns between UI (Gradio), API (FastAPI), and Persistence (DB).
+*   **Microservices**: Separation of concerns between UI (React), API (FastAPI), and Persistence (DB).
 *   **Containerization**: Use of Docker for consistent deployment environments.
 
 ### Differences and Scalability Planning
@@ -107,7 +107,7 @@ Technically, the system is built as a containerized microservice using **FastAPI
 | **Vector DB** | **ChromaDB** | Simplifies the stack by running in-process; tailored for LLM workloads. |
 | **Cache** | **Redis** | Industry standard for key-value caching; low latency; persistence options. |
 | **Container** | **Docker** | Ensures the complex dependency tree (PyTorch, Transformers, Redis client) works consistently across environments. |
-| **Frontend** | **Gradio** | Rapid prototyping capability for ML interfaces; supports complex layouts (Tabs) easily. |
+| **Frontend** | **React + Vite** | Modern component-based UI with Tailwind CSS; production-grade UX with fast development cycles. |
 
 ---
 

@@ -21,6 +21,7 @@ class BookRecommender:
     def __init__(self) -> None:
         """Initialize the recommender by loading data and the vector database."""
         self.books = load_books_data()
+        logger.info(f"Loaded books DataFrame with columns: {self.books.columns.tolist()}")
         self.vector_db = VectorDB()
         self.cache = CacheManager()
         
@@ -115,7 +116,25 @@ class BookRecommender:
                 authors_str = row["authors"]
             
             # Fetch book cover in real-time from Google Books API
-            thumbnail = fetch_book_cover(str(row["isbn13"]), row["title"])
+            thumbnail, api_authors = fetch_book_cover(str(row["isbn13"]), row["title"])
+            authors_str = api_authors if api_authors != "Unknown" else authors_str
+            
+            # Parse tags from semicolon-separated string
+            tags_raw = str(row.get("tags", "")).strip()
+            tags = [t.strip() for t in tags_raw.split(";") if t.strip()] if tags_raw else []
+            
+            # Extract emotion scores
+            emotions = {
+                "joy": float(row.get("joy", 0.0)),
+                "sadness": float(row.get("sadness", 0.0)),
+                "fear": float(row.get("fear", 0.0)),
+                "anger": float(row.get("anger", 0.0)),
+                "surprise": float(row.get("surprise", 0.0)),
+            }
+            
+            # Parse review highlights from semicolon-separated string
+            highlights_raw = str(row.get("review_highlights", "")).strip()
+            review_highlights = [h.strip() for h in highlights_raw.split(";") if h.strip()] if highlights_raw else []
                 
             results.append({
                 "isbn": row["isbn13"],
@@ -123,8 +142,13 @@ class BookRecommender:
                 "authors": authors_str,
                 "description": truncated_desc,
                 "thumbnail": thumbnail,
-                "caption": f"{row['title']} by {authors_str}: {truncated_desc}"
+                "caption": f"{row['title']} by {authors_str}: {truncated_desc}",
+                "tags": tags,
+                "emotions": emotions,
+                "review_highlights": review_highlights,
+                "average_rating": float(row.get("average_rating", 0.0))
             })
+        logger.info(f"Sample result: {results[0] if results else 'EMPTY'}")
         return results
 
     def get_categories(self) -> List[str]:
