@@ -17,11 +17,10 @@
 
 ## Quick Links
 
-- **Current Version**: V2.0 (Agentic RAG + RecSys)
-- **Performance**: MRR@5 = 0.21, HR@10 = 0.44
-- **Next Priority**: ItemCF Direction Weight, LGBMRanker
+- **Frozen Version**: v2.6.0 (Agentic RAG + 7-Channel RecSys + Stacking)
+- **Performance**: HR@10 = 0.4545, MRR@5 = 0.2893 (n=2000, Leave-Last-Out)
 
 ---
 
-*Last Updated: January 2026*
+*Frozen January 2026 — maintenance mode for portfolio use*
 

@@ -2,7 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.6.0] - 2026-02-11
+
+### Frozen — Project Freeze
+- **Version freeze**: Project locked at v2.6.0 for portfolio use. No new features, experiments, or optimizations. Documentation and bug fixes only.
+- **Version alignment**: Updated `src/main.py`, `web/package.json` to 2.6.0. Unified version references across README, docs, technical_report, experiment_archive, interview_guide, roadmap.
+- **Freeze notice**: Added to README, docs/README, experiment_archive, roadmap.
+
 ## [Unreleased]
+
+*No changes — project frozen at v2.6.0*
 
 ### Added - 2026-01-29 (Frontend Refactor: React Router SPA)
 - **React Router SPA**: Refactored monolithic 960-line `App.jsx` into React Router architecture with 3 route pages and 5 reusable components.

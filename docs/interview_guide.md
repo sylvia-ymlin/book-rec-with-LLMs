@@ -50,6 +50,6 @@
 ---
 
 ## 📈 关键指标 (Key Metrics)
-*   **Hit Rate@10**: 0.2205 (V2.5 Baseline) -> 0.2312 (V2.7 Est.)
-*   **MRR@5**: 0.1584 -> 0.1650
+*   **Hit Rate@10**: 0.4545 (v2.6.0, n=2000, Leave-Last-Out)
+*   **MRR@5**: 0.2893 (Title-relaxed matching)
 *   **Latency**: P99 < 50ms (Personalized Recs)

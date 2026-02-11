@@ -1,5 +1,6 @@
 # Technical Report: Agentic RAG Book Recommender
 
+**Version**: v2.6.0 (Frozen)  
 **Author**: [Your Name]  
 **Date**: January 2026  
 **Project Type**: End-to-End ML/AI System (Retrieval-Augmented Generation + Recommendation System)
@@ -15,7 +16,7 @@ Key achievements:
 - Sub-second latency for keyword searches
 - Deep semantic understanding for complex natural language queries
 - Detail-level precision via hierarchical (Small-to-Big) retrieval
-- Personalized recommendations using 6-channel recall and LGBMRanker (LambdaRank)
+- Personalized recommendations using 7-channel recall (Item2Vec, Stacking) and LGBMRanker (LambdaRank)
 
 The system demonstrates mastery of both Data-Centric AI (SFT data synthesis) and Advanced RAG Architecture (Hybrid Search, Reranking, Query Routing).
 

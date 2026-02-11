@@ -1,13 +1,13 @@
 # Roadmap: Technical Evolution Plan
 
-This document records the project's technical evolution from current version to target version.
+This document records the project's technical evolution. **v2.6.0 is frozen** — no new features.
 
 ---
 
 ## Version Evolution
 
 ```
-V1.0 Basic RAG              V2.6 Current Version        V3.0 Target Version
+V1.0 Basic RAG              v2.6.0 Frozen              V3.0 Planned (out of scope)
 (Vector Search)             (Agentic + RecSys)          (Adaptive Intelligence)
     |                             |                          |
     |  Implemented:               |                          |
@@ -27,7 +27,7 @@ V1.0 Basic RAG              V2.6 Current Version        V3.0 Target Version
 
 ---
 
-## Current System Status (V2.6)
+## Current System Status (v2.6.0 — Frozen)
 
 ### RAG System
 - [x] Query Router (RegEx + Keyword)
@@ -283,4 +283,4 @@ Tech: Pareto Optimal or Multi-Task Learning (MMoE)
 
 ---
 
-*Last Updated: January 2026 (V2.6)*
+*Frozen January 2026 — v2.6.0*

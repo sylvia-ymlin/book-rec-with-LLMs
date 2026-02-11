@@ -2,6 +2,8 @@
 
 This document consolidates all experimental results from the project development.
 
+> **Frozen at v2.6.0** — Experiments recorded as of January 2026. No new experiments.
+
 ---
 
 ## 1. Retrieval Baseline (2026-01-08)
@@ -424,4 +426,4 @@ The dramatic improvement (+106% HR@10) is likely attributable to:
 
 ---
 
-*Archive Date: January 2026 (V2.6)*
+*Frozen January 2026 — v2.6.0*

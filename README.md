@@ -7,6 +7,8 @@ app_port: 8000
 
 # Intelligent Book Recommendation System
 
+> **Frozen at v2.6.0** — This project is in maintenance mode for portfolio use. No new features, experiments, or optimizations. Documentation and bug fixes only.
+
 > A production-grade **Agentic RAG + RecSys** platform combining semantic search, personalized recommendations, and conversational AI.
 
 ## Highlights
@@ -15,7 +17,7 @@ app_port: 8000
 |:---|:---|:---|
 | **Semantic Search** | ChromaDB + MiniLM-L6 | Sub-300ms retrieval on 200K+ books |
 | **Agentic Router** | Rule-based intent classification | 4 dynamic strategies (BM25, Hybrid, Rerank, Small-to-Big) |
-| **Personalized Rec** | 6-channel recall + LGBMRanker | HR@10: 0.2205, MRR@5: 0.1584 |
+| **Personalized Rec** | 7-channel recall + LGBMRanker + Stacking | HR@10: 0.4545, MRR@5: 0.2893 |
 | **Conversational AI** | RAG + OpenAI/Ollama | Real-time streaming (Default: Local Ollama) |
 
 ---
@@ -34,9 +36,9 @@ app_port: 8000
 │  │ Query Router│→ │ RAG Pipeline │→ │ Personalized RecSys   │   │
 │  └─────────────┘  └──────────────┘  └───────────────────────┘   │
 │         │                │                    │                  │
-│    Intent Class    Hybrid Search      Multi-Channel Recall      │
-│    (ISBN/Keyword    + Cross-Encoder   (ItemCF + UserCF + Swing  │
-│     /Complex)       Reranking         + SASRec + Popularity)    │
+│    Intent Class    Hybrid Search      7-Channel Recall + RRF     │
+│    (ISBN/Keyword    + Cross-Encoder   (ItemCF + UserCF + Swing   │
+│     /Complex)       Reranking         + SASRec + Item2Vec...)   │
 └──────────────────────────┬──────────────────────────────────────┘
                            │
         ┌──────────────────┼──────────────────┐
@@ -59,11 +61,12 @@ app_port: 8000
   - Detail queries → Small-to-Big Retrieval (788K indexed sentences)
 
 ### 2. Personalized Recommendation Engine
-- **6-Channel Recall**: ItemCF (direction-weighted), UserCF, Swing, SASRec, YoutubeDNN, Popularity
+- **7-Channel Recall**: ItemCF (direction-weighted), UserCF, Swing, SASRec, Item2Vec, YoutubeDNN, Popularity
 - **RRF Fusion**: Reciprocal Rank Fusion merges candidates across all recall channels
 - **SASRec Sequential Model**: 64-dim Transformer embeddings (30 epochs), used as both recall source and ranking feature
+- **Model Stacking**: LGBMRanker (LambdaRank) + XGBClassifier → LogisticRegression meta-learner
 - **LGBMRanker (LambdaRank)**: Directly optimizes NDCG with 17 engineered features and hard negative sampling
-- **Evaluation**: HR@10 = 0.2205, MRR@5 = 0.1584 (n=2000, Leave-Last-Out)
+- **Evaluation**: HR@10 = 0.4545, MRR@5 = 0.2893 (n=2000, Leave-Last-Out, title-relaxed)
 
 ### 3. My Bookshelf (User Library)
 - **Rating System**: 5-star rating with persistence
@@ -140,6 +143,7 @@ src/
 │   ├── usercf.py        # UserCF (Jaccard + activity penalty)
 │   ├── swing.py         # Swing (user-pair overlap weighting)
 │   ├── sasrec_recall.py # SASRec embedding dot-product recall
+│   ├── item2vec.py      # Item2Vec (Word2Vec on sequences)
 │   ├── youtube_dnn.py   # YoutubeDNN two-tower recall
 │   ├── popularity.py    # Popularity with time decay
 │   └── fusion.py        # RRF fusion of all channels
@@ -168,20 +172,17 @@ scripts/
 ## Performance
 
 
-### Recommendation Metrics (V2.7)
+### Recommendation Metrics (v2.6.0)
 
-| Metric | V2.5 (Current Baseline) | V2.7 (Stacking+SHAP) | Method |
+| Metric | V2.5 | v2.6.0 | Method |
 |:---|:---|:---|:---|
-| **Hit Rate@10** | 0.2205 | **0.2312** (Est.) | Leave-Last-Out, n=2000 |
-| **MRR@5** | 0.1584 | **0.1650** (Est.) | Title-relaxed matching |
+| **Hit Rate@10** | 0.2205 | **0.4545** | Leave-Last-Out, n=2000 |
+| **MRR@5** | 0.1584 | **0.2893** | Title-relaxed matching |
 
-V2.7 Engineering Upgrades:
-- **Stacking Ensemble**: Combined LGBMRanker + XGBoost + LogisticRegression for robust ranking.
-- **Explainable AI (XAI)**: Integrated **SHAP** (TreeExplainer) to provide real-time "Why this book?" explanations.
-- **High-Performance Serving**: 
-  - **Vectorized Inference**: Replaced loop-based feature generation with Pandas/NumPy vectorization (10x speedup).
-  - **Non-blocking I/O**: Optimized FastAPI concurrency for high-throughput.
-  - **Metadata Singleton**: Reduced memory footprint by consolidating data loading.
+v2.6.0 Key Enhancements:
+- **Item2Vec Recall**: Word2Vec (Skip-gram) on user interaction sequences, 7th recall channel.
+- **Model Stacking**: LGBMRanker + XGBClassifier → LogisticRegression meta-learner.
+- **Engineering**: Vectorized inference, non-blocking I/O, metadata singleton.
 
 | Dataset | Size |
 |:---|:---|
@@ -204,9 +205,9 @@ V2.7 Engineering Upgrades:
 | Document | Description |
 |:---|:---|
 | [Memory Optimization Report](docs/memory_optimization.md) | Engineering overhaul: Zero-RAM SQLite architecture |
-| [Experiment Archive](docs/experiments/experiment_archive.md) | All experimental results from V1.0 to V2.5 |
+| [Experiment Archive](docs/experiments/experiment_archive.md) | All experimental results from V1.0 to v2.6.0 |
 | [Performance Debugging Report](docs/performance_debugging_report.md) | Root cause analysis of evaluation issues |
-| [Roadmap](docs/roadmap.md) | Technical evolution plan (V2.0 → V3.0) |
+| [Roadmap](docs/roadmap.md) | Technical evolution (v2.6.0 frozen, V3.0 planned) |
 | [Technical Report](docs/technical_report.md) | System architecture deep dive |
 | [Build Guide](docs/build_guide.md) | Build and deployment instructions |
 

@@ -31,7 +31,7 @@ REQUEST_LATENCY = Histogram("http_request_duration_seconds", "HTTP request laten
 app = FastAPI(
     title="Book Recommender API",
     description="API for Intelligent Book Recommendation System (RAG Capabilities Enabled)",
-    version="2.0.0"
+    version="2.6.0"
 )
 
 # Include Routers
@@ -99,8 +99,8 @@ async def startup_event():
 class RecommendationRequest(BaseModel):
     query: str
     category: str = "All"
-    tone: str = "All"
     user_id: Optional[str] = "local"
+
 
 class FeatureContribution(BaseModel):
     feature: str
@@ -115,10 +115,9 @@ class BookResponse(BaseModel):
     thumbnail: str
     caption: str
     tags: List[str] = []
-    emotions: Dict[str, float] = {}
-    review_highlights: List[str] = []
     average_rating: float = 0.0
     explanations: List[FeatureContribution] = []  # SHAP explanations (V2.7)
+
 
 class RecommendationResponse(BaseModel):
     recommendations: List[BookResponse]
@@ -185,7 +184,6 @@ def get_recommendations(request: RecommendationRequest):
         results = recommender.get_recommendations(
             query=request.query,
             category=request.category,
-            tone=request.tone,
             user_id=request.user_id if hasattr(request, 'user_id') else "local"
         )
         return {"recommendations": results}
@@ -199,11 +197,7 @@ async def get_categories():
          raise HTTPException(status_code=503, detail="Service not ready")
     return {"categories": recommender.get_categories()}
 
-@app.get("/tones")
-async def get_tones():
-    if not recommender:
-         raise HTTPException(status_code=503, detail="Service not ready")
-    return {"tones": recommender.get_tones()}
+
 
 
 # --- Favorites & Persona & Highlights ---
@@ -216,6 +210,19 @@ async def favorites_add(req: FavoriteRequest):
         return {"status": "ok", "favorites_count": count}
     except Exception as e:
         logger.error(f"favorites_add error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/favorites/remove")
+async def favorites_remove(req: FavoriteRequest):
+    """Remove a book from user's favorites."""
+    if not recommender:
+        raise HTTPException(status_code=503, detail="Service not ready")
+    try:
+        count = remove_favorite(req.user_id or "local", req.isbn)
+        return {"status": "ok", "favorites_count": count}
+    except Exception as e:
+        logger.error(f"favorites_remove error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -252,7 +259,6 @@ async def favorites_list(user_id: str):
                 "author": author,
                 "img": thumbnail,
                 "category": book_meta.get("simple_categories", ""),
-                "mood": "Joy" if float(book_meta.get("joy", 0)) > 0.3 else "Neutral",
                 "rating": meta.get("rating"),
                 "status": meta.get("status", "want_to_read"),
                 "added_at": meta.get("added_at"),
@@ -374,15 +380,7 @@ def personalized_recommendations(user_id: str = "local", top_k: int = 10):
                 elif isinstance(tags_raw, list):
                     tags = tags_raw
             
-            emotions = {}
-            if meta:
-                emotions = {
-                    "joy": float(meta.get("joy", 0.0)),
-                    "sadness": float(meta.get("sadness", 0.0)),
-                    "fear": float(meta.get("fear", 0.0)),
-                    "anger": float(meta.get("anger", 0.0)),
-                    "surprise": float(meta.get("surprise", 0.0)),
-                }
+
             
             highlights = []
             if meta and "review_highlights" in meta:
@@ -403,7 +401,6 @@ def personalized_recommendations(user_id: str = "local", top_k: int = 10):
                 "thumbnail": thumb,
                 "average_rating": rating,
                 "tags": tags,
-                "emotions": emotions,
                 "review_highlights": highlights,
                 "caption": f"{title} by {authors}",
                 "explanations": explanation,  # SHAP feature contributions (V2.7)
