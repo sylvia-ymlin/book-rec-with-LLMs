@@ -7,7 +7,7 @@ This document records the project's technical evolution from current version to 
 ## Version Evolution
 
 ```
-V1.0 Basic RAG              V2.0 Current Version        V3.0 Target Version
+V1.0 Basic RAG              V2.6 Current Version        V3.0 Target Version
 (Vector Search)             (Agentic + RecSys)          (Adaptive Intelligence)
     |                             |                          |
     |  Implemented:               |                          |
@@ -15,8 +15,8 @@ V1.0 Basic RAG              V2.0 Current Version        V3.0 Target Version
     |  - Hybrid Search + RRF      |                          |
     |  - Cross-Encoder Rerank     |                          |
     |  - Small-to-Big Retrieval   |                          |
-    |  - Multi-Channel Recall     |                          |
-    |  - XGBoost Ranking          |                          |
+    |  - 7-Channel Recall + RRF   |                          |
+    |  - Model Stacking Ranker    |                          |
     |                             |                          |
     |                             Planned:                   |
     |                             - Neural Intent Router     |
@@ -27,7 +27,7 @@ V1.0 Basic RAG              V2.0 Current Version        V3.0 Target Version
 
 ---
 
-## Current System Status (V2.0)
+## Current System Status (V2.6)
 
 ### RAG System
 - [x] Query Router (RegEx + Keyword)
@@ -38,20 +38,25 @@ V1.0 Basic RAG              V2.0 Current Version        V3.0 Target Version
 - [x] Context Compression
 
 ### Recommendation System
-- [x] ItemCF Recall
+- [x] ItemCF Recall (+ direction weight V2.5)
 - [x] UserCF Recall
 - [x] Popularity Recall
 - [x] YoutubeDNN Two-Tower
+- [x] Swing Recall (V2.5)
+- [x] SASRec Recall Channel (V2.5)
+- [x] Item2Vec Recall (V2.6) — Word2Vec on interaction sequences
 - [x] Feature Engineering
-- [x] XGBoost Ranker
+- [x] LGBMRanker + Hard Negatives (V2.5, replaced XGBoost)
+- [x] Model Stacking (V2.6) — LGB + XGB → LogisticRegression Meta-Learner
 - [x] API Integration
 
 ### Frontend
 - [x] Basic Chat UI
 - [x] Book Card Display
 - [x] Backend API Integration
-- [ ] User Profile Page
-- [ ] My Bookshelf Page
+- [x] User Profile Page — React Router + Persona/Stats/Rating Distribution/Progress
+- [x] My Bookshelf Page — Filter/Sort/Stats/Rating/Status management
+- [x] Frontend Refactor — Monolithic App.jsx → React Router SPA (3 pages + 5 components)
 
 ---
 
@@ -81,47 +86,108 @@ V1.0 Basic RAG              V2.0 Current Version        V3.0 Target Version
 
 ### Current vs Vision Gap
 
-| 模块 | 当前实现 | 愿景目标 | Gap |
+| 模块 | 当前实现 (V2.6) | 愿景目标 | Gap |
 |:---|:---|:---|:---|
-| **召回架构** | 4路召回 + RRF | 3层 L1/L2/L3 | 🟡 中等 |
-| **序列模型** | SASRec (无时间) | TiSASRec | 🟡 中等 |
-| **排序模型** | XGBoost (AUC) | LGBMRanker (NDCG) | 🟢 易升级 |
+| **召回架构** | 7路召回 + RRF ✅ | 3层 L1/L2/L3 | 🟡 中等 |
+| **序列模型** | SASRec (feature + recall) | TiSASRec | 🟡 中等 |
+| **排序模型** | Model Stacking (LGB+XGB→Meta) ✅ | + Deep Ranker | 🟢 完成 |
 | **评估指标** | HR/MRR | 因果 + 长期价值 | 🔴 需新建 |
 | **可解释性** | 无 | SHAP + 推荐理由 | 🟡 中等 |
 
 ---
 
-## V2.5 RecSys Enhancements (Tianchi)
+## V2.5 RecSys Enhancements (Tianchi) — Completed 2026-01-29
 
 > **Reference**: Tianchi Top 5/5338 solution
 
 ### ItemCF Improvements
 
-| Priority | Feature | Description | Expected Impact |
+| Priority | Feature | Description | Status |
 |:---|:---|:---|:---|
-| **P0** | **Direction Weight** | Forward=1.0, backward=0.7 | MRR +2-3% |
-| P0 | Created Time Weight | `exp(0.8 ** abs(time_i - time_j))` | Ranking precision |
+| **P0** | **Direction Weight** | Forward=1.0, backward=0.7 | ✅ Done |
+| P0 | Created Time Weight | `exp(0.8 ** abs(time_i - time_j))` | Already in V2.0 |
 
 ### Feature Engineering
 
-| Priority | Feature | Description | Expected Impact |
+| Priority | Feature | Description | Status |
 |:---|:---|:---|:---|
-| P0 | Last-N Similarity | max/min/mean similarity to last 5 books | MRR +3-5% |
-| P0 | Category Affinity | Is category in user's preferences | MRR +2-3% |
+| P0 | Last-N Similarity | max/min/mean similarity to last 5 books | ✅ Done (V2.0) |
+| P0 | Category Affinity | Is category in user's preferences | ✅ Done (V2.0) |
 
 ### Recall Layer
 
-| Priority | Channel | Algorithm | Purpose |
+| Priority | Channel | Algorithm | Status |
 |:---|:---|:---|:---|
-| **P1** | **Swing** | User-pair overlap weighting | Substitute relationships |
-| P2 | Item2Vec | Word2Vec on sequences | Sequential patterns |
+| **P1** | **Swing** | User-pair overlap weighting | ✅ Done (optimized, 35s) |
+| **P1** | **SASRec Recall** | Embedding dot-product retrieval | ✅ Done |
+| **P2** | **Item2Vec** | Word2Vec on sequences | ✅ Done (V2.6) |
 
 ### Ranking Model
 
-| Priority | Enhancement | Description | Expected Impact |
+| Priority | Enhancement | Description | Status |
 |:---|:---|:---|:---|
-| **P1** | **LGBMRanker** | LambdaRank (NDCG优化) | MRR +3-5% |
-| P2 | Model Stacking | XGB + LGB → Meta-Learner | MRR +2-3% |
+| **P1** | **LGBMRanker** | LambdaRank (NDCG优化) | ✅ Done |
+| **P1** | **Hard Negative Sampling** | Recall results as negatives | ✅ Done |
+| **P2** | **Model Stacking** | XGB + LGB → Meta-Learner | ✅ Done (V2.6) |
+
+### V2.5 Results
+
+| Metric | Pre-V2.5 | V2.5 | Improvement |
+|:---|:---|:---|:---|
+| HR@10 | 0.1380 | **0.2205** | +59.8% |
+| MRR@5 | 0.1295 | **0.1584** | +22.3% |
+
+---
+
+## V2.6 Item2Vec + Model Stacking — Completed 2026-01-29
+
+### New Recall Channel
+
+| Priority | Channel | Algorithm | Status |
+|:---|:---|:---|:---|
+| **P2** | **Item2Vec** | Word2Vec (Skip-gram) on user interaction sequences | ✅ Done |
+
+- **Reference**: Barkan & Koenigstein, "Item2Vec: Neural Item Embedding for Collaborative Filtering", 2016
+- **Params**: `vector_size=64, window=5, min_count=3, sg=1 (Skip-gram), epochs=10`
+- **Vocabulary**: 44,157 items
+- **Training time**: ~48 seconds (index 15s + Word2Vec 7s + similarity matrix 22s)
+- **Fusion weight**: 0.8 (between Popularity 0.5 and CF channels 1.0)
+
+### Model Stacking
+
+| Priority | Enhancement | Description | Status |
+|:---|:---|:---|:---|
+| **P2** | **Model Stacking** | LGBMRanker + XGBClassifier → LogisticRegression Meta-Learner | ✅ Done |
+
+**Architecture**:
+```
+Level-1: LGBMRanker (LambdaRank scores) + XGBClassifier (binary probabilities)
+Level-2: LogisticRegression([lgb_score, xgb_score]) → final probability
+Training: 5-Fold GroupKFold CV → Out-of-Fold predictions → Meta-learner
+```
+
+**Meta-learner coefficients**: LGB=1.4901 (dominant), XGB=0.0420, intercept=-0.1171
+
+### Recall Channel Weights (V2.6)
+
+| Channel | Weight |
+|:---|:---|
+| YoutubeDNN | 0.1 |
+| ItemCF | 1.0 |
+| UserCF | 1.0 |
+| Swing | 1.0 |
+| SASRec | 1.0 |
+| **Item2Vec** | **0.8** |
+| Popularity | 0.5 |
+
+### V2.6 Results
+
+| Metric | V2.5 | V2.6 | Improvement |
+|:---|:---|:---|:---|
+| HR@10 | 0.2205 | **0.4545** | +106.1% |
+| MRR@5 | 0.1584 | **0.2893** | +82.6% |
+
+*(n=2000, Leave-Last-Out, title-relaxed matching)*
 
 ---
 
@@ -196,12 +262,13 @@ Tech: Pareto Optimal or Multi-Task Learning (MMoE)
 
 ## Performance Summary
 
-| Dimension | V2.0 (Current) | V3.0 (Target) | Expected |
+| Dimension | V2.0 | V2.6 (Current) | V3.0 (Target) |
 |:---|:---|:---|:---|
-| Intent Understanding | Rule Router | Neural Router | +40% accuracy |
-| Complex Queries | Single retrieval | CoT Multi-hop | +32% recall |
-| Ranking Quality | XGBoost | + LGBMRanker | +5-10% MRR |
-| Recall Diversity | 5 channels | + Swing + Item2Vec | +15% coverage |
+| Intent Understanding | Rule Router | Rule Router | Neural Router |
+| Complex Queries | Single retrieval | Single retrieval | CoT Multi-hop |
+| Ranking Quality | XGBoost (AUC) | **Model Stacking (LGB+XGB→Meta)** ✅ | + Deep Ranker |
+| Recall Diversity | 4 channels | **7 channels (+Swing, +SASRec, +Item2Vec)** ✅ | + Faiss |
+| Negative Sampling | Random | **Hard Negatives** ✅ | Curriculum Learning |
 
 ---
 
@@ -216,4 +283,4 @@ Tech: Pareto Optimal or Multi-Task Learning (MMoE)
 
 ---
 
-*Last Updated: January 2026*
+*Last Updated: January 2026 (V2.6)*

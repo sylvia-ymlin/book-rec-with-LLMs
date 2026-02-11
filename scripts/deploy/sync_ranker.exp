@@ -14,7 +14,7 @@ expect {
 }
 expect eof
 
-# 2. Sync XGBoost Ranker
+# 2. Sync LGBMRanker
 # Ensure remote directory exists
 spawn ssh -p $port $user@$host "mkdir -p $remote_dir/data/model/ranking"
 expect {
@@ -23,7 +23,7 @@ expect {
 }
 expect eof
 
-spawn scp -P $port $local_dir/data/model/ranking/xgb_ranker.json $user@$host:$remote_dir/data/model/ranking/
+spawn scp -P $port $local_dir/data/model/ranking/lgbm_ranker.txt $user@$host:$remote_dir/data/model/ranking/
 expect {
     "password:" { send "$password\r" }
 }
@@ -36,4 +36,4 @@ expect {
 }
 expect eof
 
-puts "Sync Complete! Ranker and Eval script are on server."
+puts "Sync Complete! LGBMRanker and Eval script are on server."

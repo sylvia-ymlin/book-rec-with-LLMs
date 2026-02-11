@@ -23,7 +23,7 @@ Architecture:
 
 Recommended:
     - GPU: 30 epochs, ~20 minutes
-    - The user embeddings can be used as features in XGBoost ranking
+    - The user embeddings are used as features in LGBMRanker and as an independent recall channel
 """
 
 import sys

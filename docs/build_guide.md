@@ -49,10 +49,10 @@ Raw Data (CSV)
      │   └── BM25 (Sparse Index)                       │
      │                                                  │
      ├── [3] Model Training ───────────────────────────┤
-     │   ├── ItemCF / UserCF                           │
+     │   ├── ItemCF / UserCF / Swing (CPU)             │
      │   ├── YoutubeDNN (GPU)                          │
      │   ├── SASRec (GPU)                              │
-     │   └── XGBoost Ranker                            │
+     │   └── LGBMRanker (CPU)                          │
      │                                                  │
      └── [4] Service Startup ──────────────────────────┘
          └── FastAPI + React
@@ -153,11 +153,19 @@ python scripts/data/extract_review_sentences.py
 ### 4.1 Recall Models (CPU OK)
 
 ```bash
-# Build ItemCF / UserCF matrices
+# Build ItemCF / UserCF / Swing / Popularity
 python scripts/model/build_recall_models.py
 ```
 
-**Output**: `data/model/recall/itemcf.pkl`, `usercf.pkl`
+**Output**: `data/model/recall/itemcf.pkl`, `usercf.pkl`, `swing.pkl`, `popularity.pkl`
+
+**Training Time** (Apple Silicon CPU):
+| Model | Time |
+|:---|:---|
+| ItemCF (direction-weighted) | ~2 min |
+| UserCF | ~7 sec |
+| Swing (optimized) | ~35 sec |
+| Popularity | <1 sec |
 
 ### 4.2 YoutubeDNN (GPU Recommended)
 
@@ -181,16 +189,16 @@ python scripts/model/train_sasrec.py
 
 **Training**: ~30 epochs, ~20 min on GPU
 
-### 4.4 XGBoost Ranker
+### 4.4 LGBMRanker (LambdaRank)
 
 ```bash
-# Train ranking model
+# Train ranking model (hard negative sampling from recall results)
 python scripts/model/train_ranker.py
 ```
 
-**Output**: `data/model/ranking/xgb_ranker.pkl`
+**Output**: `data/model/ranking/lgbm_ranker.txt`
 
-**Training**: ~5 min on CPU
+**Training**: ~16 min on CPU (20K users sampled, 4× hard negatives, 17 features)
 
 ---
 
@@ -244,12 +252,14 @@ data/
 │   └── item_map.pkl            # ISBN → ID mapping
 ├── model/
 │   ├── recall/
-│   │   ├── itemcf.pkl          # ItemCF matrix
+│   │   ├── itemcf.pkl          # ItemCF matrix (direction-weighted)
 │   │   ├── usercf.pkl          # UserCF matrix
+│   │   ├── swing.pkl           # Swing matrix
+│   │   ├── popularity.pkl      # Popularity scores
 │   │   ├── youtube_dnn.pt      # Two-tower model
 │   │   └── sasrec.pt           # Sequence model
 │   └── ranking/
-│       └── xgb_ranker.pkl      # XGBoost ranker
+│       └── lgbm_ranker.txt     # LGBMRanker (LambdaRank)
 └── user_profiles.json          # User favorites
 ```
 
@@ -277,10 +287,10 @@ rsync -avz user@server:/path/to/project/data/model ./data/
 
 If you only have raw data but no trained models:
 
-1. **ItemCF/UserCF** will work (built on-demand)
+1. **ItemCF/UserCF/Swing** will work (CPU-trained on-demand)
 2. **YoutubeDNN** will be skipped (graceful degradation)
 3. **SASRec features** will be 0.0
-4. **XGBoost** needs to be trained or use fallback
+4. **LGBMRanker** needs to be trained or use recall-score fallback
 
 System will run with reduced accuracy but functional.
 

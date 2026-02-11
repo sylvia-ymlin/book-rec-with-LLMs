@@ -33,8 +33,8 @@ It provides interactive follow-up reasoning grounded in a verified knowledge bas
 3. **Precision Layer**: Utilization of Cross-Encoders for secondary reranking of top-K candidates.
 4. **Temporal Weighting**: Mathematical decay functions to prioritize recent publications when relevant.
 5. **Context Management**: History compression techniques to maintain conversational coherence across infinite turns.
-6. **Multi-Channel Recall**: ItemCF + UserCF + YoutubeDNN + Embedding + Popularity.
-7. **XGBoost Ranking**: Gradient boosting model for CTR prediction with rich feature engineering.
+6. **6-Channel Recall**: ItemCF (direction-weighted) + UserCF + Swing + SASRec + YoutubeDNN + Popularity, fused via RRF.
+7. **LGBMRanker (LambdaRank)**: Directly optimizes NDCG with 17 features and hard negative sampling from recall results.
 
 ### Deep Level (Architecture & Trade-offs)
 
@@ -135,7 +135,7 @@ It provides interactive follow-up reasoning grounded in a verified knowledge bas
 
 - **Situation**: After integrating SASRec embeddings, MRR dropped by 43% despite the new feature showing high importance (0.62).
 - **Task**: Diagnose why a "powerful" deep learning feature caused performance degradation.
-- **Action**: Discovered that the 3-epoch undertrained SASRec model produced noisy embeddings that dominated XGBoost decisions. Trained for 30 epochs (loss: 6.27 -> 0.81), which reduced sasrec_score importance to 0.26 and allowed ItemCF (0.60) to recover its role.
+- **Action**: Discovered that the 3-epoch undertrained SASRec model produced noisy embeddings that dominated ranker decisions. Trained for 30 epochs (loss: 6.27 -> 0.81), which reduced sasrec_score importance to 0.26 and allowed ItemCF (0.60) to recover its role. Later upgraded to LGBMRanker with hard negative sampling (V2.5).
 - **Result**: Hit Rate recovered to baseline (0.44), demonstrating the importance of proper model convergence before feature integration.
 
 ---
@@ -156,9 +156,10 @@ The system employs "Small-to-Big" retrieval. By indexing 788,000 individual revi
 
 | Decision | Choice | Alternative | Rationale |
 |----------|--------|-------------|-----------|
-| Recall | Multi-channel (5 sources) | Single embedding | Covers cold-start, popularity bias, sequential patterns |
-| Ranking | XGBoost | Neural ranker | Interpretable, fast training, handles sparse features |
-| Sequence | SASRec | BERT4Rec | Lighter, sufficient for book domain |
+| Recall | 6-channel RRF fusion | Single embedding | Covers cold-start, popularity bias, sequential + substitute patterns |
+| Ranking | LGBMRanker (LambdaRank) | Neural ranker / XGBoost | Directly optimizes NDCG, interpretable, fast training |
+| Negatives | Hard negatives from recall | Random sampling | Teaches ranker to distinguish "close but wrong" from "correct" |
+| Sequence | SASRec (dual use) | BERT4Rec | Lighter; serves as both ranking feature and recall channel |
 
 ---
 
@@ -200,7 +201,7 @@ The system employs "Small-to-Big" retrieval. By indexing 788,000 individual revi
 > "Three directions: (1) Fine-tune embeddings on book domain for better semantic alignment, (2) Implement HyDE (generate hypothetical documents before searching), (3) Add RAGAS evaluation pipeline for systematic quality measurement."
 
 **Q: Tell me about the recommendation system.**
-> "I built a full-stack personalized recommendation pipeline: multi-channel recall (ItemCF, UserCF, YoutubeDNN, Embedding, Popularity), rich feature engineering (user/item/cross features), and XGBoost ranking. The key finding was that undertrained deep learning features can poison traditional ML models - proper convergence is critical before feature integration."
+> "I built a full-stack personalized recommendation pipeline: 6-channel recall (ItemCF with direction weight, UserCF, Swing, SASRec, YoutubeDNN, Popularity) fused via RRF, 17 engineered features, and LGBMRanker optimizing NDCG directly with hard negative sampling. Key learnings: (1) undertrained deep learning features can poison ranker models, (2) hard negatives from recall results are far more effective than random sampling, (3) Swing algorithm needed user-centric iteration to handle 133K items in 35 seconds instead of 2+ hours."
 
 ---
 
@@ -216,10 +217,11 @@ The system employs "Small-to-Big" retrieval. By indexing 788,000 individual revi
 
 ## 10. Technical Highlights Summary
 
-1. **End-to-End Recommendation System**: Recall -> Features -> Ranking pipeline
-2. **Multi-Channel Recall**: ItemCF + UserCF + Embedding + YoutubeDNN
-3. **Deep Learning**: Two-tower model (industry standard)
-4. **Gradient Boosting**: XGBoost ranking
-5. **Agentic RAG**: Self-adaptive routing + Hybrid Search
+1. **End-to-End Recommendation System**: 6-Channel Recall → RRF Fusion → 17 Features → LGBMRanker
+2. **Multi-Channel Recall**: ItemCF (direction-weighted) + UserCF + Swing + SASRec + YoutubeDNN + Popularity
+3. **Deep Learning**: SASRec (dual use: feature + recall), YoutubeDNN two-tower
+4. **LGBMRanker (LambdaRank)**: Directly optimizes NDCG with hard negative sampling
+5. **Algorithm Optimization**: Swing from O(items × users²) to O(users × items_per_user²)
+6. **Agentic RAG**: Self-adaptive routing + Hybrid Search
 6. **Small-to-Big Retrieval**: Sentence-level precision with document-level context
 7. **RAG + RecSys Integration**: Search + Recommendation + Chat in one platform

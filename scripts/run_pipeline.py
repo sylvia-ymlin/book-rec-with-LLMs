@@ -143,7 +143,7 @@ def main():
         
         run_script(
             "scripts/model/train_ranker.py",
-            "Training XGBoost ranker"
+            "Training LGBMRanker"
         )
     
     # ==========================================================================

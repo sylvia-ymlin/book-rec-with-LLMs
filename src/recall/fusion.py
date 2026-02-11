@@ -5,6 +5,8 @@ from src.recall.usercf import UserCF
 from src.recall.popularity import PopularityRecall
 from src.recall.embedding import YoutubeDNNRecall
 from src.recall.swing import Swing
+from src.recall.item2vec import Item2Vec
+from src.recall.sasrec_recall import SASRecRecall
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +17,8 @@ class RecallFusion:
         self.popularity = PopularityRecall(data_dir, model_dir)
         self.youtube_dnn = YoutubeDNNRecall(data_dir, model_dir)
         self.swing = Swing(data_dir, model_dir)
+        self.item2vec = Item2Vec(data_dir, model_dir)
+        self.sasrec = SASRecRecall(data_dir, model_dir)
 
         self.models_loaded = False
         
@@ -28,6 +32,8 @@ class RecallFusion:
         self.popularity.load()
         self.youtube_dnn.load()
         self.swing.load()
+        self.item2vec.load()
+        self.sasrec.load()
         self.models_loaded = True
         
     def get_recall_items(self, user_id, history_items=None, k=100):
@@ -41,16 +47,13 @@ class RecallFusion:
         
         # 1. YoutubeDNN (High weight for potential semantic match)
         dnn_recs = self.youtube_dnn.recommend(user_id, history_items, top_k=k)
-        self._add_to_candidates(candidates, dnn_recs, weight=2.0)
-
+        self._add_to_candidates(candidates, dnn_recs, weight=0.1)
+        
         # 2. ItemCF
-        # user_id is mainly used to retrieve training history if history_items is None
-        # history_items is passed for realtime inference
         icf_recs = self.itemcf.recommend(user_id, history_items, top_k=k)
         self._add_to_candidates(candidates, icf_recs, weight=1.0)
         
         # 3. UserCF
-        # Only works if user_id is in training set
         ucf_recs = self.usercf.recommend(user_id, history_items, top_k=k)
         self._add_to_candidates(candidates, ucf_recs, weight=1.0)
         
@@ -58,7 +61,15 @@ class RecallFusion:
         swing_recs = self.swing.recommend(user_id, history_items, top_k=k)
         self._add_to_candidates(candidates, swing_recs, weight=1.0)
 
-        # 5. Popularity (Filler)
+        # 5. SASRec Embedding
+        sas_recs = self.sasrec.recommend(user_id, history_items, top_k=k)
+        self._add_to_candidates(candidates, sas_recs, weight=1.0)
+
+        # 6. Item2Vec
+        i2v_recs = self.item2vec.recommend(user_id, history_items, top_k=k)
+        self._add_to_candidates(candidates, i2v_recs, weight=0.8)
+
+        # 7. Popularity (Filler)
         pop_recs = self.popularity.recommend(user_id, top_k=k)
         self._add_to_candidates(candidates, pop_recs, weight=0.5)
         

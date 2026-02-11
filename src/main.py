@@ -99,6 +99,11 @@ class RecommendationRequest(BaseModel):
     tone: str = "All"
     user_id: Optional[str] = "local"
 
+class FeatureContribution(BaseModel):
+    feature: str
+    contribution: float
+    direction: str  # "positive" or "negative"
+
 class BookResponse(BaseModel):
     isbn: str
     title: str
@@ -110,6 +115,7 @@ class BookResponse(BaseModel):
     emotions: Dict[str, float] = {}
     review_highlights: List[str] = []
     average_rating: float = 0.0
+    explanations: List[FeatureContribution] = []  # SHAP explanations (V2.7)
 
 class RecommendationResponse(BaseModel):
     recommendations: List[BookResponse]
@@ -381,7 +387,7 @@ async def run_benchmark():
 async def personalized_recommendations(user_id: str = "local", top_k: int = 10):
     """
     Get personalized recommendations for a user.
-    Uses multi-channel recall (ItemCF/UserCF) + XGBoost Ranking.
+    Uses 6-channel recall (ItemCF/UserCF/Swing/SASRec/YoutubeDNN/Popularity) + LGBMRanker.
     """
     # Demo logic: Map 'local' to a real user for demonstration
     if user_id in ["local", "demo"]:
@@ -397,7 +403,7 @@ async def personalized_recommendations(user_id: str = "local", top_k: int = 10):
         
         # Enrich with metadata
         results = []
-        for isbn, score in recs:
+        for isbn, score, explanation in recs:
             # Recommender matches our singleton 'recommender'
             meta = recommender.vector_db.get_book_details(isbn)
             
@@ -452,7 +458,8 @@ async def personalized_recommendations(user_id: str = "local", top_k: int = 10):
                 "tags": tags,
                 "emotions": emotions,
                 "review_highlights": highlights,
-                "caption": f"{title} by {authors}"
+                "caption": f"{title} by {authors}",
+                "explanations": explanation,  # SHAP feature contributions (V2.7)
             })
             
         return {"recommendations": results}

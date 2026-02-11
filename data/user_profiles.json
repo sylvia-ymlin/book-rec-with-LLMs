@@ -40,6 +40,12 @@
         "added_at": "2026-01-09T18:37:37.237430",
         "rating": null,
         "status": "want_to_read"
+      },
+      "9781593279929": {
+        "added_at": "2026-01-29T23:15:30.943627",
+        "rating": 5.0,
+        "status": "finished",
+        "finished_at": "2026-01-29T23:15:50.399149"
       }
     },
     "cached_highlights": {

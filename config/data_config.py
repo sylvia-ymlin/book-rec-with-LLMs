@@ -67,7 +67,10 @@ USERCF_MODEL = RECALL_DIR / "usercf.pkl"
 YOUTUBE_DNN_MODEL = RECALL_DIR / "youtube_dnn.pt"
 YOUTUBE_DNN_META = RECALL_DIR / "youtube_dnn_meta.pkl"
 SASREC_MODEL = RECALL_DIR / "sasrec.pt"
-XGB_RANKER = RANKING_DIR / "xgb_ranker.pkl"
+ITEM2VEC_MODEL = RECALL_DIR / "item2vec.pkl"
+LGBM_RANKER = RANKING_DIR / "lgbm_ranker.txt"
+XGB_RANKER = RANKING_DIR / "xgb_ranker.json"
+STACKING_META = RANKING_DIR / "stacking_meta.pkl"
 
 # User data
 USER_PROFILES = DATA_DIR / "user_profiles.json"

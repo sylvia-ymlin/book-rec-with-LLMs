@@ -192,7 +192,7 @@ def validate_models():
         ("UserCF", USERCF_MODEL),
         ("YoutubeDNN", YOUTUBE_DNN_MODEL),
         ("SASRec", SASREC_MODEL),
-        ("XGBoost", XGB_RANKER),
+        ("LGBMRanker", LGBM_RANKER),
     ]
     
     for name, path in models:

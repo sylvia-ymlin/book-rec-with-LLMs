@@ -1,78 +1,99 @@
-import React, { useState } from "react";
-import { Bookmark, Heart, Search, Layers, Smile, Sparkles, Star, Trophy, BarChart3, X, MessageCircle, MessageSquare, Info, Send, Trash2, User, PlusCircle, LogOut, Loader2, BookOpen } from "lucide-react";
-import { recommend, addFavorite, getPersona, getHighlights, streamChat, getFavorites, updateBook, removeFromFavorites, getUserStats, addBook, searchGoogleBooks, getPersonalizedRecommendations } from "./api";
-import { Settings } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import {
+  recommend,
+  addFavorite,
+  getHighlights,
+  streamChat,
+  getFavorites,
+  updateBook,
+  removeFromFavorites,
+  getUserStats,
+  addBook,
+  searchGoogleBooks,
+  getPersonalizedRecommendations,
+} from "./api";
 
-// --- Elegant Book Discovery UI ---
+// Components
+import Header from "./components/Header";
+import BookDetailModal from "./components/BookDetailModal";
+import SettingsModal from "./components/SettingsModal";
+import AddBookModal from "./components/AddBookModal";
 
-const CATEGORIES = ["All", "Fiction", "History", "Philosophy", "Science", "Art"];
-const MOODS = ["All", "Happy", "Suspenseful", "Angry", "Sad", "Surprising"];
-const PLACEHOLDER_IMG = "http://127.0.0.1:6006/assets/cover-not-found.jpg";
-
-const StudyButton = ({ children, active, color, className, onClick }) => {
-  const colors = {
-    purple: "bg-[#b392ac] text-white hover:bg-[#9d7799]",
-    peach: "bg-[#f4acb7] text-white hover:bg-[#e89ba3]",
-    tab: "bg-transparent text-[#b392ac] border-b-2 border-[#b392ac]",
-  };
-  return (
-    <button
-      onClick={onClick}
-      className={`px-4 py-2 text-sm font-bold transition-all ${colors[color] || colors.purple} ${className || ""}`}
-    >
-      {children}
-    </button>
-  );
-};
-
-const StudyCard = ({ children, className }) => (
-  <div className={`bg-white border-2 border-[#333] shadow-md ${className || ""}`}>
-    {children}
-  </div>
-);
+// Pages
+import GalleryPage from "./pages/GalleryPage";
+import BookshelfPage from "./pages/BookshelfPage";
+import ProfilePage from "./pages/ProfilePage";
 
 const App = () => {
+  // --- Core State ---
+  const [userId, setUserId] = useState("local");
+  const [myCollection, setMyCollection] = useState([]);
+  const [readingStats, setReadingStats] = useState({
+    total: 0,
+    want_to_read: 0,
+    reading: 0,
+    finished: 0,
+  });
+  const [books, setBooks] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  // --- Book Detail Modal State ---
   const [selectedBook, setSelectedBook] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
-  const [myCollection, setMyCollection] = useState([]);
-  const [readingStats, setReadingStats] = useState({ total: 0, want_to_read: 0, reading: 0, finished: 0 });
 
-  // --- NEW: Multi-User & Add Book ---
-  const [userId, setUserId] = useState("local");
+  // --- Search State ---
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchCategory, setSearchCategory] = useState("All");
+  const [searchMood, setSearchMood] = useState("All");
+
+  // --- Settings State ---
+  const [showSettings, setShowSettings] = useState(false);
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem("openai_key") || "");
+  const [llmProvider, setLlmProvider] = useState(() => {
+    const stored = localStorage.getItem("llm_provider");
+    return stored === "mock" || !stored ? "ollama" : stored;
+  });
+
+  // --- Add Book Modal State ---
   const [showAddBook, setShowAddBook] = useState(false);
-  const [addingBookId, setAddingBookId] = useState(null);
-  // Search State
   const [googleQuery, setGoogleQuery] = useState("");
   const [googleResults, setGoogleResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [addingBookId, setAddingBookId] = useState(null);
 
-  // Load favorites and stats on startup or user change
-  React.useEffect(() => {
+  // --- Load favorites and stats on startup or user change ---
+  useEffect(() => {
     setLoading(true);
-    // Clear previous user state
     setMyCollection([]);
     setMessages([]);
 
     Promise.all([
       getFavorites(userId).catch(() => []),
-      getUserStats(userId).catch(() => ({ total: 0, want_to_read: 0, reading: 0, finished: 0 })),
-      getPersonalizedRecommendations(userId).catch(() => [])
+      getUserStats(userId).catch(() => ({
+        total: 0,
+        want_to_read: 0,
+        reading: 0,
+        finished: 0,
+      })),
+      getPersonalizedRecommendations(userId).catch(() => []),
     ]).then(([favs, stats, personalRecs]) => {
       setMyCollection(favs);
       setReadingStats(stats);
 
-      // Map personal recs to book format
       const mappedRecs = personalRecs.map((r, idx) => ({
         id: r.isbn,
         title: r.title,
         author: r.authors,
         category: r.category || "General",
-        mood: (
+        mood:
           r.emotions && Object.keys(r.emotions).length > 0
-            ? Object.entries(r.emotions).reduce((a, b) => a[1] > b[1] ? a : b)[0]
-            : "Literary"
-        ),
+            ? Object.entries(r.emotions).reduce((a, b) =>
+                a[1] > b[1] ? a : b
+              )[0]
+            : "Literary",
         rank: idx + 1,
         rating: r.average_rating || 0,
         tags: r.tags || [],
@@ -81,76 +102,60 @@ const App = () => {
         img: r.thumbnail,
         isbn: r.isbn,
         emotions: r.emotions || {},
-        aiHighlight: '—',
+        explanations: r.explanations || [],
+        aiHighlight: "\u2014",
         suggestedQuestions: [
-          `Why was this recommended?`,
-          `Similar to what I've read?`,
-          `What's the core highlight?`
-        ]
+          "Why was this recommended?",
+          "Similar to what I've read?",
+          "What's the core highlight?",
+        ],
       }));
 
       setBooks(mappedRecs);
       setLoading(false);
     });
   }, [userId]);
-  const [showMyShelf, setShowMyShelf] = useState(false);
-  const [books, setBooks] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
 
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchCategory, setSearchCategory] = useState("All");
-  const [searchMood, setSearchMood] = useState("All");
-
-  // --- NEW: Settings & Auth ---
-  const [showSettings, setShowSettings] = useState(false);
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem("openai_key") || "");
-  const [llmProvider, setLlmProvider] = useState(() => {
-    const stored = localStorage.getItem("llm_provider");
-    // Force migration from mock -> ollama
-    return (stored === "mock" || !stored) ? "ollama" : stored;
-  });
-
-  const saveKey = () => {
+  // --- Handlers ---
+  const saveSettings = () => {
     localStorage.setItem("openai_key", apiKey);
     localStorage.setItem("llm_provider", llmProvider);
     setShowSettings(false);
   };
 
-
   const handleSend = async (text) => {
     if (!text) return;
-    // 1. User Message
-    const newMsgs = [...messages, { role: 'user', content: text }];
+    const newMsgs = [...messages, { role: "user", content: text }];
     setMessages(newMsgs);
     setInput("");
 
-    // 2. AI Placeholder
-    setMessages(prev => [...prev, { role: 'ai', content: "Thinking..." }]);
-    const aiMsgIndex = newMsgs.length; // The index of the new AI message
+    setMessages((prev) => [...prev, { role: "ai", content: "Thinking..." }]);
+    const aiMsgIndex = newMsgs.length;
 
-    // 3. Stream Response
     let currentAiMsg = "";
     await streamChat({
       isbn: selectedBook.isbn,
       query: text,
       apiKey: apiKey,
-      provider: llmProvider, // Pass the selected provider
+      provider: llmProvider,
       onChunk: (chunk) => {
         currentAiMsg += chunk;
-        setMessages(prev => {
+        setMessages((prev) => {
           const updated = [...prev];
-          updated[aiMsgIndex] = { role: 'ai', content: currentAiMsg };
+          updated[aiMsgIndex] = { role: "ai", content: currentAiMsg };
           return updated;
         });
       },
       onError: (err) => {
-        setMessages(prev => {
+        setMessages((prev) => {
           const updated = [...prev];
-          updated[aiMsgIndex] = { role: 'ai', content: `Error: ${err.message}. Check your API Key in Settings.` };
+          updated[aiMsgIndex] = {
+            role: "ai",
+            content: `Error: ${err.message}. Check your API Key in Settings.`,
+          };
           return updated;
         });
-      }
+      },
     });
   };
 
@@ -162,9 +167,9 @@ const App = () => {
     try {
       const items = await searchGoogleBooks(googleQuery);
       setGoogleResults(items);
-    } catch (e) {
-      console.error(e);
-      alert("Search failed: " + e.message);
+    } catch (err) {
+      console.error(err);
+      alert("Search failed: " + err.message);
     } finally {
       setIsSearching(false);
     }
@@ -173,41 +178,38 @@ const App = () => {
   const handleImportBook = async (item) => {
     setAddingBookId(item.id);
     const info = item.volumeInfo;
-    // Best effort ISBN extraction
     let isbn = item.id;
     if (info.industryIdentifiers) {
-      const isbn13 = info.industryIdentifiers.find(i => i.type === "ISBN_13");
-      const isbn10 = info.industryIdentifiers.find(i => i.type === "ISBN_10");
-      isbn = isbn13 ? isbn13.identifier : (isbn10 ? isbn10.identifier : item.id);
+      const isbn13 = info.industryIdentifiers.find((i) => i.type === "ISBN_13");
+      const isbn10 = info.industryIdentifiers.find((i) => i.type === "ISBN_10");
+      isbn = isbn13 ? isbn13.identifier : isbn10 ? isbn10.identifier : item.id;
     }
 
     const bookData = {
-      isbn: isbn,
+      isbn,
       title: info.title || "Unknown Title",
       author: info.authors ? info.authors.join(", ") : "Unknown Author",
       description: info.description || "No description provided.",
       category: info.categories ? info.categories[0] : "General",
-      thumbnail: info.imageLinks?.thumbnail || info.imageLinks?.smallThumbnail || null
+      thumbnail: info.imageLinks?.thumbnail || info.imageLinks?.smallThumbnail || null,
     };
 
     try {
       await addBook(bookData);
-      // Auto add to collection? Maybe user just wants to add to DB. 
-      // But usually flow is "Add to my shelf". 
-      // I will auto-add to favorite.
       await addFavorite(bookData.isbn, userId);
-
       alert(`Successfully imported "${bookData.title}" to your collection!`);
       setShowAddBook(false);
       setGoogleResults([]);
       setGoogleQuery("");
 
-      // Refresh
-      const [favs, stats] = await Promise.all([getFavorites(userId), getUserStats(userId)]);
+      const [favs, stats] = await Promise.all([
+        getFavorites(userId),
+        getUserStats(userId),
+      ]);
       setMyCollection(favs);
       setReadingStats(stats);
-    } catch (e) {
-      alert("Import failed: " + e.message);
+    } catch (err) {
+      alert("Import failed: " + err.message);
     } finally {
       setAddingBookId(null);
     }
@@ -215,92 +217,98 @@ const App = () => {
 
   const toggleCollect = async (book) => {
     try {
-      if (myCollection.some(b => b.isbn === book.isbn)) {
-        // Remove logic is different usually, but here toggleCollect implies add/remove?
-        // Wait, existing code uses addFavorite for toggle? 
-        // Logic below says: if in collection, filter out? But addFavorite adds.
-        // It seems toggle logic is broken in original code if it removes locally but calls addFavorite.
-        // I will fix it to check state.
+      if (myCollection.some((b) => b.isbn === book.isbn)) {
         await removeFromFavorites(book.isbn, userId);
       } else {
         await addFavorite(book.isbn, userId);
       }
-
-      // Refresh
-      const [favs, stats] = await Promise.all([getFavorites(userId), getUserStats(userId)]);
+      const [favs, stats] = await Promise.all([
+        getFavorites(userId),
+        getUserStats(userId),
+      ]);
       setMyCollection(favs);
       setReadingStats(stats);
-    } catch (e) {
-      console.error(e);
+    } catch (err) {
+      console.error(err);
     }
   };
 
   const handleRatingChange = async (isbn, rating) => {
     try {
       await updateBook(isbn, { rating }, userId);
-      // Update local state
-      setMyCollection(prev => prev.map(book =>
-        book.isbn === isbn ? { ...book, rating } : book
-      ));
-      getUserStats(userId).then(stats => setReadingStats(stats)).catch(console.error);
-    } catch (e) {
-      console.error(e);
+      setMyCollection((prev) =>
+        prev.map((book) => (book.isbn === isbn ? { ...book, rating } : book))
+      );
+      getUserStats(userId)
+        .then((stats) => setReadingStats(stats))
+        .catch(console.error);
+    } catch (err) {
+      console.error(err);
     }
   };
 
   const handleStatusChange = async (isbn, status) => {
     try {
       await updateBook(isbn, { status }, userId);
-      // Update local state
-      setMyCollection(prev => prev.map(book =>
-        book.isbn === isbn ? { ...book, status } : book
-      ));
-      getUserStats(userId).then(stats => setReadingStats(stats)).catch(console.error);
-    } catch (e) {
-      console.error(e);
+      setMyCollection((prev) =>
+        prev.map((book) => (book.isbn === isbn ? { ...book, status } : book))
+      );
+      getUserStats(userId)
+        .then((stats) => setReadingStats(stats))
+        .catch(console.error);
+    } catch (err) {
+      console.error(err);
     }
   };
 
   const handleRemoveBook = async (isbn) => {
     try {
-      await removeFromFavorites(isbn);
-      setMyCollection(prev => prev.filter(book => book.isbn !== isbn));
-      getUserStats("local").then(stats => setReadingStats(stats)).catch(console.error);
-    } catch (e) {
-      console.error(e);
+      await removeFromFavorites(isbn, userId);
+      setMyCollection((prev) => prev.filter((book) => book.isbn !== isbn));
+      getUserStats(userId)
+        .then((stats) => setReadingStats(stats))
+        .catch(console.error);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleUpdateComment = (isbn, value, persist) => {
+    setMyCollection((prev) =>
+      prev.map((b) => (b.isbn === isbn ? { ...b, comment: value } : b))
+    );
+    if (persist) {
+      updateBook(isbn, { comment: value }, userId).catch(console.error);
     }
   };
 
   const openBook = (book) => {
-    // 1. Immediately show modal with placeholder
     setSelectedBook({
       ...book,
-      aiHighlight: '✨ ...',
+      aiHighlight: "\u2728 ...",
       suggestedQuestions: [
-        `Who is the target audience for this book?`,
-        `Does the author have similar works?`,
-        `Can you summarize the main content?`
-      ]
+        "Who is the target audience for this book?",
+        "Does the author have similar works?",
+        "Can you summarize the main content?",
+      ],
     });
     setMessages([]);
 
-    // 2. Async fetch highlight in background
     getHighlights(book.isbn)
-      .then(res => {
+      .then((res) => {
         const meta = res?.meta || {};
-        // Strip quotes that LLM sometimes adds
-        const rawHighlight = (res?.highlights || []).join("\n") || '—';
-        const cleanHighlight = rawHighlight.replace(/^["']|["']$/g, '').trim();
-        setSelectedBook(prev => ({
+        const rawHighlight = (res?.highlights || []).join("\n") || "\u2014";
+        const cleanHighlight = rawHighlight.replace(/^["']|["']$/g, "").trim();
+        setSelectedBook((prev) => ({
           ...prev,
           aiHighlight: cleanHighlight,
-          desc: meta?.description || prev.desc
+          desc: meta?.description || prev.desc,
         }));
       })
-      .catch(e => {
-        setSelectedBook(prev => ({
+      .catch(() => {
+        setSelectedBook((prev) => ({
           ...prev,
-          aiHighlight: 'Unable to generate highlight.'
+          aiHighlight: "Unable to generate highlight.",
         }));
       });
   };
@@ -308,24 +316,27 @@ const App = () => {
   const startDiscovery = async () => {
     setLoading(true);
     setError("");
-    setBooks([]);  // Clear previous results immediately
+    setBooks([]);
     try {
       let recs;
       if (!searchQuery) {
-        recs = await getPersonalizedRecommendations("local");
+        recs = await getPersonalizedRecommendations(userId);
       } else {
-        recs = await recommend(searchQuery, searchCategory, searchMood, "local");
+        recs = await recommend(searchQuery, searchCategory, searchMood, userId);
       }
       const mapped = (recs || []).map((r, idx) => ({
         id: r.isbn,
         title: r.title,
         author: r.authors,
         category: searchCategory,
-        mood: searchMood !== "All" ? searchMood : (
-          r.emotions && Object.keys(r.emotions).length > 0
-            ? Object.entries(r.emotions).reduce((a, b) => a[1] > b[1] ? a : b)[0]
-            : "Literary"
-        ),
+        mood:
+          searchMood !== "All"
+            ? searchMood
+            : r.emotions && Object.keys(r.emotions).length > 0
+            ? Object.entries(r.emotions).reduce((a, b) =>
+                a[1] > b[1] ? a : b
+              )[0]
+            : "Literary",
         rank: idx + 1,
         rating: r.average_rating || 0,
         tags: r.tags || [],
@@ -334,627 +345,127 @@ const App = () => {
         img: r.thumbnail,
         isbn: r.isbn,
         emotions: r.emotions || {},
-        aiHighlight: '—',
+        explanations: r.explanations || [],
+        aiHighlight: "\u2014",
         suggestedQuestions: [
-          `Matches my current mood?`,
-          `Any similar recommendations?`,
-          `What's the core highlight?`
-        ]
+          "Matches my current mood?",
+          "Any similar recommendations?",
+          "What's the core highlight?",
+        ],
       }));
       setBooks(mapped);
-    } catch (e) {
-      setError(e.message || 'Failed to get recommendations');
+    } catch (err) {
+      setError(err.message || "Failed to get recommendations");
     } finally {
       setLoading(false);
     }
   };
 
-  const getRecommendedBooks = () => {
-    if (myCollection.length === 0) return books.slice(0, 3);
-    return books.filter(b => !myCollection.some(cb => cb.isbn === b.isbn)).slice(0, 3);
-  };
-
-  // Shelf State
-  const [shelfFilter, setShelfFilter] = useState("all");
-  const [shelfSort, setShelfSort] = useState("recent");
-
-  const getFilteredShelf = () => {
-    let filtered = [...myCollection];
-
-    // Filter
-    if (shelfFilter !== "all") {
-      filtered = filtered.filter(b => b.status === shelfFilter);
-    }
-
-    // Sort
-    if (shelfSort === "rating_high") {
-      filtered.sort((a, b) => (b.rating || 0) - (a.rating || 0));
-    } else if (shelfSort === "rating_low") {
-      filtered.sort((a, b) => (a.rating || 0) - (b.rating || 0));
-    } else if (shelfSort === "title") {
-      filtered.sort((a, b) => a.title.localeCompare(b.title));
-    } else {
-      // Recent (default) - assuming array order is recent or using added_at if available
-      // If no date field, we reverse index (LIFO) or just keep as is if API returns newest first.
-      // Usually favorites are appended, so reverse for newest first? 
-      // API currently returns list. Let's assume order is FIFO (oldest first).
-      // So reverse for "recent".
-      filtered.reverse();
-    }
-
-    return filtered;
-  };
-
-  const currentViewBooks = showMyShelf ? getFilteredShelf() : books;
-
   return (
-    <div className="min-h-screen bg-[#faf9f6] text-[#444] font-serif tracking-tight">
-      <header className="max-w-5xl mx-auto pt-10 px-4 flex justify-between items-end mb-12">
-        <div>
-          <div className="border border-[#333] px-4 py-1 bg-white shadow-[2px_2px_0px_0px_#eee] inline-block mb-2">
-            <h1 className="text-xl font-bold uppercase tracking-[0.2em] text-[#333]">Paper Shelf</h1>
-          </div>
-          <p className="text-[10px] text-gray-400 font-medium tracking-widest">Discover books that resonate with your soul</p>
-        </div>
-        <div className="flex gap-2 items-center">
-          {/* User Switcher */}
-          <div className="flex items-center gap-2 border border-[#eee] bg-white px-2 py-1 shadow-sm mr-2" title="Switch User">
-            <User className="w-3 h-3 text-gray-400" />
-            <input
-              className="w-20 text-[10px] outline-none text-gray-600 font-bold bg-transparent placeholder-gray-300"
-              value={userId}
-              onChange={(e) => setUserId(e.target.value)}
-              placeholder="User ID"
-            />
-          </div>
-          {/* Add Book Button */}
-          <button
-            onClick={() => setShowAddBook(true)}
-            className="flex items-center gap-1 px-3 py-1 bg-white border border-[#333] shadow-sm hover:shadow-md transition-all text-[10px] font-bold uppercase tracking-widest mr-2 group"
-          >
-            <PlusCircle className="w-3 h-3 text-[#b392ac] group-hover:text-[#9d7799]" /> Add Book
-          </button>
+    <BrowserRouter>
+      <div className="min-h-screen bg-[#faf9f6] text-[#444] font-serif tracking-tight">
+        {/* Shared Header */}
+        <Header
+          userId={userId}
+          onUserIdChange={setUserId}
+          onAddBookClick={() => setShowAddBook(true)}
+          onSettingsClick={() => setShowSettings(true)}
+        />
 
-          <StudyButton
-            active={showMyShelf}
-            color={showMyShelf ? "purple" : "tab"}
-            onClick={() => setShowMyShelf(!showMyShelf)}
-          >
-            <Bookmark className="w-4 h-4 inline mr-1" /> {showMyShelf ? "Back to Gallery" : "My Collection"}
-          </StudyButton>
-          <button
-            onClick={() => setShowSettings(true)}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-            title="Settings"
-          >
-            <Settings className="w-4 h-4 text-gray-500" />
-          </button>
-        </div>
-      </header>
-
-      {/* Settings Modal */}
-      {showSettings && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/10 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white p-6 shadow-xl border border-[#333] w-full max-w-md relative">
-            <button onClick={() => setShowSettings(false)} className="absolute top-2 right-2"><X className="w-4 h-4" /></button>
-            <h3 className="font-bold uppercase tracking-widest mb-4 text-[#b392ac]">Configuration</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-gray-500 mb-1">LLM Provider</label>
-                <select
-                  value={llmProvider}
-                  onChange={e => setLlmProvider(e.target.value)}
-                  className="w-full border p-2 text-sm outline-none focus:border-[#b392ac] bg-white"
-                >
-                  <option value="openai">OpenAI (Requires Key)</option>
-                  <option value="ollama">Ollama (Local Default)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-500 mb-1">OpenAI API Key</label>
-                <input
-                  type="password"
-                  className="w-full border p-2 text-sm outline-none focus:border-[#b392ac]"
-                  placeholder="sk-..."
-                  value={apiKey}
-                  onChange={e => setApiKey(e.target.value)}
-                />
-                <p className="text-[9px] text-gray-400 mt-1">
-                  Required if using OpenAI. For Ollama/Mock, this is ignored.
-                  Stored locally.
-                </p>
-              </div>
-              <StudyButton active color="purple" className="w-full" onClick={saveKey}>
-                Save Settings
-              </StudyButton>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Add Book Modal */}
-      {showAddBook && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/10 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white p-6 shadow-xl border border-[#333] w-full max-w-md relative">
-            <button onClick={() => setShowAddBook(false)} className="absolute top-2 right-2"><X className="w-4 h-4" /></button>
-            <h3 className="font-bold uppercase tracking-widest mb-4 text-[#b392ac]">Import from Google Books</h3>
-
-            <form onSubmit={handleSearchGoogle} className="flex gap-2 mb-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-2 top-2.5 w-4 h-4 text-gray-400" />
-                <input
-                  autoFocus
-                  className="w-full border p-2 pl-8 text-sm outline-none focus:border-[#b392ac]"
-                  placeholder="Search title, author, or ISBN..."
-                  value={googleQuery}
-                  onChange={e => setGoogleQuery(e.target.value)}
-                />
-              </div>
-              <StudyButton active color="purple" disabled={isSearching}>
-                {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : "Search"}
-              </StudyButton>
-            </form>
-
-            <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
-              {googleResults.length === 0 && !isSearching && googleQuery && (
-                <div className="text-center text-gray-400 text-xs py-4">No results found.</div>
-              )}
-
-              {googleResults.map(item => {
-                const info = item.volumeInfo;
-                const thumb = info.imageLinks?.thumbnail || PLACEHOLDER_IMG;
-                return (
-                  <div key={item.id} className="flex gap-3 border border-[#eee] p-2 hover:bg-gray-50 transition-colors">
-                    <img src={thumb} className="w-12 h-16 object-cover bg-gray-100" />
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-sm font-bold text-[#333] truncate" title={info.title}>{info.title}</h4>
-                      <p className="text-[10px] text-gray-500 truncate">{info.authors?.join(", ")}</p>
-                      <p className="text-[10px] text-gray-400 mt-1 line-clamp-2">{info.description}</p>
-                    </div>
-                    <button
-                      onClick={() => handleImportBook(item)}
-                      disabled={!!addingBookId}
-                      className="self-center px-3 py-1 bg-[#b392ac] text-white text-[10px] font-bold uppercase hover:bg-[#9d7799] disabled:opacity-50"
-                    >
-                      {addingBookId === item.id ? "..." : "Import"}
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-
-      <main className="max-w-5xl mx-auto px-4 pb-20">
-
-
-        {!showMyShelf && (
-          <>
-            <div className="max-w-4xl mx-auto mb-16 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-                <div className="md:col-span-6 flex items-center bg-white border border-[#ddd] p-2 shadow-sm">
-                  <Search className="w-4 h-4 mr-3 text-gray-300 ml-2" />
-                  <input
-                    className="w-full outline-none text-sm placeholder-gray-400 bg-transparent font-serif"
-                    placeholder="Search for a topic, mood, or dream..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
-                </div>
-                <div className="md:col-span-3 flex items-center bg-white border border-[#ddd] p-2 shadow-sm">
-                  <Layers className="w-4 h-4 mr-3 text-gray-300 ml-2" />
-                  <select
-                    className="w-full outline-none text-sm bg-transparent text-gray-500 font-serif"
-                    value={searchCategory}
-                    onChange={(e) => setSearchCategory(e.target.value)}
-                  >
-                    {CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                  </select>
-                </div>
-                <div className="md:col-span-3 flex items-center bg-white border border-[#ddd] p-2 shadow-sm">
-                  <Smile className="w-4 h-4 mr-3 text-gray-300 ml-2" />
-                  <select
-                    className="w-full outline-none text-sm bg-transparent text-gray-500 font-serif"
-                    value={searchMood}
-                    onChange={(e) => setSearchMood(e.target.value)}
-                  >
-                    {MOODS.map(mood => <option key={mood} value={mood}>{mood}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div className="flex justify-center">
-                <StudyButton active color="purple" className="px-12 py-2" onClick={startDiscovery}>
-                  Start Discovery
-                </StudyButton>
-              </div>
-              {loading && <div className="text-center text-xs text-gray-400">Loading...</div>}
-              {error && <div className="text-center text-xs text-red-400">{error}</div>}
-            </div>
-          </>
+        {/* Global Modals */}
+        {showSettings && (
+          <SettingsModal
+            onClose={() => setShowSettings(false)}
+            apiKey={apiKey}
+            onApiKeyChange={setApiKey}
+            llmProvider={llmProvider}
+            onProviderChange={setLlmProvider}
+            onSave={saveSettings}
+          />
         )}
 
-        {showMyShelf && (
-          <div className="mb-8 space-y-4">
-            {/* Shelf Controls */}
-            <div className="flex justify-between items-center bg-white p-3 border border-[#eee] shadow-sm mb-4">
-              <div className="flex gap-2">
-                {["all", "want_to_read", "reading", "finished"].map(status => (
-                  <button
-                    key={status}
-                    onClick={() => setShelfFilter(status)}
-                    className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors border ${shelfFilter === status
-                      ? "bg-[#b392ac] text-white border-[#b392ac]"
-                      : "bg-white text-gray-400 border-[#eee] hover:border-[#b392ac]"
-                      }`}
-                  >
-                    {status.replace(/_/g, " ")}
-                  </button>
-                ))}
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className="text-[9px] font-bold text-gray-400 uppercase">Sort by</span>
-                <select
-                  value={shelfSort}
-                  onChange={(e) => setShelfSort(e.target.value)}
-                  className="text-[10px] bg-transparent border-b border-[#eee] outline-none font-bold text-[#b392ac]"
-                >
-                  <option value="recent">Recently Added</option>
-                  <option value="rating_high">Rating (High to Low)</option>
-                  <option value="rating_low">Rating (Low to High)</option>
-                  <option value="title">Title (A-Z)</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Statistics Card */}
-            <div className="grid grid-cols-4 gap-4">
-              <div className="bg-white border border-[#eee] p-4 text-center">
-                <div className="text-2xl font-bold text-[#b392ac]">{readingStats.total}</div>
-                <div className="text-[10px] text-gray-400 uppercase tracking-wider">Total Books</div>
-              </div>
-              <div className="bg-white border border-[#eee] p-4 text-center">
-                <div className="text-2xl font-bold text-[#f4acb7]">{readingStats.want_to_read}</div>
-                <div className="text-[10px] text-gray-400 uppercase tracking-wider">Want to Read</div>
-              </div>
-              <div className="bg-white border border-[#eee] p-4 text-center">
-                <div className="text-2xl font-bold text-[#9d7799]">{readingStats.reading}</div>
-                <div className="text-[10px] text-gray-400 uppercase tracking-wider">Reading</div>
-              </div>
-              <div className="bg-white border border-[#eee] p-4 text-center">
-                <div className="text-2xl font-bold text-[#735d78]">{readingStats.finished}</div>
-                <div className="text-[10px] text-gray-400 uppercase tracking-wider">Finished</div>
-              </div>
-            </div>
-
-            {/* Mood Preference */}
-            <div className="flex items-center gap-4 text-xs font-bold text-[#b392ac] bg-[#e5d9f2]/30 p-4 border border-[#b392ac]/20">
-              <BarChart3 className="w-4 h-4" />
-              Your collection shows a preference for: {myCollection.map(b => b.mood).filter((v, i, a) => a.indexOf(v) === i).join(", ") || "—"}
-            </div>
-          </div>
+        {showAddBook && (
+          <AddBookModal
+            onClose={() => setShowAddBook(false)}
+            googleQuery={googleQuery}
+            onQueryChange={setGoogleQuery}
+            googleResults={googleResults}
+            isSearching={isSearching}
+            addingBookId={addingBookId}
+            onSearch={handleSearchGoogle}
+            onImport={handleImportBook}
+          />
         )}
-
-        {/* Book Grid - Enhanced for Bookshelf */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
-          {currentViewBooks.length > 0 ? currentViewBooks.map((book, idx) => (
-            <div
-              key={idx}
-              className="group cursor-pointer transform hover:-translate-y-1 transition-all"
-            >
-              <div className="bg-white border border-[#eee] p-1 relative shadow-sm group-hover:shadow-md overflow-hidden">
-                <img
-                  src={book.img || PLACEHOLDER_IMG}
-                  alt={book.title}
-                  className="w-full aspect-[3/4] object-cover opacity-90 group-hover:opacity-100 transition-opacity"
-                  onClick={() => openBook(book)}
-                  onError={e => {
-                    e.target.onerror = null;
-                    e.target.src = PLACEHOLDER_IMG;
-                  }}
-                />
-                {!showMyShelf && (
-                  <div className="absolute inset-0 bg-white/80 flex items-center justify-center p-4 opacity-0 group-hover:opacity-100 transition-opacity text-center px-4" onClick={() => openBook(book)}>
-                    <p className="text-[10px] font-bold text-[#b392ac] leading-relaxed italic">
-                      {book.aiHighlight}
-                    </p>
-                  </div>
-                )}
-                {myCollection.some(b => b.isbn === book.isbn) && (
-                  <div className="absolute top-1 right-1 bg-[#f4acb7] p-1 shadow-sm">
-                    <Heart className="w-3 h-3 text-white fill-current" />
-                  </div>
-                )}
-                {/* Rank Badge - Only in Discovery Mode */}
-                {!showMyShelf && book.rank && (
-                  <div className="absolute top-1 left-1 bg-black/70 text-white text-[10px] font-bold px-1.5 py-0.5 shadow-sm z-10 backdrop-blur-sm">
-                    #{book.rank}
-                  </div>
-                )}
-
-                {/* Remove button for bookshelf */}
-                {showMyShelf && (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleRemoveBook(book.isbn); }}
-                    className="absolute top-1 left-1 bg-red-400 p-1 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"
-                    title="Remove from collection"
-                  >
-                    <Trash2 className="w-3 h-3 text-white" />
-                  </button>
-                )}
-              </div>
-              <h3 className="mt-3 text-[12px] font-bold text-[#555] truncate" onClick={() => openBook(book)}>{book.title}</h3>
-              <div className="flex justify-between items-center mt-1">
-                <div className="flex flex-col">
-                  <span className="text-[9px] text-gray-400 tracking-tighter truncate w-24">{book.author}</span>
-                  {!showMyShelf && book.rating > 0 && (
-                    <div className="flex items-center gap-0.5 mt-0.5">
-                      <Star className="w-2 h-2 text-[#f4acb7] fill-current" />
-                      <span className="text-[8px] font-bold text-[#f4acb7]">{book.rating.toFixed(1)}</span>
-                    </div>
-                  )}
-                </div>
-                {book.emotions && Object.keys(book.emotions).length > 0 ? (
-                  <span className="text-[9px] bg-[#f8f9fa] border border-[#eee] px-1 text-[#999] capitalize">
-                    {Object.entries(book.emotions).reduce((a, b) => a[1] > b[1] ? a : b)[0]}
-                  </span>
-                ) : (
-                  <span className="text-[9px] bg-[#f8f9fa] border border-[#eee] px-1 text-[#999]">—</span>
-                )}
-              </div>
-
-              {/* Rating and Status for Bookshelf View */}
-              {showMyShelf && (
-                <div className="mt-2 space-y-2">
-                  {/* Star Rating */}
-                  <div className="flex gap-0.5">
-                    {[1, 2, 3, 4, 5].map(star => (
-                      <button
-                        key={star}
-                        onClick={(e) => { e.stopPropagation(); handleRatingChange(book.isbn, star); }}
-                        className="focus:outline-none"
-                      >
-                        <Star
-                          className={`w-3.5 h-3.5 transition-colors ${star <= (book.rating || 0)
-                            ? 'text-[#f4acb7] fill-current'
-                            : 'text-gray-200 hover:text-[#f4acb7]'
-                            }`}
-                        />
-                      </button>
-                    ))}
-                  </div>
-                  {/* Status Dropdown */}
-                  <select
-                    value={book.status || "want_to_read"}
-                    onChange={(e) => { e.stopPropagation(); handleStatusChange(book.isbn, e.target.value); }}
-                    onClick={(e) => e.stopPropagation()}
-                    className="w-full text-[9px] p-1 border border-[#eee] bg-white text-gray-500 outline-none focus:border-[#b392ac]"
-                  >
-                    <option value="want_to_read">Want to Read</option>
-                    <option value="reading">Reading</option>
-                    <option value="finished">Finished</option>
-                  </select>
-                </div>
-              )}
-            </div>
-          )) : (
-            <div className="col-span-full py-20 text-center text-gray-400 text-xs italic">
-              No books here yet. Start discovering to build your collection.
-            </div>
-          )}
-        </div>
 
         {selectedBook && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/5 backdrop-blur-sm animate-in fade-in duration-300 overflow-y-auto">
-            <StudyCard className="relative bg-white max-w-5xl w-full shadow-2xl border-[#333] my-8">
-              <button
-                onClick={() => setSelectedBook(null)}
-                className="absolute top-4 right-4 text-gray-300 hover:text-gray-600 transition-colors z-10"
-              >
-                <X className="w-6 h-6" />
-              </button>
-
-              <div className="grid md:grid-cols-12 gap-8 md:gap-10 px-6 md:px-10 py-6">
-                <div className="md:col-span-5 flex flex-col items-center border-r border-[#f5f5f5] pr-0 md:pr-6">
-                  <div className="border border-[#eee] p-1 bg-white shadow-sm mb-2 w-52 md:w-56">
-                    <img
-                      src={selectedBook.img || PLACEHOLDER_IMG}
-                      alt="cover"
-                      className="w-full aspect-[3/4] object-cover"
-                      onError={e => { e.target.onerror = null; e.target.src = PLACEHOLDER_IMG; }}
-                    />
-                  </div>
-
-                  <p className="text-xs text-[#999] mb-2 tracking-tighter text-center w-full">{selectedBook.author}</p>
-
-                  <h2 className="text-xl font-bold text-[#333] mb-1 text-center md:text-left w-full">{selectedBook.title}</h2>
-                  <p className="text-xs text-[#999] mb-2 tracking-tighter text-center md:text-left w-full">ISBN: {selectedBook.isbn}</p>
-
-                  <div className="bg-[#fff9f9] border border-[#f4acb7] p-4 w-full relative mb-4">
-                    <Sparkles className="w-3 h-3 text-[#f4acb7] absolute -top-1.5 -left-1.5 fill-current" />
-                    <div className="flex items-center justify-between mb-2">
-                      {(() => {
-                        const userBook = myCollection.find(b => b.isbn === selectedBook.isbn);
-                        const displayRating = (userBook?.rating && userBook.rating > 0) ? userBook.rating : (selectedBook.rating || 0);
-                        const isUserRating = userBook?.rating && userBook.rating > 0;
-                        return (
-                          <>
-                            <div className="flex flex-col">
-                              <span className="text-[11px] font-bold text-[#f4acb7]">
-                                {displayRating > 0 ? displayRating.toFixed(1) : '0.0'}
-                                {isUserRating ? ' (Your Rating)' : ' (Average)'}
-                              </span>
-                              <div className="flex gap-0.5 text-[#f4acb7]">
-                                {[1, 2, 3, 4, 5].map(i => <Star key={i} className={`w-3 h-3 ${i <= displayRating ? 'fill-current' : ''}`} />)}
-                              </div>
-                            </div>
-                          </>
-                        );
-                      })()}
-                    </div>
-                    <p className="text-[11px] font-bold text-[#f4acb7] italic leading-relaxed">
-                      {selectedBook.aiHighlight}
-                    </p>
-                  </div>
-
-                  {selectedBook.review_highlights && selectedBook.review_highlights.length > 0 && (
-                    <div className="w-full space-y-2 text-left">
-                      {selectedBook.review_highlights.slice(0, 3).map((highlight, idx) => {
-                        const isCompleteSentence = /^[A-Z]/.test(highlight.trim());
-                        const prefix = isCompleteSentence ? '' : '...';
-                        return (
-                          <p key={idx} className="text-[10px] text-[#666] leading-relaxed italic pl-2">
-                            - "{prefix}{highlight}"
-                          </p>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                <div className="md:col-span-7 flex flex-col space-y-6">
-                  <div className="space-y-2">
-                    <h4 className="flex items-center gap-2 text-[10px] font-bold uppercase text-gray-400 tracking-wider">
-                      <Info className="w-3.5 h-3.5" /> Description
-                    </h4>
-                    <div className="p-4 bg-white border border-[#eee] text-[12px] leading-relaxed text-[#666] italic border-l-[4px] border-l-[#b392ac]">
-                      <div style={{ maxHeight: '180px', overflowY: 'auto', whiteSpace: 'pre-line' }}>
-                        {selectedBook.desc}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex-grow flex flex-col border border-[#eee] bg-[#faf9f6] overflow-hidden h-[300px]">
-                    <div className="p-2 border-b border-[#eee] bg-white flex justify-between items-center">
-                      <span className="text-[10px] font-bold text-[#b392ac] flex items-center gap-2 uppercase tracking-widest">
-                        <MessageSquare className="w-3 h-3" /> Discussion
-                      </span>
-                    </div>
-                    <div className="flex-grow overflow-y-auto p-4 space-y-3">
-                      <div className="flex justify-start">
-                        <div className="max-w-[85%] p-2 bg-white border border-[#eee] text-[11px] text-[#735d78] shadow-sm">
-                          Hello! Based on your collection preferences, I found this book's {selectedBook.mood} atmosphere pairs beautifully with your taste. Would you like to explore its themes?
-                        </div>
-                      </div>
-                      {messages.map((m, i) => (
-                        <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                          <div className={`max-w-[80%] p-2 border text-[11px] shadow-sm ${m.role === 'user'
-                            ? 'bg-[#b392ac] text-white border-[#b392ac]'
-                            : 'bg-white text-[#666] border-[#eee]'
-                            }`}>
-                            {m.content}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="p-3 bg-white border-t border-[#eee] space-y-3">
-                      <div className="flex flex-wrap gap-2">
-                        {(selectedBook.suggestedQuestions || []).map((q, idx) => (
-                          <button
-                            key={idx}
-                            onClick={() => handleSend(q)}
-                            className="text-[9px] px-2 py-1 bg-[#f8f9fa] border border-[#eee] text-gray-500 hover:border-[#b392ac] hover:text-[#b392ac] transition-colors"
-                          >
-                            {q}
-                          </button>
-                        ))}
-                      </div>
-                      <div className="flex gap-2">
-                        <input
-                          value={input}
-                          onChange={(e) => setInput(e.target.value)}
-                          onKeyDown={(e) => e.key === 'Enter' && handleSend(input)}
-                          className="flex-grow border border-[#eee] p-2 text-[11px] outline-none focus:border-[#b392ac] bg-[#faf9f6] font-serif"
-                          placeholder="Ask a question..."
-                        />
-                        <button onClick={() => handleSend(input)} className="bg-[#333] text-white p-2">
-                          <Send className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-3">
-                    {/* User Rating & Status - Only if in collection */}
-                    {myCollection.some(b => b.isbn === selectedBook.isbn) && (
-                      <div className="p-3 bg-[#fff9f9] border border-[#f4acb7] space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-[#f4acb7] uppercase tracking-wider">My Rating</span>
-                          <div className="flex gap-0.5">
-                            {[1, 2, 3, 4, 5].map(star => {
-                              const userBook = myCollection.find(b => b.isbn === selectedBook.isbn);
-                              return (
-                                <button
-                                  key={star}
-                                  onClick={() => handleRatingChange(selectedBook.isbn, star)}
-                                  className="focus:outline-none transform hover:scale-110 transition-transform"
-                                >
-                                  <Star className={`w-4 h-4 transition-colors ${star <= (userBook?.rating || 0)
-                                    ? 'text-[#f4acb7] fill-current'
-                                    : 'text-gray-200 hover:text-[#f4acb7]'
-                                    }`} />
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-[#b392ac] uppercase tracking-wider">Status</span>
-                          <select
-                            value={myCollection.find(b => b.isbn === selectedBook.isbn)?.status || "want_to_read"}
-                            onChange={(e) => handleStatusChange(selectedBook.isbn, e.target.value)}
-                            className="bg-white border border-[#eee] text-[10px] text-gray-500 p-1 outline-none focus:border-[#b392ac] w-28 cursor-pointer"
-                          >
-                            <option value="want_to_read">Want to Read</option>
-                            <option value="reading">Reading</option>
-                            <option value="finished">Finished</option>
-                          </select>
-                        </div>
-                      </div>
-                    )}
-
-                    <StudyButton
-                      active
-                      color={myCollection.some(b => b.isbn === selectedBook.isbn) ? "peach" : "purple"}
-                      className="w-full py-3 text-sm flex items-center justify-center gap-2 font-bold transition-all"
-                      onClick={() => toggleCollect(selectedBook)}
-                    >
-                      <Bookmark className={`w-4 h-4 ${myCollection.some(b => b.isbn === selectedBook.isbn) ? 'fill-current' : ''}`} />
-                      {myCollection.some(b => b.isbn === selectedBook.isbn) ? "In Collection" : "Add to Collection"}
-                    </StudyButton>
-
-                    {/* My Notes Section */}
-                    {myCollection.some(b => b.isbn === selectedBook.isbn) && (
-                      <div className="mt-2 pt-3 border-t border-[#eee]">
-                        <label className="text-[10px] font-bold text-[#b392ac] uppercase tracking-wider mb-2 block flex items-center gap-2">
-                          <MessageCircle className="w-3 h-3" /> My Private Notes
-                        </label>
-                        <textarea
-                          value={myCollection.find(b => b.isbn === selectedBook.isbn)?.comment || ""}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setMyCollection(prev => prev.map(b => b.isbn === selectedBook.isbn ? { ...b, comment: val } : b));
-                          }}
-                          onBlur={(e) => updateBook(selectedBook.isbn, { comment: e.target.value })}
-                          className="w-full text-[11px] p-3 border border-[#eee] focus:border-[#b392ac] outline-none h-24 resize-none bg-[#fff9f9] text-[#666] placeholder:text-gray-300 shadow-inner"
-                          placeholder="Write your thoughts, review, or memorable quotes here..."
-                        />
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </StudyCard>
-          </div>
+          <BookDetailModal
+            book={selectedBook}
+            onClose={() => setSelectedBook(null)}
+            messages={messages}
+            onSend={handleSend}
+            input={input}
+            onInputChange={setInput}
+            myCollection={myCollection}
+            onToggleCollect={toggleCollect}
+            onRatingChange={handleRatingChange}
+            onStatusChange={handleStatusChange}
+            onUpdateComment={handleUpdateComment}
+          />
         )}
-      </main>
 
-      <footer className="mt-16 text-center text-[9px] font-medium text-gray-300 uppercase tracking-widest pb-10 border-t border-[#eee] pt-10">
-        Paper Shelf // 2026 Your Personal Library
-      </footer>
-    </div >
+        {/* Route Pages */}
+        <main className="max-w-5xl mx-auto px-4 pb-20">
+          <Routes>
+            <Route
+              path="/"
+              element={
+                <GalleryPage
+                  books={books}
+                  loading={loading}
+                  error={error}
+                  searchQuery={searchQuery}
+                  onSearchQueryChange={setSearchQuery}
+                  searchCategory={searchCategory}
+                  onSearchCategoryChange={setSearchCategory}
+                  searchMood={searchMood}
+                  onSearchMoodChange={setSearchMood}
+                  onStartDiscovery={startDiscovery}
+                  myCollection={myCollection}
+                  onOpenBook={openBook}
+                />
+              }
+            />
+            <Route
+              path="/bookshelf"
+              element={
+                <BookshelfPage
+                  myCollection={myCollection}
+                  readingStats={readingStats}
+                  onOpenBook={openBook}
+                  onRemoveBook={handleRemoveBook}
+                  onRatingChange={handleRatingChange}
+                  onStatusChange={handleStatusChange}
+                />
+              }
+            />
+            <Route
+              path="/profile"
+              element={
+                <ProfilePage
+                  userId={userId}
+                  myCollection={myCollection}
+                  readingStats={readingStats}
+                />
+              }
+            />
+          </Routes>
+        </main>
+
+        <footer className="mt-16 text-center text-[9px] font-medium text-gray-300 uppercase tracking-widest pb-10 border-t border-[#eee] pt-10">
+          Paper Shelf // 2026 Your Personal Library
+        </footer>
+      </div>
+    </BrowserRouter>
   );
 };
 

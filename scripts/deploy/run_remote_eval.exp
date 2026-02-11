@@ -6,8 +6,8 @@ set user "root"
 set password "9Dml+WZeqp5b"
 set remote_dir "/root/autodl-tmp/book-rec-with-LLMs"
 
-# Install xgboost if needed
-set cmd_pip "/root/miniconda3/bin/pip install xgboost pandas tqdm scikit-learn"
+# Install dependencies if needed
+set cmd_pip "/root/miniconda3/bin/pip install lightgbm pandas tqdm scikit-learn"
 
 # Run Evaluate
 # We need to set PYTHONPATH because evaluation script imports src.

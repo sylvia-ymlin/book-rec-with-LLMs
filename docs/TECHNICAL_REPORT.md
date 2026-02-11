@@ -15,7 +15,7 @@ Key achievements:
 - Sub-second latency for keyword searches
 - Deep semantic understanding for complex natural language queries
 - Detail-level precision via hierarchical (Small-to-Big) retrieval
-- Personalized recommendations using multi-channel recall and XGBoost ranking
+- Personalized recommendations using 6-channel recall and LGBMRanker (LambdaRank)
 
 The system demonstrates mastery of both Data-Centric AI (SFT data synthesis) and Advanced RAG Architecture (Hybrid Search, Reranking, Query Routing).
 
@@ -82,26 +82,28 @@ USER REQUEST (No Query)
           |
           v
 +---------------------------+
-|   MULTI-CHANNEL RECALL    |
-|  - ItemCF (co-rating)     |
-|  - UserCF (user similarity)|
-|  - Embedding (semantic)   |
-|  - Popularity (fallback)  |
+|   6-CHANNEL RECALL (RRF)  |
+|  - ItemCF (direction wt)  |
+|  - UserCF (Jaccard)       |
+|  - Swing (user-pair)      |
+|  - SASRec (embedding)     |
 |  - YoutubeDNN (two-tower) |
+|  - Popularity (fallback)  |
 +---------------------------+
           |
           v
 +---------------------------+
 |   FEATURE ENGINEERING     |
-|  - User features          |
-|  - Item features          |
-|  - Cross features         |
+|  - User / Item stats      |
+|  - SASRec score           |
+|  - ItemCF / UserCF scores |
+|  - Author / Category aff  |
 +---------------------------+
           |
           v
 +---------------------------+
-|   XGBOOST RANKER          |
-|   P(rating > 4)           |
+|   LGBMRanker (LambdaRank) |
+|   Optimizes NDCG directly |
 +---------------------------+
           |
           v
@@ -184,55 +186,69 @@ Location: `src/core/context_compressor.py`
 
 ## 4. Personalized Recommendation System
 
-### 4.1 Multi-Channel Recall
+### 4.1 Multi-Channel Recall (6 Channels)
 
-| Recall Channel | Algorithm | Candidates | Purpose |
+| Recall Channel | Algorithm | Weight | Purpose |
 |:---|:---|:---|:---|
-| ItemCF | Co-rating similarity with position/time/rating weighting | 50 | Collaborative filtering |
-| UserCF | User similarity (Jaccard + activity penalty) | 50 | Similar user preferences |
-| Embedding | ChromaDB vector retrieval | 50 | Semantic similarity |
-| Popularity | Rating count with time decay | 20 | Cold-start fallback |
-| YoutubeDNN | Two-tower user-item dot product | 50 | Deep learning recall |
+| ItemCF | Co-rating similarity with direction weight (forward=1.0, backward=0.7) | 1.0 | Collaborative filtering |
+| UserCF | User similarity (Jaccard + activity penalty) | 1.0 | Similar user preferences |
+| Swing | User-pair overlap weighting: `1/(α + \|I_u ∩ I_v\|)` | 1.0 | Substitute relationships |
+| SASRec | Dot-product retrieval from pre-computed embeddings | 1.0 | Sequential patterns |
+| YoutubeDNN | Two-tower user-item dot product | 0.1 | Deep learning recall |
+| Popularity | Rating count with time decay | 0.5 | Cold-start fallback |
+
+Fusion: Reciprocal Rank Fusion — `score += weight * (1 / (k + rank + 1))`, k=60
 
 ItemCF formula:
 ```
+loc_alpha = 1.0 if item1 before item2 else 0.7  # direction weight
 loc_weight = loc_alpha * (0.9 ^ (|loc1 - loc2| - 1))
-time_weight = exp(0.7 ^ |t1 - t2|)
+time_weight = 1 / (1 + 10 * |t1 - t2|)
 rating_weight = (r1 + r2) / 10
-sim[i][j] = sum(loc * time * rating) / sqrt(cnt[i] * cnt[j])
+sim[i][j] = sum(loc * time * rating * user_penalty) / sqrt(cnt[i] * cnt[j])
 ```
 
 ### 4.2 SASRec Sequential Model
 
 Architecture: Self-Attentive Sequential Recommendation with Transformer blocks
 - Training: 30 epochs, 64-dim embeddings, BCE loss with negative sampling
-- Output: User sequence embeddings for downstream ranking
+- Dual use: (1) ranking feature via `sasrec_score`, (2) independent recall channel via embedding dot-product
 
-### 4.3 XGBoost Ranking Model
+### 4.3 LGBMRanker (LambdaRank)
 
-Feature groups:
-- User statistics: count, mean rating, std, activity
-- Item statistics: count, mean rating, std, popularity
-- SASRec score: dot product of user sequence embedding and item embedding
-- ItemCF/UserCF interaction scores
-- Author affinity: user's historical rating for this author
+Replaced XGBoost binary classifier with LightGBM LambdaRank that directly optimizes NDCG.
 
-Feature importance (30-epoch SASRec):
+**Training strategy**:
+- Hard negative sampling: negatives mined from recall results (not random items)
+- 20K users sampled from 168K validation set for training speed
+- 4× negative ratio per positive sample
 
-| Feature | Importance |
-|:---|:---|
-| icf_max (ItemCF) | 0.60 |
-| sasrec_score | 0.26 |
-| i_cnt (Item popularity) | 0.07 |
+**17 features** in 5 groups:
+- User statistics: u_cnt, u_mean, u_std
+- Item statistics: i_cnt, i_mean, i_std
+- Cross features: len_diff, u_auth_avg, u_auth_match, is_cat_hob
+- Sequence: sasrec_score, sim_max, sim_min, sim_mean
+- CF scores: icf_sum, icf_max, ucf_sum
+
+Feature importance (V2.5 LGBMRanker):
+
+| Feature | Importance | Description |
+|:---|:---|:---|
+| i_cnt | 96 | Item popularity count |
+| sim_max | 91 | Last-N similarity max |
+| u_cnt | 80 | User activity count |
+| i_mean | 41 | Item average rating |
+| sasrec_score | 22 | SASRec embedding score |
+| icf_max | 23 | ItemCF max similarity |
 
 ### 4.4 Evaluation Results
 
-| Metric | Value |
-|:---|:---|
-| MRR@5 | 0.2089 |
-| Hit Rate@10 | 0.4400 |
-| Users Evaluated | 500 (random sample) |
-| Dataset | 167,968 active users, 152,052 books |
+| Metric | V2.0 (XGBoost) | V2.5 (LGBMRanker) | Improvement |
+|:---|:---|:---|:---|
+| HR@10 | 0.1380 | **0.2205** | +59.8% |
+| MRR@5 | 0.1295 | **0.1584** | +22.3% |
+| Users Evaluated | 500 | 2,000 | |
+| Dataset | 167,968 active users, 221,998 books | | |
 
 ---
 
@@ -276,7 +292,7 @@ Feature importance (30-epoch SASRec):
 | LLM | OpenAI / Ollama (llama3) | Generation with BYOK support |
 | Backend | FastAPI + SSE | Streaming API |
 | Frontend | React 18 + Vite | Modern SPA |
-| Ranking | XGBoost | Gradient boosting for CTR prediction |
+| Ranking | LightGBM (LambdaRank) | List-wise NDCG optimization |
 | Sequential | SASRec (PyTorch) | Transformer-based sequence modeling |
 
 ---
@@ -323,14 +339,15 @@ src/
 │   ├── temporal.py            # Recency Boosting
 │   └── context_compressor.py  # Chat History Compression
 ├── recall/
-│   ├── itemcf.py              # ItemCF Recall
+│   ├── itemcf.py              # ItemCF Recall (direction-weighted)
 │   ├── usercf.py              # UserCF Recall
+│   ├── swing.py               # Swing Recall (user-pair overlap)
+│   ├── sasrec_recall.py       # SASRec Embedding Recall
 │   ├── popularity.py          # Popularity Recall
 │   ├── youtube_dnn.py         # Two-Tower Model
-│   └── fusion.py              # Recall Fusion
+│   └── fusion.py              # RRF Fusion (6 channels)
 ├── ranking/
-│   ├── features.py            # Feature Engineering
-│   └── xgb_ranker.py          # XGBoost Ranker
+│   └── features.py            # 17 Ranking Features
 ├── data_factory/
 │   └── generator.py           # SFT Data Synthesis + LLM Judge
 ├── services/
