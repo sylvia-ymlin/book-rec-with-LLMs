@@ -140,7 +140,13 @@ class RecommendationService:
             if self.use_stacking and self.xgb_ranker is not None and self.meta_model is not None:
                 # Stacking: Level-1 predictions -> Level-2 meta-learner
                 lgb_scores = self.ranker.predict(X_df)
-                xgb_scores = self.xgb_ranker.predict_proba(X_df)[:, 1]
+                
+                # Check if XGB Ranker is a raw Booster or Sklearn Estimator
+                if isinstance(self.xgb_ranker, xgb.Booster):
+                    dtest = xgb.DMatrix(X_df)
+                    xgb_scores = self.xgb_ranker.predict(dtest)
+                else:
+                    xgb_scores = self.xgb_ranker.predict_proba(X_df)[:, 1]
                 meta_features = np.column_stack([lgb_scores, xgb_scores])
                 scores = self.meta_model.predict_proba(meta_features)[:, 1]
             else:

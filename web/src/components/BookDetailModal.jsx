@@ -1,7 +1,7 @@
 import React from "react";
 import { X, Sparkles, Info, MessageSquare, MessageCircle, Send, Star, Bookmark } from "lucide-react";
 
-const PLACEHOLDER_IMG = "http://127.0.0.1:6006/assets/cover-not-found.jpg";
+const PLACEHOLDER_IMG = "/content/cover-not-found.jpg";
 
 const StudyCard = ({ children, className }) => (
   <div className={`bg-white border-2 border-[#333] shadow-md ${className || ""}`}>
@@ -111,19 +111,17 @@ const BookDetailModal = ({
                   {book.explanations.map((exp, idx) => (
                     <div key={idx} className="flex items-center gap-2">
                       <span
-                        className={`text-[9px] font-bold w-4 text-center ${
-                          exp.direction === "positive" ? "text-[#b392ac]" : "text-gray-400"
-                        }`}
+                        className={`text-[9px] font-bold w-4 text-center ${exp.direction === "positive" ? "text-[#b392ac]" : "text-gray-400"
+                          }`}
                       >
                         {exp.direction === "positive" ? "+" : "\u2212"}
                       </span>
                       <div className="flex-1 bg-gray-100 h-2 rounded-full overflow-hidden">
                         <div
-                          className={`h-full rounded-full transition-all duration-500 ${
-                            exp.direction === "positive"
+                          className={`h-full rounded-full transition-all duration-500 ${exp.direction === "positive"
                               ? "bg-gradient-to-r from-[#b392ac] to-[#9d7799]"
                               : "bg-gray-300"
-                          }`}
+                            }`}
                           style={{
                             width: `${Math.min(Math.abs(exp.contribution) * 150, 100)}%`,
                           }}
@@ -186,11 +184,10 @@ const BookDetailModal = ({
                 {messages.map((m, i) => (
                   <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                     <div
-                      className={`max-w-[80%] p-2 border text-[11px] shadow-sm ${
-                        m.role === "user"
+                      className={`max-w-[80%] p-2 border text-[11px] shadow-sm ${m.role === "user"
                           ? "bg-[#b392ac] text-white border-[#b392ac]"
                           : "bg-white text-[#666] border-[#eee]"
-                      }`}
+                        }`}
                     >
                       {m.content}
                     </div>
@@ -241,11 +238,10 @@ const BookDetailModal = ({
                           className="focus:outline-none transform hover:scale-110 transition-transform"
                         >
                           <Star
-                            className={`w-4 h-4 transition-colors ${
-                              star <= (userBook?.rating || 0)
+                            className={`w-4 h-4 transition-colors ${star <= (userBook?.rating || 0)
                                 ? "text-[#f4acb7] fill-current"
                                 : "text-gray-200 hover:text-[#f4acb7]"
-                            }`}
+                              }`}
                           />
                         </button>
                       ))}

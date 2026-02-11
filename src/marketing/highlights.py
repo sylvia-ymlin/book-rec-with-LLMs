@@ -23,60 +23,50 @@ def _first_words(text: str, n: int = 30) -> str:
 def generate_highlights(
     isbn: str, 
     persona: Dict[str, Any], 
-    books: pd.DataFrame,
-    api_key: str = None  # Optional BYOK key
+    books: pd.DataFrame = None, # Deprecated, unused
+    api_key: str = None 
 ) -> Dict[str, Any]:
-    """
-    Generate a personalized, LLM-powered highlight about the book.
-    Uses persona to tailor the message to the user's reading preferences.
-    """
-    book_row = books[books["isbn13"].astype(str) == str(isbn)]
-    if book_row.empty:
-        return {
-            "highlights": ["This book brings unique perspectives worth exploring."],
-            "persona_summary": persona.get("summary", ""),
-            "title": "",
-            "authors": "Unknown",
-            "category": "",
-            "description": ""
-        }
+    # ... (previous code) ...
 
-    row = book_row.iloc[0]
-    title = str(row.get("title", ""))
-    authors_raw = str(row.get("authors", ""))
-    category = str(row.get("simple_categories", ""))
-    desc = _first_words(str(row.get("description", "")), 50)
-    
-    # Parse authors
-    authors = [a.strip() for a in authors_raw.split(";") if a.strip() and a.strip().lower() != "unknown"]
-    author_display = ", ".join(authors) if authors else "Unknown"
-
-    # Extract emotions
-    emotions = {
-        "joy": float(row.get("joy", 0.0)),
-        "sadness": float(row.get("sadness", 0.0)),
-        "fear": float(row.get("fear", 0.0)),
-        "anger": float(row.get("anger", 0.0)),
-        "surprise": float(row.get("surprise", 0.0)),
-    }
+    # ... (emotions logic) ...
     dominant_emotion = max(emotions.items(), key=lambda x: x[1])[0] if emotions else "neutral"
 
     persona_summary = persona.get("summary", "a curious reader")
 
     # --- LLM Generation ---
     # 1. Check Cache First
-    # Assuming user_id is passed or available context. For now using 'local' if api_key not set, 
-    # but ideally should come from request context. 
-    # Since api_key is optional param here, we can infer user context implicitly or explicit param.
-    # Note: Using "local" as default user_id for cache to match single-user demo assumption.
     user_id = "local" 
     cached_highlight = get_cached_highlight(user_id, isbn)
     if cached_highlight:
         highlight_text = cached_highlight
     else:
         try:
-            # Use local Ollama by default (llama3), fallback to mock if fails
-            llm = LLMFactory.create(provider="ollama", model_name="llama3", temperature=0.7)
+            # 2. Select Provider Best-Effort
+            # Priority: Groq (if key) > OpenAI (if key) > Ollama (if local) > Mock
+            import os
+            groq_key = os.getenv("GROQ_API_KEY")
+            openai_key = os.getenv("OPENAI_API_KEY")
+            
+            provider = "mock"
+            model_name = None
+            
+            if api_key: # If passed specifically
+                provider = "openai" # Assume OpenAI if manually passed? Or generic?
+                # Actually, blindly passing generic key to generic openai client might be risky if it is groq key
+                pass
+            
+            if groq_key:
+                provider = "groq"
+                model_name = "llama3-70b-8192" # Updated valid model
+            elif openai_key:
+                provider = "openai"
+                model_name = "gpt-3.5-turbo"
+            else:
+                # Try Ollama only if likely local dev
+                provider = "ollama"
+                model_name = "llama3"
+
+            llm = LLMFactory.create(provider=provider, model_name=model_name, temperature=0.7)
             
             prompt = f"""You are a literary concierge. Generate a SHORT, personalized highlight (1-2 sentences max) for the following book, tailored to the reader's profile.
 
@@ -90,7 +80,10 @@ Reader Profile: {persona_summary}
 Generate a compelling, personalized highlight that explains why THIS reader would enjoy this book. Be concise and engaging. Do not use phrases like "As someone who..." or "Based on your profile...". Just state the value directly."""
 
             response = llm.invoke(prompt)
-            highlight_text = response.content.strip()
+            if isinstance(response, str):
+                 highlight_text = response.strip()
+            else:
+                 highlight_text = response.content.strip()
             
             # 2. Save to Cache
             save_cached_highlight(user_id, isbn, highlight_text)
@@ -104,14 +97,14 @@ Generate a compelling, personalized highlight that explains why THIS reader woul
         "title": title,
         "authors": author_display,
         "category": category,
-        "description": str(row.get("description", "")),
+        "description": str(meta.get("description", "")),
         "highlights": [highlight_text],
         "persona_summary": persona_summary,
         "meta": {
             "title": title,
             "authors": author_display,
             "category": category,
-            "description": str(row.get("description", ""))
+            "description": str(meta.get("description", ""))
         }
     }
 

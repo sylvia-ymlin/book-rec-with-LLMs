@@ -160,11 +160,8 @@ class VectorDB:
         return self.db.similarity_search(query, k=k)
 
     def get_book_details(self, isbn: str):
-        """Get book metadata by ISBN"""
-        # This method might need to be updated to query metadata_store directly
-        # For now, it's left as is, assuming book_map might be re-introduced or replaced.
-        # If book_map is removed, this will always return None.
-        return None
+        """Get book metadata by ISBN from the centralized MetadataStore."""
+        return metadata_store.get_book_metadata(str(isbn))
 
     def hybrid_search(self, query: str, k: int = 5, alpha: float = 0.5, rerank: bool = False, temporal: bool = False) -> List[Any]:
         """

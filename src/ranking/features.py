@@ -202,17 +202,18 @@ class FeatureEngineer:
         
         # Access ItemCF internal matrix directly for speed
         itemcf = self.recall_fusion.itemcf
-        history = itemcf.user_hist.get(user_id, set())
+        usercf = self.recall_fusion.usercf
         
-        if candidate_item in itemcf.sim_matrix:
+        # FIX: ItemCF in Zero-RAM mode (SQLite) doesn't have user_hist or sim_matrix.
+        # Use UserCF's user_hist as fallback or empty set.
+        history = set()
+        if hasattr(usercf, "user_hist"):
+             history = usercf.user_hist.get(user_id, set())
+        
+        # Check if ItemCF has in-memory matrix (Legacy)
+        if hasattr(itemcf, "sim_matrix") and candidate_item in itemcf.sim_matrix:
             related = itemcf.sim_matrix[candidate_item]
             # Since matrix is symmetric, sim[cand][hist] should act as sim[hist][cand]
-            # Wait, my implementation stored sim[i][j]. Is it symmetric? 
-            # In fit(), I did: sim[item1][item2] += ...
-            # I iterated all pairs. So if I iterated (A, B) and (B, A), it is symmetric?
-            # Yes, nested loop: for loc1... for loc2...
-            # And weights are symmetric (abs diff).
-            # So sim[A][B] == sim[B][A].
             
             sims = []
             for hist_item in history:
@@ -222,6 +223,10 @@ class FeatureEngineer:
             if sims:
                 icf_score = sum(sims)
                 icf_max = max(sims)
+        else:
+             # Zero-RAM mode: Can't easily compute ICF features per-item without SQL overhead.
+             # Skipping ICF features for ranking to prioritize stability.
+             pass
                 
         feats['icf_sum'] = icf_score
         feats['icf_max'] = icf_max
@@ -229,19 +234,12 @@ class FeatureEngineer:
         # 6. Interaction Features (UserCF)
         # Similar users who rated this item
         ucf_score = 0
-        usercf = self.recall_fusion.usercf
+        # usercf already defined above
         
-        # Inverted index: candidate -> users who rated it
-        # I didn't store inverted index in UserCF model save?
-        # Check UserCF.save(): {'u2u_sim': ..., 'user_hist': ...}
-        # Inverted index is not saved. 
-        # But UserCF uses u2u_sim[user] -> similar_users.
-        # Then check if similar_users rated candidate.
-        
-        if user_id in usercf.u2u_sim:
+        if hasattr(usercf, "u2u_sim") and user_id in usercf.u2u_sim:
             sim_users = usercf.u2u_sim[user_id]
             for sim_u, sim_score in sim_users.items():
-                if candidate_item in usercf.user_hist.get(sim_u, set()):
+                if hasattr(usercf, "user_hist") and candidate_item in usercf.user_hist.get(sim_u, set()):
                     ucf_score += sim_score
                     
         feats['ucf_sum'] = ucf_score
@@ -265,13 +263,16 @@ class FeatureEngineer:
         user_cats = self.user_cat_prefs.get(user_id, set())
         
         # 2. Pre-fetch Interaction Data
-        itemcf = self.recall_fusion.itemcf
+        # itemcf deleted here as not used for history
         usercf = self.recall_fusion.usercf
         
-        history = itemcf.user_hist.get(user_id, set())
+        # FIX: Use UserCF history (ItemCF is zero-RAM)
+        history = set()
+        if hasattr(usercf, "user_hist"):
+            history = usercf.user_hist.get(user_id, set())
         
         usercf_sim_users = {}
-        if user_id in usercf.u2u_sim:
+        if hasattr(usercf, "u2u_sim") and user_id in usercf.u2u_sim:
             usercf_sim_users = usercf.u2u_sim[user_id] 
             # Pre-filter? No, we iterate candidates.
             
@@ -378,7 +379,11 @@ class FeatureEngineer:
             # ItemCF
             icf_score = 0
             icf_max = 0
-            if item in itemcf.sim_matrix:
+            
+            # Restore definition of itemcf for checking
+            itemcf = self.recall_fusion.itemcf
+            
+            if hasattr(itemcf, "sim_matrix") and item in itemcf.sim_matrix:
                 related = itemcf.sim_matrix[item]
                 # Intersection of related & history
                 # Optimization: iterate smaller set
@@ -387,15 +392,18 @@ class FeatureEngineer:
                      sims = [related[c] for c in common]
                      icf_score = sum(sims)
                      icf_max = max(sims)
+            
             row['icf_sum'] = icf_score
             row['icf_max'] = icf_max
             
             # UserCF
             ucfscore = 0
             # Loop similar users
+            # Need to guard usercf usage? usercf defined above.
             for sim_u, sim_score in usercf_sim_users.items():
                  # Check if sim_u rated this item
-                 if item in usercf.user_hist.get(sim_u, set()):
+                 # Guard: usercf.user_hist might be missing if UserCF failed load or changed
+                 if hasattr(usercf, "user_hist") and item in usercf.user_hist.get(sim_u, set()):
                      ucfscore += sim_score
             row['ucf_sum'] = ucfscore
             

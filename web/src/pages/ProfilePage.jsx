@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { UserCircle, BookOpen, Star, Target, TrendingUp, Clock, Award, BarChart3 } from "lucide-react";
 import { getPersona } from "../api";
 
-const PLACEHOLDER_IMG = "http://127.0.0.1:6006/assets/cover-not-found.jpg";
+const PLACEHOLDER_IMG = "/content/cover-not-found.jpg";
 
 const ProfilePage = ({ userId, myCollection, readingStats }) => {
   const [persona, setPersona] = useState(null);
@@ -27,9 +27,9 @@ const ProfilePage = ({ userId, myCollection, readingStats }) => {
   const avgRating =
     myCollection.length > 0
       ? (
-          myCollection.reduce((sum, b) => sum + (b.rating || 0), 0) /
-          myCollection.filter((b) => b.rating > 0).length || 0
-        ).toFixed(1)
+        myCollection.reduce((sum, b) => sum + (b.rating || 0), 0) /
+        myCollection.filter((b) => b.rating > 0).length || 0
+      ).toFixed(1)
       : "0.0";
 
   const completionRate =
@@ -158,9 +158,8 @@ const ProfilePage = ({ userId, myCollection, readingStats }) => {
                 {[1, 2, 3, 4, 5].map((s) => (
                   <Star
                     key={s}
-                    className={`w-3 h-3 ${
-                      s <= star ? "text-[#f4acb7] fill-current" : "text-gray-200"
-                    }`}
+                    className={`w-3 h-3 ${s <= star ? "text-[#f4acb7] fill-current" : "text-gray-200"
+                      }`}
                   />
                 ))}
               </div>
@@ -254,9 +253,8 @@ const ProfilePage = ({ userId, myCollection, readingStats }) => {
                     {[1, 2, 3, 4, 5].map((s) => (
                       <Star
                         key={s}
-                        className={`w-2 h-2 ${
-                          s <= book.rating ? "text-[#f4acb7] fill-current" : "text-gray-200"
-                        }`}
+                        className={`w-2 h-2 ${s <= book.rating ? "text-[#f4acb7] fill-current" : "text-gray-200"
+                          }`}
                       />
                     ))}
                   </div>

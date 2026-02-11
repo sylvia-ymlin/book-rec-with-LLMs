@@ -37,34 +37,6 @@ app = FastAPI(
 # Include Routers
 app.include_router(chat_router)
 
-# --- Frontend Serving (SPA) ---
-import os
-from fastapi.responses import FileResponse
-
-# 1. Mount React Assets (JS/CSS)
-if os.path.exists("web/dist/assets"):
-    app.mount("/assets", StaticFiles(directory="web/dist/assets"), name="assets")
-
-# 2. Mount Local Content Assets (Book Covers)
-app.mount("/content", StaticFiles(directory="assets"), name="content")
-
-# 3. Serve React App (Catch-All for Client-Side Routing)
-@app.get("/{full_path:path}")
-async def serve_react_app(full_path: str):
-    # API requests pass through (FastAPI matches specific routes first)
-    if full_path.startswith("api") or full_path.startswith("docs") or full_path.startswith("openapi"):
-        raise HTTPException(status_code=404, detail="Not Found")
-        
-    # Serve index.html for all other routes (SPA)
-    if os.path.exists("web/dist/index.html"):
-        return FileResponse("web/dist/index.html")
-    
-    # Fallback if frontend isn't built
-    return {
-        "message": "Backend is running. Frontend not found (did you run npm build?)",
-        "docs_url": "/docs"
-    }
-
 
 
 # --- Observability Middleware ---
@@ -255,109 +227,43 @@ async def favorites_list(user_id: str):
     try:
         # Get favorites with metadata (rating, status)
         favorites_meta = get_favorites_with_metadata(user_id)
-        books_df = recommender.books
+        # ENGINEERING IMPROVEMENT: Zero-RAM Lookup
+        from src.core.metadata_store import metadata_store
+        
+        results = []
+        # Lazy load fetcher (Handled inside utils now)
+        from src.utils import enrich_book_metadata
+        
         results = []
         for isbn, meta in favorites_meta.items():
-            book_row = books_df[books_df["isbn13"].astype(str) == str(isbn)]
-            if not book_row.empty:
-                row = book_row.iloc[0]
-                results.append({
-                    "isbn": isbn,
-                    "title": row.get("title", ""),
-                    "author": row.get("authors", "Unknown"),
-                    "img": row.get("thumbnail", "/assets/cover-not-found.jpg"),
-                    "category": row.get("simple_categories", ""),
-                    "mood": "Joy" if row.get("joy", 0) > 0.3 else "Neutral",
-                    "rating": meta.get("rating"),
-                    "status": meta.get("status", "want_to_read"),
-                    "added_at": meta.get("added_at"),
-                    "comment": meta.get("comment", "")
-                })
+            book_meta = metadata_store.get_book_metadata(str(isbn))
+            
+            # 1. Enrich (fetch covers if needed)
+            book_meta = enrich_book_metadata(book_meta, str(isbn))
+            
+            # 2. Extract Display Fields
+            title = book_meta.get("title") or f"Unknown Book ({isbn})"
+            thumbnail = book_meta.get("thumbnail") or "/content/cover-not-found.jpg"
+            author = book_meta.get("authors", "Unknown")
+
+            results.append({
+                "isbn": isbn,
+                "title": title,
+                "author": author,
+                "img": thumbnail,
+                "category": book_meta.get("simple_categories", ""),
+                "mood": "Joy" if float(book_meta.get("joy", 0)) > 0.3 else "Neutral",
+                "rating": meta.get("rating"),
+                "status": meta.get("status", "want_to_read"),
+                "added_at": meta.get("added_at"),
+                "comment": meta.get("comment", "")
+            })
         return {"favorites": results}
     except Exception as e:
         logger.error(f"favorites_list error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@app.put("/favorites/update")
-async def favorites_update(req: BookUpdateRequest):
-    """Update rating or reading status for a book."""
-    try:
-        user_id = req.user_id or "local"
-        results = {}
-        
-        if req.rating is not None:
-            success = update_book_rating(user_id, req.isbn, req.rating)
-            results["rating_updated"] = success
-        
-        if req.status is not None:
-            success = update_reading_status(user_id, req.isbn, req.status)
-            results["status_updated"] = success
-            
-        if req.comment is not None:
-            success = update_book_comment(user_id, req.isbn, req.comment)
-            results["comment_updated"] = success
-        
-        return {"status": "ok", **results}
-    except Exception as e:
-        logger.error(f"favorites_update error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.delete("/favorites/remove")
-async def favorites_remove(req: FavoriteRequest):
-    """Remove a book from favorites."""
-    try:
-        count = remove_favorite(req.user_id or "local", req.isbn)
-        return {"status": "ok", "favorites_count": count}
-    except Exception as e:
-        logger.error(f"favorites_remove error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/user/{user_id}/stats")
-async def user_stats(user_id: str):
-    """Get reading statistics for a user."""
-    try:
-        stats = get_reading_stats(user_id)
-        return stats
-    except Exception as e:
-        logger.error(f"user_stats error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/user/{user_id}/persona")
-async def user_persona(user_id: str):
-    if not recommender:
-        raise HTTPException(status_code=503, detail="Service not ready")
-    try:
-        favs = list_favorites(user_id)
-        persona = build_persona(favs, recommender.books)
-        return {"user_id": user_id, "favorites": favs, "persona": persona}
-    except Exception as e:
-        logger.error(f"user_persona error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/marketing/highlights")
-async def marketing_highlights(req: HighlightsRequest):
-    if not recommender:
-        raise HTTPException(status_code=503, detail="Service not ready")
-    try:
-        favs = list_favorites(req.user_id or "local")
-        persona = build_persona(favs, recommender.books)
-        result = generate_highlights(req.isbn, persona, recommender.books)
-        # highlights和meta.description都unescape
-        from html import unescape
-        highlights = [unescape(h) for h in result.get("highlights", [])]
-        meta = result.copy()
-        if "description" in meta:
-            meta["description"] = unescape(meta["description"])
-        return {"persona": persona, "highlights": highlights, "meta": meta}
-    except Exception as e:
-        logger.error(f"marketing_highlights error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
+# ... (intervening code) ...
 
 @app.get("/benchmark")
 async def run_benchmark():
@@ -393,6 +299,11 @@ async def run_benchmark():
         recommender.get_recommendations(query, "All", "All")
         full_latencies.append((time.perf_counter() - start) * 1000)
     
+    # Estimate size
+    size = 20000 
+    if recommender.vector_db.db:
+         size = recommender.vector_db.db._collection.count()
+
     return {
         "vector_search": {
             "runs": len(vector_latencies),
@@ -408,7 +319,7 @@ async def run_benchmark():
             "min_ms": round(min(full_latencies), 2),
             "max_ms": round(max(full_latencies), 2),
         },
-        "dataset_size": len(recommender.books),
+        "dataset_size": size,
     }
 
 
@@ -433,16 +344,21 @@ def personalized_recommendations(user_id: str = "local", top_k: int = 10):
         recs = rec_service.get_recommendations(user_id, top_k)
         
         # Enrich with metadata
+        from src.utils import enrich_book_metadata
+        
         results = []
         for isbn, score, explanation in recs:
             # Recommender matches our singleton 'recommender'
-            meta = recommender.vector_db.get_book_details(isbn)
+            meta = recommender.vector_db.get_book_details(isbn) or {}
             
-            # If meta missing, fallback to partial info
-            title = meta.get("title", f"ISBN: {isbn}") if meta else f"ISBN: {isbn}"
-            desc = meta.get("description", "No description available.") if meta else ""
-            thumb = meta.get("thumbnail", "") if meta else ""
-            authors = meta.get("authors", "Unknown") if meta else "Unknown"
+            # Enrich with dynamic cover fetching
+            meta = enrich_book_metadata(meta, str(isbn))
+            
+            # Fallback for display
+            title = meta.get("title") or f"ISBN: {isbn}"
+            desc = meta.get("description", "No description available.")
+            thumb = meta.get("thumbnail", "/content/cover-not-found.jpg")
+            authors = meta.get("authors", "Unknown")
             
             # More robust rating/metadata mapping
             rating = 0.0
@@ -476,7 +392,7 @@ def personalized_recommendations(user_id: str = "local", top_k: int = 10):
             
             # Format cover
             if not thumb:
-                 thumb = "/assets/cover-not-found.jpg"
+                 thumb = "/content/cover-not-found.jpg"
             
             results.append({
                 "isbn": isbn,
@@ -509,3 +425,32 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# --- Frontend Serving (SPA) ---
+import os
+from fastapi.responses import FileResponse
+
+# 1. Mount React Assets (JS/CSS)
+if os.path.exists("web/dist/assets"):
+    app.mount("/assets", StaticFiles(directory="web/dist/assets"), name="assets")
+
+# 2. Mount Local Content Assets (Book Covers)
+app.mount("/content", StaticFiles(directory="assets"), name="content")
+
+# 3. Serve React App (Catch-All for Client-Side Routing)
+# MUST BE DEFINED LAST to avoid capturing API routes
+@app.get("/{full_path:path}")
+async def serve_react_app(full_path: str):
+    # Double check to prevent accidental API capture if regular regex failed
+    if full_path.startswith("api") or full_path.startswith("docs") or full_path.startswith("openapi"):
+        raise HTTPException(status_code=404, detail="Not Found")
+        
+    # Serve index.html for all other routes (SPA)
+    if os.path.exists("web/dist/index.html"):
+        return FileResponse("web/dist/index.html")
+    
+    # Fallback if frontend isn't built
+    return {
+        "message": "Backend is running. Frontend not found (did you run npm build?)",
+        "docs_url": "/docs"
+    }

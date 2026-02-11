@@ -17,12 +17,13 @@ const SettingsModal = ({ onClose, apiKey, onApiKeyChange, llmProvider, onProvide
               onChange={(e) => onProviderChange(e.target.value)}
               className="w-full border p-2 text-sm outline-none focus:border-[#b392ac] bg-white"
             >
-              <option value="openai">OpenAI (Requires Key)</option>
-              <option value="ollama">Ollama (Local Default)</option>
+              <option value="openai">OpenAI (GPT-3.5/4)</option>
+              <option value="groq">Groq (Llama3 - Free/Fast)</option>
+              <option value="ollama">Ollama (Local)</option>
             </select>
           </div>
           <div>
-            <label className="block text-xs font-bold text-gray-500 mb-1">OpenAI API Key</label>
+            <label className="block text-xs font-bold text-gray-500 mb-1">API Key (OpenAI / Groq)</label>
             <input
               type="password"
               className="w-full border p-2 text-sm outline-none focus:border-[#b392ac]"
@@ -31,7 +32,7 @@ const SettingsModal = ({ onClose, apiKey, onApiKeyChange, llmProvider, onProvide
               onChange={(e) => onApiKeyChange(e.target.value)}
             />
             <p className="text-[9px] text-gray-400 mt-1">
-              Required if using OpenAI. For Ollama/Mock, this is ignored. Stored locally.
+              Required for OpenAI or Groq. Stored locally.
             </p>
           </div>
           <button

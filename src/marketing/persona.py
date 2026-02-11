@@ -16,19 +16,27 @@ def build_persona(fav_isbns: List[str], books: pd.DataFrame) -> Dict[str, Any]:
             "top_categories": [],
         }
 
-    fav_df = books[books["isbn13"].astype(str).isin([str(x) for x in fav_isbns])]
+    # ENGINEERING IMPROVEMENT: Zero-RAM Lookup
+    from src.core.metadata_store import metadata_store
+    
     authors_list: List[str] = []
     categories_list: List[str] = []
 
-    for _, row in fav_df.iterrows():
-        # Authors are ';' separated in our dataset
+    for isbn in fav_isbns:
+        meta = metadata_store.get_book_metadata(str(isbn))
+        if not meta:
+            continue
+            
+        # Authors
         try:
-            author_str = str(row.get("authors", "")).strip()
+            author_str = str(meta.get("authors", "")).strip()
             if author_str and author_str.lower() != "unknown":
                 authors_list.extend([a.strip() for a in author_str.split(";") if a.strip() and a.strip().lower() != "unknown"])
         except Exception:
             pass
-        cat = str(row.get("simple_categories", "")).strip()
+            
+        # Categories
+        cat = str(meta.get("simple_categories", "")).strip()
         if cat and cat.lower() != "unknown":
             categories_list.append(cat)
 

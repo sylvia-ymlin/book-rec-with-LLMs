@@ -105,9 +105,15 @@ class BookRecommender:
                 books_list.append(isbn_str)
         
         # 2. Enrich and Format results (Zero-RAM mode)
+        from src.utils import enrich_book_metadata  # Use centralized logic
+        
         results = []
         for isbn in books_list:
-            meta = metadata_store.get_book_metadata(isbn)
+            meta = metadata_store.get_book_metadata(str(isbn))
+            
+            # Enrich with dynamic cover fetching if needed
+            meta = enrich_book_metadata(meta, str(isbn))
+            
             if not meta:
                 continue
             
@@ -120,8 +126,6 @@ class BookRecommender:
             from html import unescape
             
             thumbnail = meta.get("thumbnail")
-            if not thumbnail or pd.isna(thumbnail) or not str(thumbnail).strip():
-                thumbnail = "/assets/cover-not-found.jpg"
             
             tags_raw = str(meta.get("tags", "")).strip()
             tags = [t.strip() for t in tags_raw.split(";") if t.strip()] if tags_raw else []
@@ -138,7 +142,7 @@ class BookRecommender:
             highlights = [h.strip() for h in highlights_raw.split(";") if h.strip()][:3]
             
             results.append({
-                "isbn": isbn,
+                "isbn": str(isbn),
                 "title": meta.get("title", ""),
                 "authors": meta.get("authors", "Unknown"),
                 "description": meta.get("description", ""),

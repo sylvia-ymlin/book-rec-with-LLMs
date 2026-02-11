@@ -63,6 +63,26 @@ class LLMFactory:
                 temperature=temperature,
             )
             
+        elif provider == "groq":
+            if not model_name:
+                model_name = "llama3-70b-8192" # Stable default for Groq
+                
+            if not api_key:
+                import os
+                api_key = os.getenv("GROQ_API_KEY")
+                
+            if not api_key:
+                raise ValueError("Groq API Key is required for 'groq' provider.")
+                
+            # Use ChatOpenAI client but point to Groq's API
+            return ChatOpenAI(
+                api_key=SecretStr(api_key),
+                base_url="https://api.groq.com/openai/v1",
+                model_name=model_name,
+                temperature=temperature,
+                streaming=True
+            )
+            
         else:
             raise ValueError(f"Unsupported LLM provider: {provider}")
 

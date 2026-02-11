@@ -1,7 +1,7 @@
 import React from "react";
 import { Heart, Star, Trash2 } from "lucide-react";
 
-const PLACEHOLDER_IMG = "http://127.0.0.1:6006/assets/cover-not-found.jpg";
+const PLACEHOLDER_IMG = "/content/cover-not-found.jpg";
 
 const BookCard = ({
   book,
@@ -106,11 +106,10 @@ const BookCard = ({
                 className="focus:outline-none"
               >
                 <Star
-                  className={`w-3.5 h-3.5 transition-colors ${
-                    star <= (book.rating || 0)
+                  className={`w-3.5 h-3.5 transition-colors ${star <= (book.rating || 0)
                       ? "text-[#f4acb7] fill-current"
                       : "text-gray-200 hover:text-[#f4acb7]"
-                  }`}
+                    }`}
                 />
               </button>
             ))}

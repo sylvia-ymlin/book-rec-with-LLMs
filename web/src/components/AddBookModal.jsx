@@ -1,7 +1,7 @@
 import React from "react";
 import { X, Search, Loader2 } from "lucide-react";
 
-const PLACEHOLDER_IMG = "http://127.0.0.1:6006/assets/cover-not-found.jpg";
+const PLACEHOLDER_IMG = "/content/cover-not-found.jpg";
 
 const AddBookModal = ({
   onClose,
