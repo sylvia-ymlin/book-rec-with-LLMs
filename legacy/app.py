@@ -48,7 +48,7 @@ tones = fetch_tones()
 # Initialize Shopping Agent (Mock or Real)
 # Note: Real agent requires FAISS index. We'll handle checks later.
 try:
-    # from src.agent.agent_core import ShoppingAgent
+    # from legacy.agent.agent_core import ShoppingAgent
     # shopping_agent = ShoppingAgent(...)
     pass 
 except ImportError:

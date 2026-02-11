@@ -1,0 +1,29 @@
+---
+description: Research prototype coding style — graduate student, clarity over elegance
+globs: src/**/*.py, scripts/**/*.py
+alwaysApply: true
+---
+
+# Research Prototype Style
+
+Target author: graduate student, working alone, optimizing for clarity and debuggability. NOT for production or large-scale deployment.
+
+## Do
+
+- **Simple, linear control flow** — avoid nested callbacks, deep inheritance
+- **Minimal abstraction** — prefer direct implementation over factories/adapters
+- **Inline comments** — explain *why*, not *what*
+- **Strategic debug** — a few print/debug statements, preferably behind a flag (e.g. `if DEBUG:`)
+- **Small duplication OK** — if it improves readability over DRY
+
+## Avoid
+
+- Excessive logging or print statements
+- Heavy configuration systems (YAML configs, env-driven feature flags)
+- Comprehensive unit test suites (targeted tests for critical paths only)
+- Complex class hierarchies, abstract base classes
+- Premature optimization
+
+## When in Doubt
+
+Prefer simplicity over elegance. Code should look like something a careful graduate student would realistically write and maintain.

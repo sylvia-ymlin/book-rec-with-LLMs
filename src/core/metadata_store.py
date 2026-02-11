@@ -1,11 +1,11 @@
 import sqlite3
 import pandas as pd
-import logging
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 from src.config import DATA_DIR
+from src.utils import setup_logger
 
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 class MetadataStore:
     """
@@ -120,6 +120,27 @@ class MetadataStore:
             cursor.execute("SELECT DISTINCT simple_categories FROM books")
             return [row[0] for row in cursor.fetchall() if row[0]]
         return []
+
+    def insert_book(self, row: Dict[str, Any]) -> bool:
+        """Insert a new book for add_new_book. Maps thumbnail->image if needed."""
+        conn = self.connection
+        if not conn:
+            return False
+        try:
+            info = conn.execute("PRAGMA table_info(books)").fetchall()
+            table_cols = [c[1] for c in info]
+            row = dict(row)
+            if "image" in table_cols and "image" not in row and "thumbnail" in row:
+                row["image"] = row["thumbnail"]
+            cols = [c for c in table_cols if c in row]
+            vals = [row[c] for c in cols]
+            ph = ",".join("?" * len(cols))
+            conn.execute(f"INSERT OR IGNORE INTO books ({','.join(cols)}) VALUES ({ph})", vals)
+            conn.commit()
+            return True
+        except Exception as e:
+            logger.error(f"MetadataStore insert_book failed: {e}")
+            return False
 
     def load_books_processed(self): pass
     def load_train_data(self): pass

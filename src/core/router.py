@@ -32,19 +32,7 @@ class QueryRouter:
         normalized = cleaned_query.replace("-", "").replace(" ", "")
         if self.isbn_pattern.match(normalized):
             logger.info(f"Router: Detected ISBN -> EXACT Strategy ({normalized})")
-            return {
-                "strategy": "exact",
-                "alpha": 1.0,         # Pure BM25 (1.0 = All Sparse in our hybrid impl?) 
-                                      # Wait, hybrid implementation uses alpha for weighting?
-                                      # Actually our hybrid_search doesn't use alpha for weight mixing in the implementation I wrote.
-                                      # It sums ranks. But let's verify vector_db.py logic.
-                                      # Actually, standard RRF sums 1/(k+rank). To prioritize BM25, we might need a different call.
-                                      # For now, let's assume we want standard Hybrid but NO Rerank.
-                                      # Or better: If ISBN, just use BM25 manually if possible. 
-                                      # But hybrid_search is fine if we skip reranking.
-                "rerank": False,
-                "k_final": 5
-            }
+            return {"strategy": "exact", "alpha": 1.0, "rerank": False, "k_final": 5}
 
         # 2. Check for Temporal Keywords (Freshness Bias)
         temporal_keywords = {"new", "newest", "latest", "recent", "modern", "contemporary", "2020", "2021", "2022", "2023", "2024", "2025"}

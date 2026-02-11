@@ -69,13 +69,14 @@ def init_db():
     batch_size = 2000  # Increased batch size for optimal GPU throughput
     documents = []
     
-    # Limit for demo/dev (optional: set to None for full index)
-    max_docs = 20000 
-    print(f"🚀 Starting Ingestion (Source: Review Highlights, Limit: {max_docs})...")
+    # MAX_DOCS=0 for full index; default 20000 for demo
+    max_docs = int(os.getenv("MAX_DOCS", "20000")) or None
+    print(f"🚀 Starting Ingestion (Source: Review Highlights, Limit: {max_docs or 'all'})...")
     with open(REVIEW_HIGHLIGHTS_TXT, 'r', encoding='utf-8') as f:
         # Use islice for efficient subsetting
         from itertools import islice
-        for line in tqdm(islice(f, max_docs), total=min(total_lines, max_docs), unit="doc", desc="Indexing Reviews"):
+        total = min(total_lines, max_docs) if max_docs else total_lines
+        for line in tqdm(islice(f, max_docs), total=total, unit="doc", desc="Indexing Reviews"):
             line = line.strip()
             if not line: 
                 continue

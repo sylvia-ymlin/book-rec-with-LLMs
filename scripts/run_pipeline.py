@@ -116,8 +116,10 @@ def main():
     # Stage 3: Index Building
     # ==========================================================================
     if args.stage in ["all", "index"] and not args.skip_index:
-        # Main book index is usually built by init_db.py or on startup
-        # Here we build the chunk index for Small-to-Big
+        run_script(
+            "scripts/init_sqlite_db.py",
+            "Building SQLite metadata (books.db)"
+        )
         run_script(
             "scripts/data/init_dual_index.py",
             "Building chunk vector index"

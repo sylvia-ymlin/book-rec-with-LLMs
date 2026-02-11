@@ -13,19 +13,7 @@ from src.core.metadata_store import metadata_store
 logger = setup_logger(__name__)
 
 class BookRecommender:
-    """
-    Core Recommendation Engine orchestrating search and metadata enrichment.
-    
-    ENGINEERING IMPROVEMENT:
-    Refactored to be entirely DataFrame-free. All metadata is now fetched 
-    on-demand via `MetadataStore` (SQLite), ensuring zero-RAM overhead for 
-    candidate enrichment and category filtering.
-    
-    Attributes:
-        books (pd.DataFrame): The dataset containing book metadata and emotions.
-        vector_db (VectorDB): The vector database instance for semantic search.
-        cache (CacheManager): Redis cache manager.
-    """
+    """Orchestrates RAG search and metadata enrichment. Zero-RAM: metadata from SQLite on demand."""
     def __init__(self) -> None:
         """Initialize the recommender by loading data and the vector database."""
         # We no longer load self.books or in-memory maps.
@@ -193,9 +181,8 @@ class BookRecommender:
                 "isbn10": str(isbn)[:10] # Approximation
             }
             
-            # Check for duplicates in memory first
             isbn_s = str(isbn)
-            if isbn_s in self.book_images or (hasattr(self, 'books') and str(isbn) in self.books['isbn13'].astype(str).values):
+            if metadata_store.get_book_metadata(isbn_s):
                 logger.warning(f"Book {isbn} already exists. Skipping add.")
                 return None
                 
@@ -215,23 +202,11 @@ class BookRecommender:
             else:
                  pd.DataFrame([new_row]).to_csv(csv_path, index=False)
                  
-            # 2. Update In-Memory DataFrame (self.books)
-            # Add 'large_thumbnail' which load_books_data adds
             new_row["large_thumbnail"] = new_row["thumbnail"]
-            
-            # Append to self.books
-            if self.books is not None:
-                self.books = pd.concat([self.books, pd.DataFrame([new_row])], ignore_index=True)
-            
-            # 3. Update In-Memory Lookups (for get_recommendations speed)
-            self.book_images[isbn_s] = new_row["thumbnail"]
-            self.book_descriptions[isbn_s] = description
-            self.book_authors[isbn_s] = author
-            self.book_ratings[isbn_s] = 0.0
-            
-            # 3. Update In-Memory Lookups (for get_recommendations speed)
-            self.book_descriptions[str(isbn)] = description
-            
+
+            # 3. Insert into SQLite (zero-RAM mode)
+            metadata_store.insert_book(new_row)
+
             # 4. Update Vector DB (Chroma + BM25)
             self.vector_db.add_book(new_row)
             

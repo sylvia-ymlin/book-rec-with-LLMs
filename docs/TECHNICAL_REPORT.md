@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-This project implements a production-grade Agentic RAG (Retrieval-Augmented Generation) system for book discovery, combined with a personalized recommendation engine. Unlike simple vector search, it uses a self-routing architecture that dynamically selects the optimal retrieval strategy based on query intent.
+This project implements an integrated Agentic RAG (Retrieval-Augmented Generation) system for book discovery, combined with a personalized recommendation engine. Unlike simple vector search, it uses a self-routing architecture that dynamically selects the optimal retrieval strategy based on query intent.
 
 Key achievements:
 - 100% recall on exact-match queries (ISBNs)
@@ -18,7 +18,7 @@ Key achievements:
 - Detail-level precision via hierarchical (Small-to-Big) retrieval
 - Personalized recommendations using 7-channel recall (Item2Vec, Stacking) and LGBMRanker (LambdaRank)
 
-The system demonstrates mastery of both Data-Centric AI (SFT data synthesis) and Advanced RAG Architecture (Hybrid Search, Reranking, Query Routing).
+The system demonstrates both Advanced RAG Architecture (Hybrid Search, Reranking, Query Routing) and multi-channel RecSys (Item2Vec, LGBMRanker, Stacking).
 
 ---
 
@@ -83,11 +83,12 @@ USER REQUEST (No Query)
           |
           v
 +---------------------------+
-|   6-CHANNEL RECALL (RRF)  |
+|   7-CHANNEL RECALL (RRF)  |
 |  - ItemCF (direction wt)  |
 |  - UserCF (Jaccard)       |
 |  - Swing (user-pair)      |
 |  - SASRec (embedding)     |
+|  - Item2Vec (Word2Vec)    |
 |  - YoutubeDNN (two-tower) |
 |  - Popularity (fallback)  |
 +---------------------------+
@@ -161,7 +162,7 @@ Implementation (based on LlamaIndex Parent-Child, RAPTOR):
 2. Matching: Query matches specific sentence ("I cried at the ending")
 3. Expansion: Map sentence to parent ISBN to full book context
 
-Result: Can answer queries like "books with unreliable narrator twist" that are invisible to description-level search.
+Result: Can answer queries like "books with unreliable narrator twist" that are invisible to description-level search. *RAG components (ISBN recall, reranking, Small-to-Big) were validated via curated examples and routing statistics; no large-scale human evaluation was conducted.*
 
 ### 3.5 Temporal Dynamics
 
@@ -187,7 +188,7 @@ Location: `src/core/context_compressor.py`
 
 ## 4. Personalized Recommendation System
 
-### 4.1 Multi-Channel Recall (6 Channels)
+### 4.1 Multi-Channel Recall (7 Channels)
 
 | Recall Channel | Algorithm | Weight | Purpose |
 |:---|:---|:---|:---|
@@ -195,6 +196,7 @@ Location: `src/core/context_compressor.py`
 | UserCF | User similarity (Jaccard + activity penalty) | 1.0 | Similar user preferences |
 | Swing | User-pair overlap weighting: `1/(α + \|I_u ∩ I_v\|)` | 1.0 | Substitute relationships |
 | SASRec | Dot-product retrieval from pre-computed embeddings | 1.0 | Sequential patterns |
+| Item2Vec | Word2Vec (Skip-gram) on user interaction sequences | 0.8 | Implicit co-occurrence |
 | YoutubeDNN | Two-tower user-item dot product | 0.1 | Deep learning recall |
 | Popularity | Rating count with time decay | 0.5 | Cold-start fallback |
 
@@ -215,9 +217,9 @@ Architecture: Self-Attentive Sequential Recommendation with Transformer blocks
 - Training: 30 epochs, 64-dim embeddings, BCE loss with negative sampling
 - Dual use: (1) ranking feature via `sasrec_score`, (2) independent recall channel via embedding dot-product
 
-### 4.3 LGBMRanker (LambdaRank)
+### 4.3 LGBMRanker (LambdaRank) + Model Stacking
 
-Replaced XGBoost binary classifier with LightGBM LambdaRank that directly optimizes NDCG.
+Replaced XGBoost binary classifier with LightGBM LambdaRank that directly optimizes NDCG. In v2.6.0, a Stacking ensemble (LGBMRanker + XGBClassifier → LogisticRegression meta-learner) further improves ranking robustness.
 
 **Training strategy**:
 - Hard negative sampling: negatives mined from recall results (not random items)
@@ -231,24 +233,25 @@ Replaced XGBoost binary classifier with LightGBM LambdaRank that directly optimi
 - Sequence: sasrec_score, sim_max, sim_min, sim_mean
 - CF scores: icf_sum, icf_max, ucf_sum
 
-Feature importance (V2.5 LGBMRanker):
+Feature importance (v2.6.0 LGBMRanker, representative subset):
 
 | Feature | Importance | Description |
 |:---|:---|:---|
-| i_cnt | 96 | Item popularity count |
-| sim_max | 91 | Last-N similarity max |
-| u_cnt | 80 | User activity count |
-| i_mean | 41 | Item average rating |
-| sasrec_score | 22 | SASRec embedding score |
-| icf_max | 23 | ItemCF max similarity |
+| u_cnt | 88 | User activity count |
+| sim_max | 76 | Last-N similarity max |
+| icf_max | 62 | ItemCF max similarity |
+| i_cnt | 59 | Item popularity count |
+| len_diff | 55 | Description complexity match |
+| sasrec_score | 25 | SASRec embedding score |
 
 ### 4.4 Evaluation Results
 
-| Metric | V2.0 (XGBoost) | V2.5 (LGBMRanker) | Improvement |
+*Protocol: Leave-Last-Out, n=2000 users, title-relaxed matching, filter_favorites=False.*
+
+| Metric | V2.0 (XGBoost) | V2.5 (LGBMRanker) | v2.6.0 (+Item2Vec, Stacking) |
 |:---|:---|:---|:---|
-| HR@10 | 0.1380 | **0.2205** | +59.8% |
-| MRR@5 | 0.1295 | **0.1584** | +22.3% |
-| Users Evaluated | 500 | 2,000 | |
+| HR@10 | 0.1380 | 0.2205 | **0.4545** |
+| MRR@5 | 0.1295 | 0.1584 | **0.2893** |
 | Dataset | 167,968 active users, 221,998 books | | |
 
 ---
@@ -261,9 +264,9 @@ Feature importance (V2.5 LGBMRanker):
 |--------|------------------------|-------------|
 | ISBN Recall | 0% | 100% |
 | Keyword Precision | Low | High (BM25 boost) |
-| Detail Query Recall | 0% | High (Small-to-Big) |
+| Detail Query Recall | 0% | Demonstrated via curated examples (Small-to-Big) |
 | Avg Latency | 100ms | 300-800ms |
-| Chat Context Limit | ~10 turns | Unlimited (compression) |
+| Chat Context Limit | ~10 turns | Extended via compression (no formal limit) |
 
 ### 5.2 Latency Benchmarks
 
@@ -310,7 +313,9 @@ Feature importance (V2.5 LGBMRanker):
 
 ---
 
-## 8. SFT Data Pipeline
+## 8. SFT Data Pipeline (Supplementary)
+
+*Not integrated into the main RAG flow in v2.6.0.* This pipeline was developed for potential future fine-tuning of chat tone.
 
 ### 8.1 Problem
 
@@ -327,6 +332,8 @@ Pipeline:
 Output:
 - `data/sft/literary_critic_train.jsonl`: ~800 high-quality (Query, Response) pairs
 - `data/dpo/preference_pairs.jsonl`: ~500 (Chosen, Rejected) pairs
+
+See [Experiment Archive](experiments/experiment_archive.md) for full implementation details.
 
 ---
 
@@ -346,7 +353,8 @@ src/
 │   ├── sasrec_recall.py       # SASRec Embedding Recall
 │   ├── popularity.py          # Popularity Recall
 │   ├── youtube_dnn.py         # Two-Tower Model
-│   └── fusion.py              # RRF Fusion (6 channels)
+│   ├── item2vec.py            # Item2Vec Recall (Word2Vec)
+│   └── fusion.py              # RRF Fusion (7 channels)
 ├── ranking/
 │   └── features.py            # 17 Ranking Features
 ├── data_factory/
@@ -359,7 +367,16 @@ src/
 
 ---
 
-## 10. Scalability
+## 10. Limitations
+
+- **Single-dataset evaluation**: All RecSys metrics are on Amazon Books 200K; no cross-domain or external validation.
+- **Rule-based router**: Intent classification uses heuristics (e.g., `len(words) <= 2` for keyword); may not generalize to other domains.
+- **RAG evaluation**: RAG quality is demonstrated via curated examples (e.g., "Harry Potter", ISBN recall); no systematic human evaluation or large-scale relevance judgments.
+- **Protocol sensitivity**: RecSys metrics can vary with evaluation protocol (e.g., ISBN-only vs title-relaxed matching); see [Experiment Archive](experiments/experiment_archive.md) for discussion.
+
+---
+
+## 11. Scalability
 
 Current capacity:
 - In-memory index: 2GB RAM, ~200K books

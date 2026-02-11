@@ -4,18 +4,15 @@ import re
 import html
 
 def setup_logger(name: str):
-    """Configure and return a logger instance."""
+    """Configure and return a logger. Use DEBUG=1 for verbose output."""
+    from src.config import DEBUG
     logger = logging.getLogger(name)
-    logger.setLevel(logging.INFO)
-    
+    logger.setLevel(logging.DEBUG if DEBUG else logging.WARNING)
+
     if not logger.handlers:
         handler = logging.StreamHandler(sys.stdout)
-        formatter = logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        )
-        handler.setFormatter(formatter)
+        handler.setFormatter(logging.Formatter("%(levelname)s | %(name)s | %(message)s"))
         logger.addHandler(handler)
-        
     return logger
 
 

@@ -1,26 +1,30 @@
 # Project Documentation
 
-## Core Documents
-
-| Document | Purpose | Audience |
-|:---|:---|:---|
-| [build_guide.md](build_guide.md) | Full build pipeline from zero to production | New developers |
-| [roadmap.md](roadmap.md) | Project status, architecture vision, implementation plan | Developers |
-| [technical_report.md](technical_report.md) | System architecture, technical details | Technical interviews |
-| [interview_guide.md](interview_guide.md) | Interview Q&A, STAR cases | Job preparation |
-
-## Archives
+## Layer 1 — Main Story (README, 5-min interview)
 
 | Document | Purpose |
 |:---|:---|
-| [experiments/experiment_archive.md](experiments/experiment_archive.md) | All experiment results and benchmarks |
+| [Technical Report](TECHNICAL_REPORT.md) | Architecture, design decisions, method line |
+| [Experiment Archive](experiments/experiment_archive.md) | Consolidated experiment log (V1.0 → v2.6.0) |
 
-## Quick Links
+## Layer 2 — Capability Showcase (Resume, technical Q&A)
 
-- **Frozen Version**: v2.6.0 (Agentic RAG + 7-Channel RecSys + Stacking)
-- **Performance**: HR@10 = 0.4545, MRR@5 = 0.2893 (n=2000, Leave-Last-Out)
+| Document | Purpose |
+|:---|:---|
+| [Interview Guide](interview_guide.md) | Q&A, STAR cases |
+| [Memory Optimization](memory_optimization.md) | Zero-RAM SQLite, engineering decisions |
+| [Performance Debugging](performance_debugging_report.md) | Root cause analysis |
+| [Build Guide](build_guide.md) | Full build pipeline |
+| [Hugging Face Deployment](huggingface_deployment.md) | HF Spaces deployment |
+
+## Archives
+
+| Path | Contents |
+|:---|:---|
+| [archived/](archived/) | Deprecated docs (Phase 2, TAGS, REVIEW_HIGHLIGHTS, etc.) |
+| [archived/graveyard/](archived/graveyard/) | Layer 3 — tried but not in main story (future_roadmap, interview_deep_dive, etc.) |
+| [experiments/reports/](experiments/reports/) | Raw experiment reports (baseline, hybrid, rerank, router, temporal) |
 
 ---
 
-*Frozen January 2026 — maintenance mode for portfolio use*
-
+**Frozen v2.6.0** — HR@10 = 0.4545, MRR@5 = 0.2893

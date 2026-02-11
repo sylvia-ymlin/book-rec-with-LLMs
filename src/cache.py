@@ -1,10 +1,10 @@
 import redis
 import json
-import logging
 from typing import Optional, Any
 from src.config import REDIS_URL, CACHE_TTL
+from src.utils import setup_logger
 
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 class CacheManager:
     _instance = None

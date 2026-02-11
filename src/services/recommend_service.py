@@ -1,4 +1,3 @@
-import logging
 import pickle
 import pandas as pd
 import lightgbm as lgb
@@ -8,8 +7,9 @@ from pathlib import Path
 from src.recall.fusion import RecallFusion
 from src.ranking.features import FeatureEngineer
 from src.ranking.explainer import RankingExplainer
+from src.utils import setup_logger
 
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 class RecommendationService:
     def __init__(self, data_dir='data/rec', model_dir='data/model'):
@@ -197,7 +197,8 @@ class RecommendationService:
         return unique_results
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    import logging
+    logger.setLevel(logging.INFO)
     service = RecommendationService()
 
     # Test user

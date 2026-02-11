@@ -40,7 +40,6 @@ scipy
 requests
 
 # LLM Agent & Fine-tuning
-langchain
 faiss-cpu
 diffusers
 openai
