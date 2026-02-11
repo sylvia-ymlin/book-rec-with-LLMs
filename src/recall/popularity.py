@@ -1,5 +1,4 @@
 import pandas as pd
-from collections import defaultdict
 import pickle
 from pathlib import Path
 import logging

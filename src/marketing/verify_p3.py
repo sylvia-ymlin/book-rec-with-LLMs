@@ -7,7 +7,7 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from peft import PeftModel
 from modelscope import snapshot_download
-from guardrails import ContentGuardrail
+from src.marketing.guardrails import ContentGuardrail
 
 # Config
 BASE_MODEL_ID = "qwen/Qwen2-7B-Instruct"

@@ -226,23 +226,21 @@ def analyze_data_quality(df: pd.DataFrame, text_columns: list) -> dict:
     return stats
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Clean text data in books dataset")
-    parser.add_argument("--input", type=Path, default=Path("data/books_processed.csv"))
-    parser.add_argument("--output", type=Path, default=None)
-    parser.add_argument("--dry-run", action="store_true", help="Analyze without saving")
-    parser.add_argument("--backup", action="store_true", help="Create backup before overwriting")
-    args = parser.parse_args()
+def run(
+    backup: bool = False,
+    input_path: Optional[Path] = None,
+    output_path: Optional[Path] = None,
+    dry_run: bool = False,
+) -> None:
+    """Clean text data. Callable from Pipeline."""
+    input_path = input_path or Path("data/books_processed.csv")
+    output_path = output_path or input_path
+
+    if not input_path.exists():
+        raise FileNotFoundError(f"Input file not found: {input_path}")
     
-    if args.output is None:
-        args.output = args.input  # Overwrite by default
-    
-    if not args.input.exists():
-        raise FileNotFoundError(f"Input file not found: {args.input}")
-    
-    # Load data
-    logger.info(f"Loading data from {args.input}")
-    df = pd.read_csv(args.input)
+    logger.info(f"Loading data from {input_path}")
+    df = pd.read_csv(input_path)
     logger.info(f"Loaded {len(df):,} records")
     
     # Define columns to clean
@@ -261,30 +259,41 @@ def main():
     for col, s in stats_before.items():
         logger.info(f"  {col}: {s['has_html']} HTML, {s['has_url']} URLs, avg_len={s['avg_length']:.0f}")
     
-    if args.dry_run:
+    if dry_run:
         logger.info("\n[DRY RUN] No changes will be saved")
         return
-    
-    # Clean
+
     logger.info("\n🧹 Cleaning data...")
     df = clean_dataframe(df, text_columns, max_lengths)
-    
-    # Analyze after
+
     logger.info("\n📊 Data quality AFTER cleaning:")
     stats_after = analyze_data_quality(df, text_columns)
     for col, s in stats_after.items():
         logger.info(f"  {col}: {s['has_html']} HTML, {s['has_url']} URLs, avg_len={s['avg_length']:.0f}")
-    
-    # Backup if requested
-    if args.backup and args.output.exists():
-        backup_path = args.output.with_suffix('.csv.bak')
+
+    if backup and output_path.exists():
+        backup_path = output_path.with_suffix('.csv.bak')
         logger.info(f"Creating backup: {backup_path}")
-        args.output.rename(backup_path)
-    
-    # Save
-    logger.info(f"\n💾 Saving to {args.output}")
-    df.to_csv(args.output, index=False)
+        output_path.rename(backup_path)
+
+    logger.info(f"\n💾 Saving to {output_path}")
+    df.to_csv(output_path, index=False)
     logger.info("✅ Done!")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Clean text data in books dataset")
+    parser.add_argument("--input", type=Path, default=Path("data/books_processed.csv"))
+    parser.add_argument("--output", type=Path, default=None)
+    parser.add_argument("--dry-run", action="store_true", help="Analyze without saving")
+    parser.add_argument("--backup", action="store_true", help="Create backup before overwriting")
+    args = parser.parse_args()
+    run(
+        backup=args.backup,
+        input_path=args.input,
+        output_path=args.output or args.input,
+        dry_run=args.dry_run,
+    )
 
 
 if __name__ == "__main__":

@@ -1,48 +1,48 @@
-import pandas as pd
 import csv
+import logging
+from pathlib import Path
 
-# 读取原始数据，遇到格式错误行自动跳过，保证流程不中断
-books_data = pd.read_csv(
-    "data/books_data.csv",
-    engine="python",
-    quotechar='"',
-    escapechar='\\',
-    on_bad_lines='skip'  # pandas >=1.3
-)
-ratings = pd.read_csv("data/Books_rating.csv", engine="python", quotechar='"', escapechar='\\', on_bad_lines='skip')
+import pandas as pd
 
-# 只保留有用字段
-books_cols = [
-    "Title", "description", "authors", "image", "publisher", "publishedDate", "categories"
-]
-books_data = books_data[books_cols]
+logger = logging.getLogger(__name__)
 
-# 只保留 Title, Id, review/score 字段用于合并
-ratings_cols = ["Title", "Id", "review/score"]
-ratings = ratings[ratings_cols]
 
-# 去重
-ratings = ratings.drop_duplicates(subset=["Title"])
+def run(
+    books_path: Path = Path("data/books_data.csv"),
+    ratings_path: Path = Path("data/Books_rating.csv"),
+    output_path: Path = Path("data/books_basic_info.csv"),
+) -> None:
+    """Build books basic info from raw data. Callable from Pipeline."""
+    books_data = pd.read_csv(
+        str(books_path),
+        engine="python",
+        quotechar='"',
+        escapechar='\\',
+        on_bad_lines='skip',
+    )
+    ratings = pd.read_csv(
+        str(ratings_path),
+        engine="python",
+        quotechar='"',
+        escapechar='\\',
+        on_bad_lines='skip',
+    )
 
-# 合并，左连接，保留 books_data 所有行
-merged = books_data.merge(ratings, on="Title", how="left")
+    books_cols = ["Title", "description", "authors", "image", "publisher", "publishedDate", "categories"]
+    books_data = books_data[books_cols]
+    ratings = ratings[["Title", "Id", "review/score"]].drop_duplicates(subset=["Title"])
+    merged = books_data.merge(ratings, on="Title", how="left")
+    merged = merged.rename(columns={
+        "Id": "isbn10", "Title": "title", "authors": "authors", "description": "description",
+        "image": "image", "publisher": "publisher", "publishedDate": "publishedDate",
+        "categories": "categories", "review/score": "average_rating"
+    })
+    merged["isbn13"] = None
 
-# 重命名字段
-merged = merged.rename(columns={
-    "Id": "isbn10",
-    "Title": "title",
-    "authors": "authors",
-    "description": "description",
-    "image": "image",
-    "publisher": "publisher",
-    "publishedDate": "publishedDate",
-    "categories": "categories",
-    "review/score": "average_rating"
-})
+    merged.to_csv(str(output_path), index=False, quoting=csv.QUOTE_ALL, quotechar='"', escapechar='\\')
+    logger.info("Saved %s", output_path)
 
-# 生成 isbn13（如有更复杂规则可补充，这里仅占位）
-merged["isbn13"] = None  # 可后续补充isbn13生成逻辑
 
-# 保存新表，强制所有字段加引号，防止description等字段被截断
-merged.to_csv("data/books_basic_info.csv", index=False, quoting=csv.QUOTE_ALL, quotechar='"', escapechar='\\')
-print("已生成 data/books_basic_info.csv，包含基础书籍信息字段。")
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    run()

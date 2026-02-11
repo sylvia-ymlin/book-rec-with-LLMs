@@ -13,7 +13,7 @@ Usage:
 import os
 import logging
 from pathlib import Path
-from huggingface_hub import hf_hub_download, snapshot_download
+from huggingface_hub import snapshot_download
 from src.config import DATA_DIR
 
 logger = logging.getLogger(__name__)

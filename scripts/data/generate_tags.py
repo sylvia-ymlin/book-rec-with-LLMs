@@ -116,6 +116,30 @@ def compute_tags(corpus: List[str], top_n: int, max_features: int, min_df: int, 
     return tags
 
 
+def run(
+    input_path: Path = Path("data/books_processed.csv"),
+    output_path: Path = Path("data/books_processed.csv"),
+    top_n: int = 8,
+    max_features: int = 60000,
+    min_df: int = 5,
+    max_df: float = 0.5,
+) -> None:
+    """Generate per-book tags. Callable from Pipeline."""
+    if not input_path.exists():
+        raise FileNotFoundError(f"Input file not found: {input_path}")
+
+    logger.info("Loading data from %s", input_path)
+    df = pd.read_csv(input_path)
+    if "description" not in df.columns:
+        raise ValueError("Input CSV must have a 'description' column")
+
+    corpus = [normalize_text(x) for x in df["description"].fillna("").astype(str).tolist()]
+    tags = compute_tags(corpus, top_n=top_n, max_features=max_features, min_df=min_df, max_df=max_df)
+    df["tags"] = tags
+    logger.info("Writing tagged data to %s", output_path)
+    df.to_csv(output_path, index=False)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Generate per-book tags from descriptions")
     parser.add_argument("--input", type=Path, default=Path("data/books_processed.csv"))
@@ -125,28 +149,14 @@ def main():
     parser.add_argument("--min-df", type=int, default=5)
     parser.add_argument("--max-df", type=float, default=0.5)
     args = parser.parse_args()
-
-    if not args.input.exists():
-        raise FileNotFoundError(f"Input file not found: {args.input}")
-
-    logger.info("Loading data from %s", args.input)
-    df = pd.read_csv(args.input)
-    if "description" not in df.columns:
-        raise ValueError("Input CSV must have a 'description' column")
-
-    corpus = [normalize_text(x) for x in df["description"].fillna("").astype(str).tolist()]
-    tags = compute_tags(
-        corpus,
+    run(
+        input_path=args.input,
+        output_path=args.output,
         top_n=args.top_n,
         max_features=args.max_features,
         min_df=args.min_df,
         max_df=args.max_df,
     )
-
-    df["tags"] = tags
-    logger.info("Writing tagged data to %s", args.output)
-    df.to_csv(args.output, index=False)
-    logger.info("Done. Sample tags: %s", tags[0:3])
 
 
 if __name__ == "__main__":

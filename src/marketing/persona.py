@@ -1,15 +1,17 @@
 from collections import Counter
-from typing import Dict, List, Any
-import pandas as pd
+from typing import Dict, List, Any, Optional
 
 from src.utils import setup_logger
 
 logger = setup_logger(__name__)
 
 
-def build_persona(fav_isbns: List[str], books: pd.DataFrame) -> Dict[str, Any]:
-    """Aggregate a simple persona from favorites: top authors and categories."""
-    if not isinstance(books, pd.DataFrame) or books.empty or not fav_isbns:
+def build_persona(fav_isbns: List[str], books: Optional[Any] = None) -> Dict[str, Any]:
+    """
+    Aggregate a simple persona from favorites: top authors and categories.
+    Uses MetadataStore for lookups; the books param is legacy and unused.
+    """
+    if not fav_isbns:
         return {
             "summary": "No profile yet. Start by adding your favorite books to see personalized recommendations.",
             "top_authors": [],

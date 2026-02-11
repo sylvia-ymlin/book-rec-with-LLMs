@@ -1,13 +1,9 @@
-import pandas as pd
 from typing import List, Dict, Any
-from src.etl import load_books_data
 from src.vector_db import VectorDB
 from src.config import TOP_K_INITIAL, TOP_K_FINAL, DATA_DIR
 from src.cache import CacheManager
 
-from src.utils import setup_logger, summarize_description
-from src.cover_fetcher import fetch_book_cover
-from src.marketing.personalized_highlight import get_persona_and_highlights
+from src.utils import setup_logger
 from src.core.metadata_store import metadata_store
 
 logger = setup_logger(__name__)

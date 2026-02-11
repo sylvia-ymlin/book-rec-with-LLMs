@@ -1,10 +1,7 @@
-import gc
 from typing import List, Any
 # Using community version to avoid 'BaseBlobParser' version conflict in langchain-chroma/core
 from langchain_community.vectorstores import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_community.document_loaders import TextLoader
-from langchain_text_splitters import CharacterTextSplitter
 from src.config import REVIEW_HIGHLIGHTS_TXT, CHROMA_DB_DIR, EMBEDDING_MODEL
 from src.utils import setup_logger
 from src.core.metadata_store import metadata_store

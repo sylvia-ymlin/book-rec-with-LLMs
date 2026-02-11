@@ -1,22 +1,22 @@
 from typing import Generator, Optional, Dict, Any, List
-import pandas as pd
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, BaseMessage
 
 from src.core.llm import LLMFactory
-from src.etl import load_books_data
+from src.data.repository import data_repository
 from src.marketing.persona import build_persona
 from src.user.profile_store import list_favorites
 from src.utils import setup_logger
 
 logger = setup_logger(__name__)
 
+
 class ChatService:
     """
     Service for RAG-based chat interaction.
     Currently focused on 'Chat with Book' (Single Item Context).
+    Uses DataRepository for all book metadata lookups.
     """
     _instance = None
-    _books_df = None
     _history: Dict[str, List[BaseMessage]] = {}
 
     def __new__(cls):
@@ -25,25 +25,11 @@ class ChatService:
         return cls._instance
 
     def __init__(self):
-        # Data is now loaded lazily via _ensure_data
         pass
 
-    def _ensure_data(self):
-        if self._books_df is None:
-            logger.info("ChatService: Lazy-loading books data for context retrieval...")
-            self._books_df = load_books_data()
-
     def _get_book_context(self, isbn: str) -> Optional[Dict[str, Any]]:
-        """Retrieve full context for a specific book by ISBN."""
-        self._ensure_data()
-        # Handle string/int types for ISBN
-        try:
-            row = self._books_df[self._books_df["isbn13"].astype(str) == str(isbn)]
-            if row.empty:
-                return None
-            return row.iloc[0].to_dict()
-        except Exception:
-            return None
+        """Retrieve full context for a specific book by ISBN via DataRepository."""
+        return data_repository.get_book_metadata(str(isbn))
 
     def _format_book_info(self, book: Dict[str, Any]) -> str:
         """Format book metadata into a readable context string."""
@@ -97,8 +83,7 @@ class ChatService:
         """
         Stream chat response for a specific book.
         """
-        self._ensure_data()
-        # 1. Fetch Context
+        # 1. Fetch Context via DataRepository
         book = self._get_book_context(isbn)
         if not book:
             yield "I'm sorry, I couldn't find the details for this book."
@@ -106,7 +91,7 @@ class ChatService:
 
         # 2. Build Persona (User Profile)
         favs = list_favorites(user_id)
-        persona_data = build_persona(favs, self._books_df)
+        persona_data = build_persona(favs)
         user_persona = persona_data.get("summary", "General Reader")
 
         # 3. Construct Prompt with History
@@ -158,15 +143,11 @@ class ChatService:
             yield f"Error generating response: {str(e)}. Please check your API Key."
 
     def add_book_to_context(self, book_data: Dict[str, Any]):
-        """Dynamically add a new book to the ChatService context."""
-        self._ensure_data()
-        try:
-            if self._books_df is not None:
-                new_row_df = pd.DataFrame([book_data])
-                self._books_df = pd.concat([self._books_df, new_row_df], ignore_index=True)
-                logger.info(f"ChatService: Added book {book_data.get('isbn13')} to context.")
-        except Exception as e:
-            logger.error(f"ChatService: Failed to add book to context: {e}")
+        """
+        Called when a new book is added to the system. Book is already in MetadataStore
+        via recommender.add_new_book, so no in-memory cache to update. No-op for now.
+        """
+        logger.info(f"ChatService: Book {book_data.get('isbn13')} added; context served from MetadataStore.")
 
 def get_chat_service():
     """Helper for lazy access to the ChatService singleton."""

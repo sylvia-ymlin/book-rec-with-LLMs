@@ -76,6 +76,44 @@ def scores_to_vector(scores: List[Dict[str, float]]) -> Dict[str, float]:
     return mapped
 
 
+def run(
+    input_path: Path = Path("data/books_processed.csv"),
+    output_path: Path = Path("data/books_processed.csv"),
+    batch_size: int = 16,
+    device=None,
+) -> None:
+    """Generate emotion scores. Callable from Pipeline."""
+    if not input_path.exists():
+        raise FileNotFoundError(f"Input file not found: {input_path}")
+
+    logger.info("Loading data from %s", input_path)
+    df = pd.read_csv(input_path)
+    if "description" not in df.columns:
+        raise ValueError("Input CSV must have a 'description' column")
+
+    for col in TARGET_LABELS:
+        if col not in df.columns:
+            df[col] = 0.0
+
+    model = load_model(device)
+    texts = df["description"].fillna("").astype(str).tolist()
+    n = len(df)
+
+    logger.info("Scoring %d descriptions...", n)
+    for start in tqdm(range(0, n, batch_size)):
+        end = min(start + batch_size, n)
+        chunk = texts[start:end]
+        outputs = model(chunk, truncation=True, max_length=512, top_k=None)
+        for i, out in enumerate(outputs):
+            vec = scores_to_vector(out)
+            idx = start + i
+            for col in TARGET_LABELS:
+                df.at[idx, col] = vec[col]
+
+    logger.info("Writing to %s", output_path)
+    df.to_csv(output_path, index=False)
+
+
 def main():
     ap = argparse.ArgumentParser(description="Generate emotion scores from descriptions")
     ap.add_argument("--input", type=Path, default=Path("data/books_processed.csv"))
@@ -86,77 +124,15 @@ def main():
     ap.add_argument("--checkpoint", type=int, default=5000, help="Rows between checkpoint writes")
     ap.add_argument("--resume", action="store_true", help="Resume if output exists (skip rows with scores)")
     args = ap.parse_args()
-
-    if not args.input.exists():
-        raise FileNotFoundError(f"Input file not found: {args.input}")
-
-    logger.info("Loading data from %s", args.input)
-    df = pd.read_csv(args.input)
-    if "description" not in df.columns:
-        raise ValueError("Input CSV must have a 'description' column")
-
-    if args.max_rows:
-        df = df.head(args.max_rows)
-        logger.info("Truncated to %d rows for max_rows", len(df))
-
-    n = len(df)
-    # Normalize device arg
-    dev: str | int | None
-    if args.device is None:
-        dev = None
-    else:
-        if isinstance(args.device, str) and args.device.lower() == "mps":
-            dev = "mps"
-        else:
-            try:
-                dev = int(args.device)
-            except ValueError:
-                dev = None
-    model = load_model(dev)
-
-    # Prepare containers
-    for col in TARGET_LABELS:
-        if col not in df.columns:
-            df[col] = 0.0
-
-    # Resume support: if output exists, and resume flag set, load scores
-    if args.resume and args.output.exists():
-        logger.info("Resume enabled: loading existing output from %s", args.output)
-        df_prev = pd.read_csv(args.output)
-        for col in TARGET_LABELS:
-            if col in df_prev.columns:
-                df[col] = df_prev[col]
-
-    texts = df["description"].fillna("").astype(str).tolist()
-    batch = args.batch_size
-    checkpoint = max(1, args.checkpoint)
-
-    logger.info("Scoring %d descriptions (batch=%d, checkpoint=%d)...", n, batch, checkpoint)
-    total_batches = (n + batch - 1) // batch
-    for bidx, start in enumerate(tqdm(range(0, n, batch), total=total_batches)):
-        end = min(start + batch, n)
-
-        # Skip already-computed rows when resuming (all scores > 0)
-        if args.resume:
-            existing = df.loc[start:end-1, TARGET_LABELS].values
-            if np.all(existing > 0):
-                continue
-
-        chunk = texts[start:end]
-        outputs = model(chunk, truncation=True, max_length=512, top_k=None)
-        for i, out in enumerate(outputs):
-            vec = scores_to_vector(out)
-            idx = start + i
-            for col in TARGET_LABELS:
-                df.at[idx, col] = vec[col]
-
-        # periodic checkpoint write
-        if (start > 0) and ((start % checkpoint) == 0):
-            df.to_csv(args.output, index=False)
-
-    logger.info("Writing to %s", args.output)
-    df.to_csv(args.output, index=False)
-    logger.info("Done. Example row: %s", df.head(1)[TARGET_LABELS].to_dict(orient="records"))
+    dev = None
+    if args.device:
+        dev = "mps" if str(args.device).lower() == "mps" else (int(args.device) if str(args.device).isdigit() else None)
+    run(
+        input_path=args.input,
+        output_path=args.output,
+        batch_size=args.batch_size,
+        device=dev,
+    )
 
 
 if __name__ == "__main__":

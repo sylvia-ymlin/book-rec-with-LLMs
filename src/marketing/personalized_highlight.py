@@ -1,5 +1,4 @@
 import json
-import pandas as pd
 from src.marketing.persona import build_persona
 from src.marketing.highlights import generate_highlights
 

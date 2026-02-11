@@ -1,7 +1,6 @@
 import os
 import shutil
 import sys
-import torch
 from pathlib import Path
 
 # Add project root to Python path
@@ -21,20 +20,10 @@ def init_db():
     # FIX: Disable Tokenizers Parallelism to prevent deadlocks on macOS
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-    # Force CPU for data ingestion to avoid MPS (Metal) async hangs during long processing
-    # We only need speed for inference, reliability is key for building the DB.
+    # Force CPU for data ingestion to avoid MPS (Metal) async hangs during long processing.
+    # Reliability is key for building the DB; GPU acceleration is only needed for inference.
     device = "cpu"
     print("🐢  Forcing CPU for stable database ingestion (prevents macOS Freezes).")
-    
-    # if torch.backends.mps.is_available():
-    #     device = "mps"
-    #     print("⚡️  MacOS GPU (MPS) Detected! switching to GPU acceleration.")
-    # elif torch.cuda.is_available():
-    #     device = "cuda"
-    #     print("⚡️  NVIDIA GPU (CUDA) Detected!")
-    # else:
-    #     device = "cpu"
-    #     print("🐢  No GPU detected, running on CPU (this might be slow).")
 
     # 1. Clear existing DB if any (to avoid duplicates/corruption)
     if CHROMA_DB_DIR.exists():

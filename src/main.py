@@ -15,8 +15,6 @@ from src.user.profile_store import (
     update_book_rating, update_reading_status, update_book_comment,
     get_favorites_with_metadata, get_reading_stats
 )
-from src.marketing.persona import build_persona
-from src.marketing.highlights import generate_highlights
 from src.api.chat import router as chat_router # ✨ NEW
 from src.services.chat_service import chat_service # ✨ NEW
 from src.services.recommend_service import RecommendationService # ✨ NEW
@@ -236,9 +234,6 @@ async def favorites_list(user_id: str):
         favorites_meta = get_favorites_with_metadata(user_id)
         # ENGINEERING IMPROVEMENT: Zero-RAM Lookup
         from src.core.metadata_store import metadata_store
-        
-        results = []
-        # Lazy load fetcher (Handled inside utils now)
         from src.utils import enrich_book_metadata
         
         results = []
