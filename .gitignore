@@ -43,24 +43,31 @@ wheels/
 ehthumbs.db
 Thumbs.db
 
-# Data files (keep only essential ones in data/)
+# Data files
 *.csv
 *.txt
 !requirements.txt
-!data/books_with_emotions.csv
-# !data/books_descriptions.txt (Too large for git, 178MB)
+# data/books_processed.csv and others are now loaded at runtime from HF
 
-# Model files
+# Model files (downloaded at runtime from HF Hub)
+data/model/
+data/rec/
 *.pkl
+*.pth
+*.pt
 *.joblib
 *.h5
-*.pth
+
+# Large data files (rebuild with scripts/init_dual_index.py)
+data/chroma_chunks/
+data/review_chunks.jsonl
+data/*.db
 
 # Logs
 *.log
 logs/
 
-# Temporary files
+# Temp files
 *.tmp
 *.temp
 *.gz
@@ -71,17 +78,13 @@ logs/
 # Vector database (generated at runtime)
 data/chroma_db/
 
-
+# Node modules
 web/node_modules/
-data/books_processed.csv
-
-# Large data files (rebuild with scripts/init_dual_index.py)
-data/chroma_chunks/
-data/review_chunks.jsonl
-*.pt
+node_modules/
 
 # Backup files
 *.bak
 
 # External reference projects
 CompetitionTianChi_newsRecommendation/
+

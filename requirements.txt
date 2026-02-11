@@ -1,5 +1,5 @@
 # Web UI
-gradio>=5.0.0
+
 
 # API
 fastapi
@@ -8,7 +8,7 @@ pydantic
 
 # Data handling
 pandas
-numpy
+numpy<2
 python-dotenv
 
 # LangChain components
@@ -17,6 +17,7 @@ langchain-community
 langchain-text-splitters
 langchain-chroma
 langchain-huggingface
+langchain-openai
 
 # ML / NLP
 transformers>=4.40.0
@@ -31,6 +32,7 @@ shap
 pytest
 ruff
 httpx
+rank-bm25
 
 # Optional (for safety/logging)
 scikit-learn

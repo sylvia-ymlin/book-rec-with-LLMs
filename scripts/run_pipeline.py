@@ -53,6 +53,7 @@ def main():
     parser.add_argument("--skip-index", action="store_true", help="Skip index building")
     parser.add_argument("--validate-only", action="store_true", help="Only run validation")
     parser.add_argument("--device", default=None, help="Device for ML models (cpu/cuda/mps)")
+    parser.add_argument("--stacking", action="store_true", help="Enable Stacking model training (LGBM + XGB + Meta)")
     args = parser.parse_args()
     
     print("=" * 60)
@@ -141,9 +142,11 @@ def main():
             "Training SASRec (requires GPU)"
         )
         
+        ranker_args = ["--stacking"] if args.stacking else []
         run_script(
             "scripts/model/train_ranker.py",
-            "Training LGBMRanker"
+            "Training LGBMRanker (Stacking: {})".format("ON" if args.stacking else "OFF"),
+            args=ranker_args
         )
     
     # ==========================================================================

@@ -25,12 +25,17 @@ class ChatService:
         return cls._instance
 
     def __init__(self):
+        # Data is now loaded lazily via _ensure_data
+        pass
+
+    def _ensure_data(self):
         if self._books_df is None:
-            logger.info("ChatService: Loading books data for context retrieval...")
+            logger.info("ChatService: Lazy-loading books data for context retrieval...")
             self._books_df = load_books_data()
 
     def _get_book_context(self, isbn: str) -> Optional[Dict[str, Any]]:
         """Retrieve full context for a specific book by ISBN."""
+        self._ensure_data()
         # Handle string/int types for ISBN
         try:
             row = self._books_df[self._books_df["isbn13"].astype(str) == str(isbn)]
@@ -92,6 +97,7 @@ class ChatService:
         """
         Stream chat response for a specific book.
         """
+        self._ensure_data()
         # 1. Fetch Context
         book = self._get_book_context(isbn)
         if not book:
@@ -153,6 +159,7 @@ class ChatService:
 
     def add_book_to_context(self, book_data: Dict[str, Any]):
         """Dynamically add a new book to the ChatService context."""
+        self._ensure_data()
         try:
             if self._books_df is not None:
                 new_row_df = pd.DataFrame([book_data])
@@ -160,5 +167,9 @@ class ChatService:
                 logger.info(f"ChatService: Added book {book_data.get('isbn13')} to context.")
         except Exception as e:
             logger.error(f"ChatService: Failed to add book to context: {e}")
+
+def get_chat_service():
+    """Helper for lazy access to the ChatService singleton."""
+    return ChatService()
 
 chat_service = ChatService()

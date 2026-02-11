@@ -8,7 +8,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from langchain_community.vectorstores import Chroma
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_core.documents import Document
 from src.config import REVIEW_HIGHLIGHTS_TXT, CHROMA_DB_DIR, EMBEDDING_MODEL
 from tqdm import tqdm
@@ -69,9 +69,13 @@ def init_db():
     batch_size = 2000  # Increased batch size for optimal GPU throughput
     documents = []
     
-    print("🚀 Starting Ingestion (Source: Review Highlights)...")
+    # Limit for demo/dev (optional: set to None for full index)
+    max_docs = 20000 
+    print(f"🚀 Starting Ingestion (Source: Review Highlights, Limit: {max_docs})...")
     with open(REVIEW_HIGHLIGHTS_TXT, 'r', encoding='utf-8') as f:
-        for line in tqdm(f, total=total_lines, unit="doc", desc="Indexing Reviews"):
+        # Use islice for efficient subsetting
+        from itertools import islice
+        for line in tqdm(islice(f, max_docs), total=min(total_lines, max_docs), unit="doc", desc="Indexing Reviews"):
             line = line.strip()
             if not line: 
                 continue

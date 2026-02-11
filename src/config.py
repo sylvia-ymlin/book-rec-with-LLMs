@@ -11,6 +11,10 @@ PROJECT_ROOT = Path(__file__).parent.parent.absolute()
 # Data Paths
 # Data Paths
 DATA_DIR = PROJECT_ROOT / "data"
+# User-generated data (Persistent)
+# On HF Spaces with persistent storage, set USER_DATA_PATH=/data
+_user_data_path = os.getenv("USER_DATA_PATH")
+USER_DATA_DIR = Path(_user_data_path) if _user_data_path else DATA_DIR
 PROCESSED_DATA_DIR = DATA_DIR # Alias for clearer intent
 BOOKS_CSV = DATA_DIR / "books_with_emotions.csv"
 REVIEW_HIGHLIGHTS_TXT = DATA_DIR / "review_highlights.txt"

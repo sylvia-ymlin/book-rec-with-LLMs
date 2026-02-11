@@ -10,6 +10,7 @@ logger = setup_logger(__name__)
 RAW_DATA_PATH = DATA_DIR / "raw" / "Books_rating.csv"
 PROCESSED_DATA_PATH = DATA_DIR / "books_processed.csv"
 REVIEW_HIGHLIGHTS_PATH = DATA_DIR / "review_highlights.txt"
+DESCRIPTIONS_PATH = DATA_DIR / "books_descriptions.txt"
 
 def load_books_data() -> pd.DataFrame:
     """
@@ -27,7 +28,12 @@ def load_books_data() -> pd.DataFrame:
 
         # Process raw data
         if not RAW_DATA_PATH.exists():
-            raise FileNotFoundError(f"Raw data file not found at {RAW_DATA_PATH}")
+            logger.warning(f"Raw data file not found at {RAW_DATA_PATH}. Returning empty context.")
+            # Return empty DataFrame with expected columns to avoid crashes
+            return pd.DataFrame(columns=['isbn13', 'title', 'description', 'average_rating', 
+                                       'authors', 'thumbnail', 'simple_categories',
+                                       'joy', 'sadness', 'fear', 'anger', 'surprise',
+                                       'large_thumbnail', 'tags', 'review_highlights'])
 
         logger.info(f"Processing raw data from {RAW_DATA_PATH}...")
         

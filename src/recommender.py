@@ -8,12 +8,18 @@ from src.cache import CacheManager
 from src.utils import setup_logger, summarize_description
 from src.cover_fetcher import fetch_book_cover
 from src.marketing.personalized_highlight import get_persona_and_highlights
+from src.core.metadata_store import metadata_store
 
 logger = setup_logger(__name__)
 
 class BookRecommender:
     """
-    Core business logic for the Book Recommendation System.
+    Core Recommendation Engine orchestrating search and metadata enrichment.
+    
+    ENGINEERING IMPROVEMENT:
+    Refactored to be entirely DataFrame-free. All metadata is now fetched 
+    on-demand via `MetadataStore` (SQLite), ensuring zero-RAM overhead for 
+    candidate enrichment and category filtering.
     
     Attributes:
         books (pd.DataFrame): The dataset containing book metadata and emotions.
@@ -22,33 +28,13 @@ class BookRecommender:
     """
     def __init__(self) -> None:
         """Initialize the recommender by loading data and the vector database."""
-        self.books = load_books_data()
-        logger.info(f"Loaded books DataFrame with columns: {self.books.columns.tolist()}")
+        # We no longer load self.books or in-memory maps.
+        # Everything is fetched on-demand from MetadataStore (SQLite).
+        
         self.vector_db = VectorDB()
         self.cache = CacheManager()
-        # 加载 books_data.csv 的图片链接（只加载 isbn 和 image 字段）
-        import pandas as pd
-        try:
-            # 用新生成的基础表
-            book_data_df = pd.read_csv("data/books_basic_info.csv")
-            # 统一isbn10为字符串
-            book_data_df["isbn10"] = book_data_df["isbn10"].astype(str).str.strip()
-            self.book_images = book_data_df.set_index("isbn10")["image"].to_dict()
-            self.book_descriptions = book_data_df.set_index("isbn10")["description"].to_dict()
-            if "authors" in book_data_df.columns:
-                self.book_authors = book_data_df.set_index("isbn10")["authors"].to_dict()
-            else:
-                self.book_authors = {}
-            if "average_rating" in book_data_df.columns:
-                self.book_ratings = book_data_df.set_index("isbn10")["average_rating"].to_dict()
-            else:
-                self.book_ratings = {}
-            logger.info(f"Loaded {len(self.book_images)} book images from books_basic_info.csv")
-        except Exception as e:
-            logger.error(f"Error loading book images from books_data_with_isbn13.csv: {e}")
-            self.book_images = {}
-            self.book_descriptions = {}
-            self.book_authors = {}
+        
+        logger.info("BookRecommender: Zero-RAM mode enabled. Using SQLite for on-demand lookups.")
         
     def get_recommendations(
         self,
@@ -118,67 +104,65 @@ class BookRecommender:
             if isbn_str:
                 books_list.append(isbn_str)
         
-        # 2. Filter by ISBN (Handle both string and int ISBNs from new dataset)
-        # Ensure ISBN column type matches
-        book_recs = self.books[self.books["isbn13"].astype(str).isin(books_list)].head(TOP_K_INITIAL)
-        
-        # 3. Filter by Category
-        if category and category != "All":
-            book_recs = book_recs[book_recs["simple_categories"] == category].head(TOP_K_FINAL)
-        else:
-            book_recs = book_recs.head(TOP_K_FINAL)
-            
+        # 2. Enrich and Format results (Zero-RAM mode)
         results = []
-        try:
-            for _, row in book_recs.iterrows():
-                from html import unescape
-                isbn13 = str(row.get("isbn13", "")).strip()
+        for isbn in books_list:
+            meta = metadata_store.get_book_metadata(isbn)
+            if not meta:
+                continue
+            
+            # Category filter
+            if category and category != "All":
+                if meta.get("simple_categories") != category:
+                    continue
+            
+            # Tone enrichment and basic formatting
+            from html import unescape
+            
+            thumbnail = meta.get("thumbnail")
+            if not thumbnail or pd.isna(thumbnail) or not str(thumbnail).strip():
+                thumbnail = "/assets/cover-not-found.jpg"
+            
+            tags_raw = str(meta.get("tags", "")).strip()
+            tags = [t.strip() for t in tags_raw.split(";") if t.strip()] if tags_raw else []
+            
+            emotions = {
+                "joy": float(meta.get("joy", 0.0)),
+                "sadness": float(meta.get("sadness", 0.0)),
+                "fear": float(meta.get("fear", 0.0)),
+                "anger": float(meta.get("anger", 0.0)),
+                "surprise": float(meta.get("surprise", 0.0)),
+            }
+            
+            highlights_raw = str(meta.get("review_highlights", ""))
+            highlights = [h.strip() for h in highlights_raw.split(";") if h.strip()][:3]
+            
+            results.append({
+                "isbn": isbn,
+                "title": meta.get("title", ""),
+                "authors": meta.get("authors", "Unknown"),
+                "description": meta.get("description", ""),
+                "thumbnail": thumbnail,
+                "caption": f"{meta.get('title', '')} by {meta.get('authors', 'Unknown')}",
+                "tags": tags,
+                "emotions": emotions,
+                "review_highlights": highlights,
+                "persona_summary": "",
+                "average_rating": float(meta.get("average_rating", 0.0))
+            })
+            
+            if len(results) >= TOP_K_FINAL:
+                break
                 
-                # --- PERFORMANCE FIX: Use static data, NO LLM call during search ---
-                # LLM highlights are generated on-demand when user opens book detail
-                
-                thumbnail = self.book_images.get(row.get("isbn10", "")) or self.book_images.get(isbn13)
-                if not thumbnail or pd.isna(thumbnail) or not str(thumbnail).strip():
-                    thumbnail = row.get("thumbnail")
-                if not thumbnail or pd.isna(thumbnail) or not str(thumbnail).strip():
-                    thumbnail = "/assets/cover-not-found.jpg"
-                if isinstance(thumbnail, str) and thumbnail.startswith("/Users/"):
-                    thumbnail = "/assets/cover-not-found.jpg"
+        return results
 
-                average_rating = self.book_ratings.get(row.get("isbn10", "")) or self.book_ratings.get(isbn13) or 0
-                tags_raw = str(row.get("tags", "")).strip()
-                tags = [t.strip() for t in tags_raw.split(";") if t.strip()] if tags_raw else []
-                emotions = {
-                    "joy": float(row.get("joy", 0.0)),
-                    "sadness": float(row.get("sadness", 0.0)),
-                    "fear": float(row.get("fear", 0.0)),
-                    "anger": float(row.get("anger", 0.0)),
-                    "surprise": float(row.get("surprise", 0.0)),
-                }
-                
-                # Use static review_highlights from CSV (no LLM)
-                review_highlights_raw = str(row.get("review_highlights", ""))
-                review_highlights = [h.strip() for h in review_highlights_raw.split(";") if h.strip()][:3]
-                
-                results.append({
-                    "isbn": isbn13,
-                    "title": row.get("title", ""),
-                    "authors": row.get("authors", "Unknown"),
-                    "description": row.get("description", ""),
-                    "thumbnail": thumbnail,
-                    "caption": f"{row.get('title', '')} by {row.get('authors', 'Unknown')}: {row.get('description', '')}",
-                    "tags": tags,
-                    "emotions": emotions,
-                    "review_highlights": review_highlights,
-                    "persona_summary": "",  # Filled on-demand in /marketing/highlights
-                    "average_rating": average_rating
-                })
-            logger.info(f"Sample result: {results[0] if results else 'EMPTY'}")
-            return results
-        except Exception as e:
-            import traceback
-            logger.error(f"Error in _format_results: {e}\n{traceback.format_exc()}")
-            return []
+    def get_categories(self) -> List[str]:
+        """Get unique book categories from SQLite."""
+        return ["All"] + metadata_store.get_all_categories()
+
+    def get_tones(self) -> List[str]:
+        """Get available emotional tones."""
+        return ["All", "Happy", "Sad", "Fear", "Anger", "Surprise"]
 
     def add_new_book(self, isbn: str, title: str, author: str, description: str, category: str = "General", thumbnail: str = None) -> Any:
         """

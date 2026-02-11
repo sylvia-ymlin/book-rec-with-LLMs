@@ -5,11 +5,11 @@ from pathlib import Path
 from datetime import datetime
 
 from src.utils import setup_logger
-from src.config import DATA_DIR
+from src.config import DATA_DIR, USER_DATA_DIR
 
 logger = setup_logger(__name__)
 
-STORE_PATH = DATA_DIR / "user_profiles.json"
+STORE_PATH = USER_DATA_DIR / "user_profiles.json"
 
 # Reading status enum values
 READING_STATUS = ["want_to_read", "reading", "finished"]
@@ -17,7 +17,7 @@ READING_STATUS = ["want_to_read", "reading", "finished"]
 
 def _ensure_store_file() -> None:
     try:
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        USER_DATA_DIR.mkdir(parents=True, exist_ok=True)
         if not STORE_PATH.exists():
             with open(STORE_PATH, "w", encoding="utf-8") as f:
                 json.dump({}, f)

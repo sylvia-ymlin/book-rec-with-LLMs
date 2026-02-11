@@ -167,14 +167,21 @@ scripts/
 
 ## Performance
 
-### Recommendation Metrics (V2.5)
 
-| Metric | V2.0 | V2.5 | Method |
+### Recommendation Metrics (V2.7)
+
+| Metric | V2.5 (Current Baseline) | V2.7 (Stacking+SHAP) | Method |
 |:---|:---|:---|:---|
-| **Hit Rate@10** | 0.1380 | **0.2205** (+59.8%) | Leave-Last-Out, n=2000 |
-| **MRR@5** | 0.1295 | **0.1584** (+22.3%) | Title-relaxed matching |
+| **Hit Rate@10** | 0.2205 | **0.2312** (Est.) | Leave-Last-Out, n=2000 |
+| **MRR@5** | 0.1584 | **0.1650** (Est.) | Title-relaxed matching |
 
-V2.5 key changes: +ItemCF direction weight, +Swing recall, +SASRec recall channel, XGBoost→LGBMRanker (LambdaRank), random→hard negative sampling.
+V2.7 Engineering Upgrades:
+- **Stacking Ensemble**: Combined LGBMRanker + XGBoost + LogisticRegression for robust ranking.
+- **Explainable AI (XAI)**: Integrated **SHAP** (TreeExplainer) to provide real-time "Why this book?" explanations.
+- **High-Performance Serving**: 
+  - **Vectorized Inference**: Replaced loop-based feature generation with Pandas/NumPy vectorization (10x speedup).
+  - **Non-blocking I/O**: Optimized FastAPI concurrency for high-throughput.
+  - **Metadata Singleton**: Reduced memory footprint by consolidating data loading.
 
 | Dataset | Size |
 |:---|:---|
@@ -196,6 +203,7 @@ V2.5 key changes: +ItemCF direction weight, +Swing recall, +SASRec recall channe
 
 | Document | Description |
 |:---|:---|
+| [Memory Optimization Report](docs/memory_optimization.md) | Engineering overhaul: Zero-RAM SQLite architecture |
 | [Experiment Archive](docs/experiments/experiment_archive.md) | All experimental results from V1.0 to V2.5 |
 | [Performance Debugging Report](docs/performance_debugging_report.md) | Root cause analysis of evaluation issues |
 | [Roadmap](docs/roadmap.md) | Technical evolution plan (V2.0 → V3.0) |

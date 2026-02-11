@@ -114,14 +114,14 @@ def build_ranker_data(data_dir='data/rec', model_dir='data/model/recall', neg_ra
     return train_data, group
 
 
-def train_ranker():
+def train_ranker(max_samples=20000):
     data_dir = Path('data/rec')
     model_dir = Path('data/model/ranking')
     model_dir.mkdir(parents=True, exist_ok=True)
 
     # 1. Prepare Data
     train_samples, group = build_ranker_data(
-        str(data_dir), model_dir='data/model/recall', neg_ratio=4
+        str(data_dir), model_dir='data/model/recall', neg_ratio=4, max_samples=max_samples
     )
     logger.info(f"Training samples: {len(train_samples)}, groups: {len(group)}")
 
@@ -162,7 +162,7 @@ def train_ranker():
         logger.info(f"Feature {features[i]}: {score}")
 
 
-def train_stacking():
+def train_stacking(max_samples=20000):
     """
     Train Level-1 models (LGBMRanker + XGBClassifier) via GroupKFold CV
     to produce out-of-fold (OOF) predictions, then train Level-2 meta-learner
@@ -180,7 +180,7 @@ def train_stacking():
     # 1. Prepare Data (reuse existing build_ranker_data)
     # =========================================================================
     train_samples, group = build_ranker_data(
-        str(data_dir), model_dir='data/model/recall', neg_ratio=4
+        str(data_dir), model_dir='data/model/recall', neg_ratio=4, max_samples=max_samples
     )
     logger.info(f"Stacking training samples: {len(train_samples)}, groups: {len(group)}")
 
@@ -342,9 +342,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Train ranking models')
     parser.add_argument('--stacking', action='store_true',
                         help='Train with model stacking (LGB + XGB + Meta-Learner)')
+    parser.add_argument('--max_samples', type=int, default=20000,
+                        help='Number of samples used for training (default=20000)')
     args = parser.parse_args()
 
     if args.stacking:
-        train_stacking()
+        train_stacking(max_samples=args.max_samples)
     else:
-        train_ranker()
+        train_ranker(max_samples=args.max_samples)

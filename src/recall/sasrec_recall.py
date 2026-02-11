@@ -57,14 +57,18 @@ class SASRecRecall:
             logger.info(f"Faiss index built: {self.faiss_index.ntotal} items, dim={dim}")
 
             # 5. User history for filtering
-            with open(self.data_dir / 'user_sequences.pkl', 'rb') as f:
-                user_seqs = pickle.load(f)
-            # Convert item indices back to ISBNs for filtering
-            self.user_hist = {}
-            for uid, seq in user_seqs.items():
-                self.user_hist[uid] = set(
-                    self.id_to_item[idx] for idx in seq if idx in self.id_to_item
-                )
+            try:
+                with open(self.data_dir / 'user_sequences.pkl', 'rb') as f:
+                    user_seqs = pickle.load(f)
+                # Convert item indices back to ISBNs for filtering
+                self.user_hist = {}
+                for uid, seq in user_seqs.items():
+                    self.user_hist[uid] = set(
+                        self.id_to_item[idx] for idx in seq if idx in self.id_to_item
+                    )
+            except Exception as e:
+                logger.warning(f"SASRec: user_sequences.pkl not found: {e}")
+                self.user_hist = {}
 
             self.loaded = True
             logger.info(f"SASRec recall loaded: {len(self.user_seq_emb)} users, {self.item_emb.shape[0]} items")

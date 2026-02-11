@@ -22,18 +22,23 @@ def mock_books_df():
 def mock_vector_db():
     """Mock the VectorDB singleton."""
     mock_db = MagicMock()
-    # Mock search return value: list of objects with page_content attribute
-    # The recommender expects "isbn description..." so we format it that way
     
     class MockDoc:
-        def __init__(self, content):
+        def __init__(self, content, metadata=None):
             self.page_content = content
+            self.metadata = metadata or {}
             
-    mock_db.search.return_value = [
-        MockDoc('111 "Description..."'),
-        MockDoc('222 "Description..."'),
-        MockDoc('333 "Description..."'),
-        MockDoc('444 "Description..."'),
-        MockDoc('555 "Description..."')
+    docs = [
+        MockDoc('111 "Happy Book"', {"isbn": "111", "title": "Happy Book"}),
+        MockDoc('222 "Sad Book"', {"isbn": "222", "title": "Sad Book"}),
+        MockDoc('333 "Scary Book"', {"isbn": "333", "title": "Scary Book"}),
+        MockDoc('444 "Fiction Book"', {"isbn": "444", "title": "Fiction Book"}),
+        MockDoc('555 "Non-Fiction Book"', {"isbn": "555", "title": "Non-Fiction Book"})
     ]
+    
+    # Mock all potential search methods
+    mock_db.search.return_value = docs
+    mock_db.hybrid_search.return_value = docs
+    mock_db.small_to_big_search.return_value = docs
+    
     return mock_db

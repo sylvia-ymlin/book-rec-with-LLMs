@@ -56,13 +56,22 @@ class YoutubeDNNRecall:
             self.model.load_state_dict(state_dict)
             self.model.eval()
 
-            # Load auxiliary data
-            with open(self.data_dir / 'item_map.pkl', 'rb') as f:
-                self.item_map = pickle.load(f)
-            self.id_to_item = {v: k for k, v in self.item_map.items()}
+            # Load auxiliary data (Optional/Survival Mode)
+            try:
+                with open(self.data_dir / 'item_map.pkl', 'rb') as f:
+                    self.item_map = pickle.load(f)
+                self.id_to_item = {v: k for k, v in self.item_map.items()}
+            except Exception as e:
+                logger.warning(f"YoutubeDNN: item_map.pkl not found, item-to-id mapping disabled: {e}")
+                self.item_map = {}
+                self.id_to_item = {}
 
-            with open(self.data_dir / 'user_sequences.pkl', 'rb') as f:
-                self.user_seqs = pickle.load(f)
+            try:
+                with open(self.data_dir / 'user_sequences.pkl', 'rb') as f:
+                    self.user_seqs = pickle.load(f)
+            except Exception as e:
+                logger.warning(f"YoutubeDNN: user_sequences.pkl not found: {e}")
+                self.user_seqs = {}
 
             # Precompute Item Embeddings + Build Faiss Index
             self._precompute_item_embeddings()

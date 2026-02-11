@@ -7,7 +7,13 @@ class TestBookRecommender:
     @pytest.fixture
     def recommender(self, mock_books_df, mock_vector_db):
         """Initialize recommender with mocked dependencies."""
-        with patch('src.recommender.load_books_data', return_value=mock_books_df), \
+        mock_store = MagicMock()
+        mock_store.books_df = mock_books_df
+        # Create image and rating maps from mock_books_df
+        mock_store.image_map = mock_books_df.set_index("isbn13")["large_thumbnail"].to_dict()
+        mock_store.rating_map = {str(k): 4.0 for k in mock_books_df["isbn13"]}
+        
+        with patch('src.recommender.metadata_store', mock_store), \
              patch('src.recommender.VectorDB', return_value=mock_vector_db):
             return BookRecommender()
 
@@ -38,8 +44,8 @@ class TestBookRecommender:
         assert len(results) > 0
         assert "isbn" in results[0]
         assert "title" in results[0]
-        # Check if vector search was called
-        recommender.vector_db.search.assert_called_with("test query", k=50)
+        # Check if vector search was called (hybrid_search is the default)
+        recommender.vector_db.hybrid_search.assert_called()
 
     def test_recommend_filter_category(self, recommender):
         """Test filtering by category."""
@@ -53,13 +59,13 @@ class TestBookRecommender:
         """Test sorting by Happy tone."""
         # 111 is happiest (0.9)
         results = recommender.get_recommendations("test query", tone="Happy")
-        assert results[0]["isbn"] == 111
+        assert str(results[0]["isbn"]) == "111"
 
     def test_recommend_sort_tone_sad(self, recommender):
         """Test sorting by Sad tone."""
         # 222 is saddest (0.9)
         results = recommender.get_recommendations("test query", category="All", tone="Sad")
-        assert results[0]["isbn"] == 222
+        assert str(results[0]["isbn"]) == "222"
 
     def test_empty_query(self, recommender):
         """Test empty query behavior."""

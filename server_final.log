@@ -1,0 +1,42 @@
+uvicorn src.main:app --reload --port 6006
+INFO:     Will watch for changes in these directories: ['/Users/ymlin/Downloads/003-Study/138-Projects/08-book-rec-with-LLMs']
+INFO:     Uvicorn running on http://127.0.0.1:6006 (Press CTRL+C to quit)
+INFO:     Started reloader process [9672] using WatchFiles
+2026-01-10 23:12:04,451 - src.services.chat_service - INFO - ChatService: Loading books data for context retrieval...
+2026-01-10 23:12:04,451 - src.etl - INFO - Loading processed data from /Users/ymlin/Downloads/003-Study/138-Projects/08-book-rec-with-LLMs/data/books_processed.csv
+INFO:     Started server process [9726]
+INFO:     Waiting for application startup.
+2026-01-10 23:12:08,624 - src.main - INFO - Initializing Recommender Engine...
+2026-01-10 23:12:08,624 - src.etl - INFO - Loading processed data from /Users/ymlin/Downloads/003-Study/138-Projects/08-book-rec-with-LLMs/data/books_processed.csv
+2026-01-10 23:12:12,766 - src.recommender - INFO - Loaded books DataFrame with columns: ['isbn13', 'title', 'description', 'average_rating', 'authors', 'thumbnail', 'simple_categories', 'joy', 'sadness', 'fear', 'anger', 'surprise', 'tags', 'review_highlights', 'large_thumbnail']
+2026-01-10 23:12:12,766 - src.vector_db - INFO - Loading embedding model: sentence-transformers/all-MiniLM-L6-v2
+/Users/ymlin/Downloads/003-Study/138-Projects/08-book-rec-with-LLMs/src/vector_db.py:36: LangChainDeprecationWarning: The class `HuggingFaceEmbeddings` was deprecated in LangChain 0.2.2 and will be removed in 1.0. An updated version of the class exists in the `langchain-huggingface package and should be used instead. To use it run `pip install -U `langchain-huggingface` and import as `from `langchain_huggingface import HuggingFaceEmbeddings``.
+  self.embeddings = HuggingFaceEmbeddings(
+2026-01-10 23:12:14,865 - src.vector_db - INFO - Embedding model loaded successfully
+2026-01-10 23:12:14,865 - src.vector_db - INFO - Loading existing vector database from /Users/ymlin/Downloads/003-Study/138-Projects/08-book-rec-with-LLMs/data/chroma_db
+/Users/ymlin/Downloads/003-Study/138-Projects/08-book-rec-with-LLMs/src/vector_db.py:45: LangChainDeprecationWarning: The class `Chroma` was deprecated in LangChain 0.2.9 and will be removed in 1.0. An updated version of the class exists in the `langchain-chroma package and should be used instead. To use it run `pip install -U `langchain-chroma` and import as `from `langchain_chroma import Chroma``.
+  self.db = Chroma(
+2026-01-10 23:12:17,822 - src.vector_db - INFO - Loaded 222003 documents from vector database
+2026-01-10 23:12:17,824 - src.vector_db - INFO - Initializing BM25 Index (Sparse Retrieval)...
+2026-01-10 23:12:35,315 - src.vector_db - INFO - BM25 Index built with 222005 documents.
+2026-01-10 23:12:41,192 - src.vector_db - INFO - Loaded 186954 publication dates for Temporal Scoring.
+Redis cache initialization failed: Error 61 connecting to localhost:6379. Connection refused.. Caching disabled.
+2026-01-10 23:12:44,213 - src.recommender - INFO - Loaded 212398 book images from books_basic_info.csv
+2026-01-10 23:12:44,213 - src.main - INFO - Initializing Personalized Rec Service...
+Failed to load YoutubeDNN: [Errno 2] No such file or directory: 'data/model/recall/youtube_dnn.pt'
+Failed to load YoutubeDNN: [Errno 2] No such file or directory: 'data/model/recall/youtube_dnn.pt'
+2026-01-10 23:13:30,405 - src.main - INFO - Engines Initialized.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:58450 - "GET /api/recommend/personal?user_id=demo&top_k=1 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58469 - "GET /favorites/list/local HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58470 - "GET /user/local/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58471 - "GET /api/recommend/personal?user_id=local&limit=20 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58469 - "GET /user/local/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58472 - "GET /favorites/list/local HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58470 - "GET /api/recommend/personal?user_id=local&limit=20 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58470 - "OPTIONS /marketing/highlights HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58470 - "POST /marketing/highlights HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58470 - "POST /marketing/highlights HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58470 - "POST /marketing/highlights HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58470 - "POST /marketing/highlights HTTP/1.1" 200 OK
+make: *** [run] Hangup: 1

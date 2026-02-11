@@ -51,9 +51,20 @@ class RecommendationService:
             # Load XGBoost ranker (for stacking)
             xgb_path = self.model_dir / 'ranking/xgb_ranker.json'
             if xgb_path.exists():
-                self.xgb_ranker = xgb.XGBClassifier()
-                self.xgb_ranker.load_model(str(xgb_path))
-                logger.info(f"XGBoost ranker loaded from {xgb_path}")
+                try:
+                    self.xgb_ranker = xgb.XGBClassifier()
+                    # For older models/new xgboost versions, loading might raise TypeError if type isn't set
+                    self.xgb_ranker.load_model(str(xgb_path))
+                    logger.info(f"XGBoost ranker loaded from {xgb_path}")
+                except Exception as e:
+                    logger.warning(f"Failed to load XGBoost ranker (stacking might be suboptimal): {e}")
+                    # Fallback to booster if it's a raw booster dump
+                    try:
+                        self.xgb_ranker = xgb.Booster()
+                        self.xgb_ranker.load_model(str(xgb_path))
+                        logger.info("XGBoost ranker loaded as raw Booster.")
+                    except:
+                        self.xgb_ranker = None
 
             # Load stacking meta-model
             meta_path = self.model_dir / 'ranking/stacking_meta.pkl'
@@ -66,19 +77,10 @@ class RecommendationService:
         else:
             logger.warning(f"Ranker model not found at {ranker_path}, prediction will be skipped")
 
-        # Load ISBN -> Title map for deduplication
-        try:
-            books_df = pd.read_csv('data/books_processed.csv', usecols=['isbn13', 'title'])
-            # Ensure isbn13 is str
-            books_df['isbn13'] = books_df['isbn13'].astype(str).str.replace(r'\.0$', '', regex=True)
-            self.isbn_to_title = pd.Series(
-                books_df.title.values,
-                index=books_df.isbn13.values
-            ).to_dict()
-            logger.info("Loaded ISBN-Title map for deduplication.")
-        except Exception as e:
-            logger.warning(f"Could not load books for deduplication: {e}")
-            self.isbn_to_title = {}
+        # Deduplication now uses MetadataStore for Title lookups (Zero-RAM mode)
+        from src.core.metadata_store import metadata_store
+        self.metadata_store = metadata_store
+        logger.info("RecommendationService: Zero-RAM mode enabled for metadata lookups.")
 
     def get_recommendations(self, user_id, top_k=10, filter_favorites=True):
         """
@@ -118,22 +120,14 @@ class RecommendationService:
 
         # 2. Ranking
         if self.ranker_loaded:
-            # Generate features
-            feats_list = []
-            valid_candidates = []
-
-            for item in candidate_items:
-                # Filter 1: Already in favorites
-                if item in fav_isbns:
-                    continue
-                valid_candidates.append(item)
-                f = self.fe.generate_features(user_id, item)
-                feats_list.append(f)
-
+            # Filter candidates first
+            valid_candidates = [item for item in candidate_items if item not in fav_isbns]
+            
             if not valid_candidates:
                 return []
 
-            X_df = pd.DataFrame(feats_list)
+            # Batch Feature Generation (Optimized)
+            X_df = self.fe.generate_features_batch(user_id, valid_candidates)
 
             # Align features to match model
             model_features = self.ranker.feature_name()
@@ -179,12 +173,9 @@ class RecommendationService:
         unique_results = []
         seen_titles = set()
 
-        # Ensure map exists (fallback)
-        if not hasattr(self, 'isbn_to_title'):
-             self.isbn_to_title = {}
-
         for isbn, score, explanation in final_scores:
-            title = self.isbn_to_title.get(str(isbn), "").lower().strip()
+            meta = self.metadata_store.get_book_metadata(str(isbn))
+            title = meta.get("title", "").lower().strip() if meta else ""
 
             # If title is found and seen, skip
             if title and title in seen_titles:

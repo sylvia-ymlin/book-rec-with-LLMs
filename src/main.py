@@ -79,6 +79,12 @@ rec_service = None # ✨ NEW
 @app.on_event("startup")
 async def startup_event():
     global recommender, rec_service
+    
+    # Download models from HF Hub if not present (for HF Spaces deployment)
+    from src.core.model_loader import ensure_models_exist
+    logger.info("Checking/downloading models from HF Hub...")
+    ensure_models_exist()
+    
     logger.info("Initializing Recommender Engine...")
     recommender = BookRecommender()
     
@@ -171,7 +177,7 @@ async def health_check():
     return {"status": "healthy"}
 
 @app.post("/recommend", response_model=RecommendationResponse)
-async def get_recommendations(request: RecommendationRequest):
+def get_recommendations(request: RecommendationRequest):
     """
     Generate book recommendations based on semantic search and emotion/category filtering.
     """
@@ -384,7 +390,7 @@ async def run_benchmark():
 # --- Personalized Recommendation API ---
 
 @app.get("/api/recommend/personal", response_model=RecommendationResponse)
-async def personalized_recommendations(user_id: str = "local", top_k: int = 10):
+def personalized_recommendations(user_id: str = "local", top_k: int = 10):
     """
     Get personalized recommendations for a user.
     Uses 6-channel recall (ItemCF/UserCF/Swing/SASRec/YoutubeDNN/Popularity) + LGBMRanker.

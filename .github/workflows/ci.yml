@@ -38,6 +38,7 @@ jobs:
       run: |
         pytest tests/
       env:
+        PYTHONPATH: ${{ github.workspace }}
         # We don't need real tokens for unit tests as they mock external calls
         # But providing a dummy one prevents Config errors if any
         HUGGINGFACEHUB_API_TOKEN: "mock_token"
