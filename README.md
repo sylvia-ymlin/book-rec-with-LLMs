@@ -34,60 +34,110 @@ To support mood-based filtering, we implemented a transferable multi-label class
 ### 2.4 Zero-Shot Classification
 Genre classification was automated using a **Zero-Shot Learning** approach. We employed `facebook/bart-large-mnli`, a model trained on Multi-Genre Natural Language Inference (MNLI). This allows the system to classify books into arbitrary categories (e.g., "Fiction", "History", "Science") without requiring a labeled training set for those specific classes.
 
-## 3. System Architecture
+# End-to-End AI E-Commerce Platform
 
-The application is engineered as a distributed system using a microservices pattern, facilitating scalability and maintainability.
+## Abstract
 
-- **Inference Service (FastAPI)**: A high-performance Python web framework handling HTTP requests. It acts as the orchestration layer, managing model inference and database queries.
-- **Vector Database (ChromaDB)**: A dedicated vector store for similarity search. It utilizes Hierarchical Navigable Small World (HNSW) graphs for approximate nearest neighbor search, ensuring $O(\log N)$ retrieval complexity.
-- **User Interface (Gradio)**: A decoupled frontend service that consumes the REST API.
-- **Containerization (Docker)**: The entire stack is containerized, ensuring environment consistency across development and production.
+This project presents a comprehensive, multi-modal recommendation and e-commerce agent platform. It integrates large-scale semantic retrieval, retrieval-augmented generation (RAG), and content safety guardrails into a unified architecture. The system demonstrates the practical application of Large Language Models (LLMs) in modern recommender systems and user interaction agents.
 
-## 4. Project Structure
+## Key Features
 
-The repository is organized into distinct modules for clarity and maintainability.
+### 1. Large-Scale Semantic Recommendations
+*   **Vector Retrieval**: Utilizes ChromaDB for sub-second semantic search over a catalog of 200,000+ books.
+*   **Caching Infrastructure**: Implements Redis caching to optimize latency for high-frequency queries.
+*   **Zero-Shot Re-ranking**: (In Progress) Evaluates candidate generation using LLM-based zero-shot reasoning.
 
+### 2. Conversational Shopping Assistant
+*   **RAG Architecture**: Retrieves relevant product context to ground LLM responses, reducing hallucinations.
+*   **Intent Recognition**: Classifies user queries (e.g., search, details, comparison) to route requests effectively.
+
+### 3. Marketing Content Generation
+*   **Automated Copywriting**: Generates marketing descriptions based on product features and target audience profiles.
+*   **Safety Guardrails**: Enforces content safety policies to ensure generated text adheres to brand guidelines.
+
+## System Architecture
+
+The project follows a microservices-inspired architecture:
+
+*   **Frontend**: Built with Gradio 6.0, providing a multi-tab interface for distinct module interactions.
+*   **Backend API**: FastAPI service orchestration (integrated within the Gradio app for demonstration).
+*   **Data Layer**:
+    *   **Amazon Books Dataset**: 200,000+ records processed via custom ETL pipelines.
+    *   **Vector Store**: ChromaDB for embedding storage and similarity search.
+    *   **Cache**: Redis for transient data storage.
+
+## Installation and Usage
+
+### Prerequisites
+*   Python 3.10+
+*   Docker and Docker Compose
+
+### Deployment
+
+**Option 1: Client-Server Architecture (Recommended for Development)**
+
+1.  **Clone the repository**:
+    ```bash
+    git clone [repository-url]
+    cd book-rec-with-LLMs
+    ```
+
+2.  **Install dependencies**:
+    ```bash
+    make setup
+    # or: pip install -r requirements.txt
+    ```
+
+3.  **Start API Server** (Terminal 1):
+    ```bash
+    make run
+    # Starts FastAPI on http://localhost:6006
+    ```
+
+4.  **Start UI** (Terminal 2):
+    ```bash
+    make run-ui
+    # Starts Gradio UI on http://0.0.0.0:7860
+    ```
+
+5.  **Access the Interface**:
+    Navigate to `http://localhost:7860` in a web browser.
+
+**Option 2: Docker Deployment**
+
+1.  **Start Services**:
+    ```bash
+    docker-compose up --build
+    ```
+
+2.  **Access the Interface**:
+    Navigate to `http://localhost:7860` in a web browser.
+
+**Notes:**
+- Redis is optional; caching will be disabled if Redis is unavailable
+- Book covers are fetched in real-time from Google Books API and Open Library
+- First-time vector database initialization may take a few minutes
+
+## Project Structure
+
+```text
+src/
+├── recommender.py   # Core recommendation logic and retrieval
+├── cache.py         # Redis caching implementation
+├── etl.py           # Data extraction, transformation, and loading pipeline
+├── vector_db.py     # Vector database wrapper and indexing logic
+├── agent/           # Conversational shopping agent module
+├── marketing/       # Marketing content generation module
+└── zero_shot/       # Zero-shot re-ranking experimental module
 ```
-book-recommender/
-├── app.py                 # Gradio UI entry point
-├── requirements.txt       # Python dependencies
-├── Dockerfile             # Container configuration
-├── docker-compose.yml     # Multi-service orchestration
-├── Makefile               # Development shortcuts
-│
-├── src/                   # Core application logic
-│   ├── config.py          # Centralized configuration
-│   ├── recommender.py     # Recommendation engine
-│   ├── vector_db.py       # ChromaDB integration
-│   ├── etl.py             # Data loading utilities
-│   ├── main.py            # FastAPI service
-│   └── utils.py           # Shared helpers
-│
-├── data/                  # Dataset files
-│   ├── books_with_emotions.csv
-│   └── books_descriptions.txt
-│
-├── assets/                # Static resources
-│   └── cover-not-found.jpg
-│
-├── notebooks/             # Exploratory analysis
-│   ├── data-exploration.ipynb
-│   ├── sentiment-analysis.ipynb
-│   ├── text-classification.ipynb
-│   └── vector-search.ipynb
-│
-└── tests/                 # Unit tests
-    └── test_api.py
-```
 
-## 5. Experimental Results
+## Performance Benchmarks
 
-The system was evaluated on a curated subset of the dataset.
+Latency tests were conducted on the Hugging Face Spaces environment (CPU tier):
+*   **Average Latency**: 0.3 - 0.4 seconds per recommendation request.
+*   **Throughput**: Validated under sequential load testing.
 
-- **Data Retention**: 95.7% of the original dataset was retained after cleaning.
-- **Classification Accuracy**: The Zero-Shot classifier achieved 77.8% accuracy on a binary Fiction/Non-Fiction split.
-- **Inference Latency**: The average retrieval time for a top-k semantic search ($k=50$) is <200ms on standard hardware (excluding model loading time).
-- **Throughput**: Batch processing of emotion analysis achieved a rate of 8.39 books/second.
+See `benchmarks/results.md` for detailed methodology and data.
 
 ## 6. Usage and Installation
 

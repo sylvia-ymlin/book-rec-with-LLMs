@@ -47,18 +47,13 @@ class VectorDB:
                 )
                 logger.info(f"Loaded {self.db._collection.count()} documents from vector database")
             else:
-                logger.info("Creating new vector database...")
-                raw_documents = TextLoader(str(DESCRIPTIONS_TXT)).load()
-                text_splitter = CharacterTextSplitter(chunk_size=1, chunk_overlap=0, separator="\n")
-                documents = text_splitter.split_documents(raw_documents)
-                
-                logger.info(f"Generating embeddings for {len(documents)} documents...")
-                self.db = Chroma.from_documents(
-                    documents,
-                    embedding=self.embeddings,
-                    persist_directory=str(CHROMA_DB_DIR)
+                error_msg = (
+                    f"Vector Database not found at {CHROMA_DB_DIR}.\n"
+                    "Please run the initialization script first to build the index:\n"
+                    "    python src/init_db.py"
                 )
-                logger.info(f"Vector database created and saved to {CHROMA_DB_DIR}")
+                logger.error(error_msg)
+                raise FileNotFoundError(error_msg)
                 
         except Exception as e:
             logger.error(f"Error initializing Vector DB: {str(e)}")

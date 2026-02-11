@@ -32,3 +32,20 @@ httpx
 scikit-learn
 scipy
 requests
+
+# LLM Agent & Fine-tuning
+langchain
+faiss-cpu
+diffusers
+openai
+datasets
+accelerate
+peft
+trl
+bitsandbytes
+tqdm
+prometheus-client
+
+# Infrastructure
+redis
+huggingface-hub>=0.23.0

@@ -21,6 +21,8 @@ COVER_NOT_FOUND = ASSETS_DIR / "cover-not-found.jpg"
 # Models
 EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 HF_TOKEN = os.getenv("HUGGINGFACEHUB_API_TOKEN")
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+CACHE_TTL = 3600  # 1 hour
 
 # App Settings
 TOP_K_INITIAL = 50
