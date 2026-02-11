@@ -85,17 +85,22 @@ Place in `data/raw/`:
 - `books_data.csv` - Book metadata (title, author, description, categories)
 - `Books_rating.csv` - User ratings (User_id, Id, review/score, review/time, review/text)
 
-### 2.2 Data Processing Scripts
+### 2.2 Pipeline DAG (Execution Order)
 
-| Order | Script | Purpose | Output |
+**Recommended**: Use `make data-pipeline` or `python scripts/run_pipeline.py` — it defines the full DAG.
+
+| Stage | Script | Purpose | Output |
 |:---:|:---|:---|:---|
-| 0 | `clean_data.py` | HTML/encoding/whitespace cleanup | books_processed.csv (cleaned) |
-| 1 | `build_books_basic_info.py` | Extract basic book info | books_basic_info.csv |
-| 2 | `generate_emotions.py` | Sentiment analysis (5 emotions) | +joy,sadness,fear,anger,surprise |
-| 3 | `generate_tags.py` | TF-IDF keyword extraction | +tags column |
-| 4 | `split_rec_data.py` | Leave-Last-Out time split | rec/train,val,test.csv |
-| 5 | `build_sequences.py` | User history → sequences | rec/user_sequences.pkl |
+| 1 | `build_books_basic_info.py` | Merge raw books + ratings | books_basic_info.csv |
+| 2 | *books_processed.csv* | From HuggingFace or manual merge of basic_info + review_highlights | books_processed.csv |
+| 3 | `clean_data.py` | HTML/encoding/whitespace cleanup | books_processed.csv (cleaned) |
+| 4 | `generate_emotions.py` | Sentiment analysis (5 emotions) | +joy,sadness,fear,anger,surprise |
+| 5 | `generate_tags.py` | TF-IDF keyword extraction | +tags column |
 | 6 | `chunk_reviews.py` | Reviews → sentences | review_chunks.jsonl |
+| 7 | `split_rec_data.py` | Leave-Last-Out time split | rec/train,val,test.csv |
+| 8 | `build_sequences.py` | User history → sequences | rec/user_sequences.pkl |
+
+**Note**: `books_processed.csv` may be pre-downloaded from HuggingFace. If building from scratch, merge `books_basic_info.csv` with review data and run `extract_review_sentences.py` first.
 
 ### 2.3 Script Details
 
@@ -125,6 +130,8 @@ python scripts/data/clean_data.py --backup
 python scripts/data/split_rec_data.py
 python scripts/data/build_sequences.py
 ```
+
+**Script conventions**: Use `config.data_config` for paths; `scripts.utils.setup_script_logger()` for logging.
 
 ---
 

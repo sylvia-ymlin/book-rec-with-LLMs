@@ -49,6 +49,7 @@ def build_din_data(
     data_dir: str = "data/rec",
     model_dir: str = "data/model/recall",
     neg_ratio: int = 4,
+    hard_ratio: float = 1.0,
     max_samples: int = 20000,
 ) -> tuple[pd.DataFrame, dict, dict]:
     """
@@ -77,9 +78,10 @@ def build_din_data(
 
         user_rows = [{"user_id": user_id, "isbn": pos_isbn, "label": 1}]
 
+        n_hard_max = max(0, int(neg_ratio * hard_ratio))
         try:
             recall_items = fusion.get_recall_items(user_id, k=50)
-            hard_negs = [item for item, _ in recall_items if item != pos_isbn][:neg_ratio]
+            hard_negs = [item for item, _ in recall_items if item != pos_isbn][:n_hard_max]
         except Exception:
             hard_negs = []
 
@@ -153,6 +155,7 @@ def train_din(
     model_dir: str = "data/model",
     recall_dir: str = "data/model/recall",
     max_samples: int = 20000,
+    hard_ratio: float = 1.0,
     max_hist_len: int = 50,
     embed_dim: int = 64,
     epochs: int = 10,
@@ -164,7 +167,7 @@ def train_din(
     rank_dir.mkdir(parents=True, exist_ok=True)
 
     df, user_sequences, item_map = build_din_data(
-        data_dir, recall_dir, neg_ratio=4, max_samples=max_samples
+        data_dir, recall_dir, neg_ratio=4, hard_ratio=hard_ratio, max_samples=max_samples
     )
     num_items = len(item_map)
 
@@ -254,10 +257,12 @@ if __name__ == "__main__":
     parser.add_argument("--epochs", type=int, default=10)
     parser.add_argument("--batch_size", type=int, default=256)
     parser.add_argument("--aux", action="store_true", help="Use aux features from FeatureEngineer")
+    parser.add_argument("--hard_ratio", type=float, default=1.0, help="P2: Fraction of negatives that are hard")
     args = parser.parse_args()
 
     train_din(
         max_samples=args.max_samples,
+        hard_ratio=args.hard_ratio,
         epochs=args.epochs,
         batch_size=args.batch_size,
         use_aux=args.aux,

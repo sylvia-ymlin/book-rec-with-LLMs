@@ -7,6 +7,11 @@ from src.utils import setup_logger
 
 logger = setup_logger(__name__)
 
+# Lazy import to avoid circular dependency
+def _online_store():
+    from src.core.online_books_store import online_books_store
+    return online_books_store
+
 class MetadataStore:
     """
     Singleton class to manage large book metadata efficiently.
@@ -64,10 +69,12 @@ class MetadataStore:
             return None
 
     def get_book_metadata(self, isbn: str) -> Dict[str, Any]:
-        """Fast lookup for book metadata by ISBN (10 or 13) using SQLite index."""
+        """Fast lookup: main store first, then online staging store (read path stays fast)."""
         isbn = str(isbn).strip().replace(".0", "")
         row = self._query_one("SELECT * FROM books WHERE isbn13 = ? OR isbn10 = ?", (isbn, isbn))
-        return dict(row) if row else {}
+        if row:
+            return dict(row)
+        return _online_store().get_book_metadata(isbn) or {}
 
     def get_image(self, isbn: str, default: str = "") -> str:
         isbn = str(isbn).strip().replace(".0", "")
@@ -113,13 +120,15 @@ class MetadataStore:
         return pd.DataFrame()
 
     def get_all_categories(self) -> List[str]:
-        """Efficiently fetch unique categories from SQLite."""
+        """Efficiently fetch unique categories from main + online store."""
         conn = self.connection
+        cats = set()
         if conn:
             cursor = conn.cursor()
             cursor.execute("SELECT DISTINCT simple_categories FROM books")
-            return [row[0] for row in cursor.fetchall() if row[0]]
-        return []
+            cats.update(row[0] for row in cursor.fetchall() if row[0])
+        cats.update(_online_store().get_all_categories())
+        return sorted(cats)
 
     def insert_book(self, row: Dict[str, Any]) -> bool:
         """Insert a new book for add_new_book. Maps thumbnail->image if needed."""
@@ -218,13 +227,15 @@ class MetadataStore:
             return False
 
     def book_exists(self, isbn: str) -> bool:
-        """Check if a book with given ISBN exists in the database."""
+        """Check if ISBN exists in main or online staging store."""
         isbn = str(isbn).strip().replace(".0", "")
         row = self._query_one(
             "SELECT 1 FROM books WHERE isbn13 = ? OR isbn10 = ? LIMIT 1",
             (isbn, isbn)
         )
-        return row is not None
+        if row:
+            return True
+        return _online_store().book_exists(isbn)
 
     def get_newest_book_year(self) -> Optional[int]:
         """Get the publication year of the newest book in the database."""

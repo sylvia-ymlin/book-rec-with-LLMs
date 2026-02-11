@@ -66,7 +66,7 @@ def benchmark_full_recommendation(recommender: BookRecommender, n_runs: int = 30
     for query in TEST_QUERIES:
         for _ in range(n_runs // len(TEST_QUERIES)):
             start = time.perf_counter()
-            recommender.get_recommendations(query, category="All", tone="All")
+            recommender.get_recommendations_sync(query, category="All", tone="All")
             latencies.append((time.perf_counter() - start) * 1000)
     
     return {
@@ -88,7 +88,7 @@ def benchmark_throughput(recommender: BookRecommender, duration_sec: int = 10) -
     query_idx = 0
     
     while (time.perf_counter() - start) < duration_sec:
-        recommender.get_recommendations(
+        recommender.get_recommendations_sync(
             TEST_QUERIES[query_idx % len(TEST_QUERIES)],
             category="All",
             tone="All"

@@ -184,14 +184,22 @@ class DINRanker:
         user_id: str,
         candidate_items: list[str],
         aux_features: Optional[np.ndarray] = None,
+        override_hist: Optional[list] = None,
     ) -> np.ndarray:
-        """Predict scores for (user_id, candidate_items). Returns [len(candidate_items)]."""
+        """
+        Predict scores for (user_id, candidate_items). Returns [len(candidate_items)].
+        P1: override_hist — merged offline + real-time sequence (ISBNs or item_ids).
+        """
         if self.model is None:
             self.load()
         if self.model is None:
             return np.zeros(len(candidate_items))
 
-        hist = self.user_sequences.get(user_id, [])
+        hist = (
+            override_hist
+            if override_hist is not None
+            else self.user_sequences.get(user_id, [])
+        )
         if hist and isinstance(hist[0], str):
             hist = [self.item_map.get(h, 0) for h in hist]
         hist = hist[-self.max_hist_len:]

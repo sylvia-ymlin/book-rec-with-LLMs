@@ -316,6 +316,16 @@ Feature importance (v2.6.0 LGBMRanker, representative subset):
 | Reranking | Cross-Encoder | LLM reranking | 400ms vs 2s latency; proven accuracy |
 | Chunking | Sentence-level (Small-to-Big) | Fixed 512 tokens | Semantic integrity; detail-level matching |
 | SFT Data | Self-Instruct | Manual annotation | Scalable; leverages existing reviews |
+| Freshness fallback writes | Staging store (`online_books.db`) | Append to `books_processed.csv` | Data: training CSV stays frozen. perf: main `books.db` read-only; no write lock contention |
+
+### 7.1 Staging Store for Online Writes
+
+When `freshness_fallback` fetches books from Google Books, they are written to a **separate** `online_books.db` SQLite file instead of the main store. This decouples:
+
+1. **Data risk**: `books_processed.csv` and `books.db` remain frozen for training; no distribution shift.
+2. **Performance**: Main `books.db` is read-only during serving; writes go only to `online_books.db`, avoiding lock contention on high-concurrency reads.
+
+Lookup: `metadata_store.get_book_metadata()` checks main first, then `online_books_store`. FTS5 search merges results from both indices.
 
 ---
 
@@ -351,7 +361,10 @@ src/
 │   ├── router.py              # Agentic Query Router
 │   ├── reranker.py            # Cross-Encoder Reranking
 │   ├── temporal.py            # Recency Boosting
-│   └── context_compressor.py  # Chat History Compression
+│   ├── context_compressor.py  # Chat History Compression
+│   ├── diversity_reranker.py  # P0: MMR + popularity penalty + category constraint
+│   ├── diversity_metrics.py  # P3: Category Coverage, ILSD
+│   └── online_books_store.py  # Staging store for freshness_fallback (separate DB)
 ├── recall/
 │   ├── itemcf.py              # ItemCF Recall (direction-weighted)
 │   ├── usercf.py              # UserCF Recall
@@ -370,6 +383,18 @@ src/
 │   └── recommend_service.py   # Personalized Recommendation
 └── vector_db.py               # Hybrid Search + Small-to-Big
 ```
+
+---
+
+## 9.1 P0–P3 Optimizations (Post-v2.6)
+
+| Priority | Optimization | Location | Description |
+|:---|:---|:---|:---|
+| **P0** | Diversity Rerank | `DiversityReranker`, `RecommendationService` | MMR (λ=0.75), popularity penalty, max 3 per category in top-k |
+| **P1** | Real-time Sequence | `SASRecRecall`, `DINRanker`, `FeatureEngineer`, `RecommendationService` | `real_time_sequence` merges session ISBNs into recall/ranking |
+| **P2** | Hard/Random Ratio | `train_ranker.py`, `train_din_ranker.py` | `--hard_ratio 0.5` for half hard half random negatives |
+| **P3** | Diversity Metrics | `evaluate.py`, `diversity_metrics.py` | Category Coverage@10, ILSD@10 reported |
+| **P3** | Hard Neg Filter | `train_ranker.py --filter_similar` | Exclude hard negs with embedding sim > 0.9 to positive |
 
 ---
 

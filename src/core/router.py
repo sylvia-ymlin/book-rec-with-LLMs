@@ -23,18 +23,9 @@ class QueryRouter:
     Freshness-Aware Routing:
     - Detects queries asking for "new", "latest", or specific years (2024, 2025, etc.)
     - Sets freshness_fallback=True to enable Web Search when local results insufficient
-    """
-
-    # Keywords that indicate user wants fresh/recent content
-    # Note: Year numbers are detected dynamically in _detect_freshness()
-    FRESHNESS_KEYWORDS = {
-        "new", "newest", "latest", "recent", "modern", "contemporary", "current",
-    }
     
-    # Strong freshness indicators (always trigger fallback)
-    STRONG_FRESHNESS_KEYWORDS = {
-        "newest", "latest",
-    }
+    Keywords loaded from config/router.json; overridable via ROUTER_DETAIL_KEYWORDS env.
+    """
 
     def __init__(self, model_dir: str | Path | None = None):
         self.isbn_pattern = re.compile(r"^(?:\d{9}[\dX]|\d{13})$")
@@ -68,12 +59,13 @@ class QueryRouter:
             - target_year: Specific year user is looking for (if detected)
         """
         from datetime import datetime
+        from src.config import ROUTER_FRESHNESS_KEYWORDS, ROUTER_STRONG_FRESHNESS_KEYWORDS
+
         current_year = datetime.now().year
-        
         lower_words = {w.lower() for w in words}
-        
-        is_temporal = bool(lower_words & self.FRESHNESS_KEYWORDS)
-        freshness_fallback = bool(lower_words & self.STRONG_FRESHNESS_KEYWORDS)
+
+        is_temporal = bool(lower_words & ROUTER_FRESHNESS_KEYWORDS)
+        freshness_fallback = bool(lower_words & ROUTER_STRONG_FRESHNESS_KEYWORDS)
         
         # Extract explicit year from query
         target_year = None
@@ -99,11 +91,8 @@ class QueryRouter:
         target_year: Optional[int] = None
     ) -> Dict[str, Any]:
         """Fallback: rule-based routing (original logic + freshness)."""
-        detail_keywords = {
-            "twist", "ending", "spoiler", "readers", "felt", "cried", "hated", "loved",
-            "review", "opinion", "think", "unreliable", "narrator", "realize", "find out",
-        }
-        
+        from src.config import ROUTER_DETAIL_KEYWORDS
+
         base_result = {
             "temporal": is_temporal,
             "freshness_fallback": freshness_fallback,
@@ -111,7 +100,7 @@ class QueryRouter:
             "target_year": target_year,
         }
         
-        if any(w.lower() in detail_keywords for w in words):
+        if any(w.lower() in ROUTER_DETAIL_KEYWORDS for w in words):
             logger.info("Router (rules): Detail Query -> SMALL_TO_BIG")
             return {**base_result, "strategy": "small_to_big", "alpha": 0.5, "rerank": False, "k_final": 5}
         if len(words) <= 2:

@@ -21,9 +21,12 @@ TIME-SPLIT (no leakage):
     - sasrec_score and user_seq_emb come from train-only SASRec.
     - Pipeline order: split -> build_sequences(train-only) -> recall(train) -> ranker(val).
 
-Negative Sampling Strategy:
-    - Hard negatives: items from recall results that are NOT the positive
-    - Random negatives: fill remaining slots if recall returns too few
+Negative Sampling Strategy (P2 configurable):
+    - hard_ratio: fraction of neg_ratio that should be hard (e.g. 0.5 = 2 hard + 2 random).
+    - Hard negatives: from recall results, capped at int(neg_ratio * hard_ratio).
+    - Random negatives: fill remaining slots.
+    - P3 filter_similar_to_positive: exclude hard negs with embedding sim > threshold (reduce FN).
+    - P3 Curriculum Learning: use lower hard_ratio (e.g. 0.5) for more stable convergence.
 """
 
 import sys
@@ -48,14 +51,59 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 logger = logging.getLogger(__name__)
 
 
-def build_ranker_data(data_dir='data/rec', model_dir='data/model/recall', neg_ratio=4, max_samples=20000):
+def _filter_similar_to_positive(hard_negs, pos_isbn, fusion, sim_threshold):
+    """P3: Exclude hard negs with embedding cosine similarity > threshold to positive."""
+    try:
+        sasrec = fusion.sasrec
+        if not hasattr(sasrec, "item_emb") or sasrec.item_emb is None:
+            return hard_negs
+        item_map = getattr(sasrec, "item_map", {})
+        emb = sasrec.item_emb
+        pos_idx = item_map.get(str(pos_isbn), 0)
+        if pos_idx <= 0:
+            return hard_negs
+        pos_emb = emb[pos_idx]
+        pos_norm = np.linalg.norm(pos_emb)
+        if pos_norm < 1e-9:
+            return hard_negs
+        filtered = []
+        for neg in hard_negs:
+            neg_idx = item_map.get(str(neg), 0)
+            if neg_idx <= 0:
+                filtered.append(neg)
+                continue
+            neg_emb = emb[neg_idx]
+            sim = np.dot(pos_emb, neg_emb) / (pos_norm * np.linalg.norm(neg_emb) + 1e-9)
+            if sim <= sim_threshold:
+                filtered.append(neg)
+        return filtered
+    except Exception as e:
+        logger.warning(f"Could not filter similar to positive: {e}")
+        return hard_negs
+
+
+def build_ranker_data(
+    data_dir='data/rec',
+    model_dir='data/model/recall',
+    neg_ratio=4,
+    hard_ratio=1.0,
+    max_samples=20000,
+    filter_similar_to_positive: bool = False,
+    sim_threshold: float = 0.9,
+):
     """
     Construct training data with hard negative sampling.
 
     For each user in val.csv (sampled to max_samples for speed):
         - Positive: the actual item from val.csv (label=1)
-        - Hard negatives: top items recalled by the system but NOT the positive
-        - Random negatives: fill if recall gives fewer than neg_ratio candidates
+        - Hard negatives: up to int(neg_ratio * hard_ratio) from recall (P2)
+        - Random negatives: fill remaining to total neg_ratio
+
+    Args:
+        hard_ratio: Fraction of neg_ratio for hard negatives. 1.0=all hard (fill random);
+            0.5=half hard half random; 0.0=all random.
+        filter_similar_to_positive: P3 - Exclude hard negs with embedding sim > threshold to pos.
+        sim_threshold: Cosine similarity threshold for filtering (default 0.9).
 
     Returns:
         train_data: DataFrame [user_id, isbn, label]
@@ -85,18 +133,23 @@ def build_ranker_data(data_dir='data/rec', model_dir='data/model/recall', neg_ra
         # 1. Positive
         user_rows = [{'user_id': user_id, 'isbn': pos_isbn, 'label': 1}]
 
-        # 2. Hard negatives from recall
+        # 2. Hard negatives from recall (P2: cap by hard_ratio; P3: filter too-similar)
+        n_hard_max = max(0, int(neg_ratio * hard_ratio))
         try:
             recall_items = fusion.get_recall_items(user_id, k=50)
             hard_negs = [item for item, _ in recall_items if item != pos_isbn]
-            hard_negs = hard_negs[:neg_ratio]
+            if filter_similar_to_positive and hard_negs:
+                hard_negs = _filter_similar_to_positive(
+                    hard_negs, pos_isbn, fusion, sim_threshold
+                )
+            hard_negs = hard_negs[:n_hard_max]
         except Exception:
             hard_negs = []
 
         for neg_isbn in hard_negs:
             user_rows.append({'user_id': user_id, 'isbn': neg_isbn, 'label': 0})
 
-        # 3. Fill with random negatives if not enough
+        # 3. Fill with random negatives to reach neg_ratio
         n_remaining = neg_ratio - len(hard_negs)
         if n_remaining > 0:
             random_negs = np.random.choice(all_items, size=n_remaining, replace=False)
@@ -111,14 +164,25 @@ def build_ranker_data(data_dir='data/rec', model_dir='data/model/recall', neg_ra
     return train_data, group
 
 
-def train_ranker(max_samples=20000):
+def train_ranker(
+    max_samples=20000,
+    hard_ratio=1.0,
+    filter_similar_to_positive=False,
+    sim_threshold=0.9,
+):
     data_dir = Path('data/rec')
     model_dir = Path('data/model/ranking')
     model_dir.mkdir(parents=True, exist_ok=True)
 
     # 1. Prepare Data
     train_samples, group = build_ranker_data(
-        str(data_dir), model_dir='data/model/recall', neg_ratio=4, max_samples=max_samples
+        str(data_dir),
+        model_dir='data/model/recall',
+        neg_ratio=4,
+        hard_ratio=hard_ratio,
+        max_samples=max_samples,
+        filter_similar_to_positive=filter_similar_to_positive,
+        sim_threshold=sim_threshold,
     )
     logger.info(f"Training samples: {len(train_samples)}, groups: {len(group)}")
 
@@ -159,7 +223,12 @@ def train_ranker(max_samples=20000):
         logger.info(f"Feature {features[i]}: {score}")
 
 
-def train_stacking(max_samples=20000):
+def train_stacking(
+    max_samples=20000,
+    hard_ratio=1.0,
+    filter_similar_to_positive=False,
+    sim_threshold=0.9,
+):
     """
     Train Level-1 models (LGBMRanker + XGBClassifier) via GroupKFold CV
     to produce out-of-fold (OOF) predictions, then train Level-2 meta-learner
@@ -177,7 +246,13 @@ def train_stacking(max_samples=20000):
     # 1. Prepare Data (reuse existing build_ranker_data)
     # =========================================================================
     train_samples, group = build_ranker_data(
-        str(data_dir), model_dir='data/model/recall', neg_ratio=4, max_samples=max_samples
+        str(data_dir),
+        model_dir='data/model/recall',
+        neg_ratio=4,
+        hard_ratio=hard_ratio,
+        max_samples=max_samples,
+        filter_similar_to_positive=filter_similar_to_positive,
+        sim_threshold=sim_threshold,
     )
     logger.info(f"Stacking training samples: {len(train_samples)}, groups: {len(group)}")
 
@@ -341,9 +416,21 @@ if __name__ == "__main__":
                         help='Train with model stacking (LGB + XGB + Meta-Learner)')
     parser.add_argument('--max_samples', type=int, default=20000,
                         help='Number of samples used for training (default=20000)')
+    parser.add_argument('--hard_ratio', type=float, default=1.0,
+                        help='P2: Fraction of negatives that are hard. 0.5=half hard half random')
+    parser.add_argument('--filter_similar', action='store_true',
+                        help='P3: Exclude hard negs with embedding sim > threshold to positive')
+    parser.add_argument('--sim_threshold', type=float, default=0.9,
+                        help='P3: Cosine sim threshold for filter_similar (default 0.9)')
     args = parser.parse_args()
 
+    kwargs = dict(
+        max_samples=args.max_samples,
+        hard_ratio=args.hard_ratio,
+        filter_similar_to_positive=args.filter_similar,
+        sim_threshold=args.sim_threshold,
+    )
     if args.stacking:
-        train_stacking(max_samples=args.max_samples)
+        train_stacking(**kwargs)
     else:
-        train_ranker(max_samples=args.max_samples)
+        train_ranker(**kwargs)

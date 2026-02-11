@@ -5,6 +5,7 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from src.config import REVIEW_HIGHLIGHTS_TXT, CHROMA_DB_DIR, EMBEDDING_MODEL
 from src.utils import setup_logger
 from src.core.metadata_store import metadata_store
+from src.core.online_books_store import online_books_store
 import sqlite3
 
 logger = setup_logger(__name__)
@@ -93,53 +94,52 @@ class VectorDB:
 
     def _sparse_fts_search(self, query: str, k: int = 5) -> List[Any]:
         """
-        Performs sparse retrieval using SQLite FTS5.
+        Sparse retrieval: main FTS5 + online staging FTS5. No lock on main DB from writes.
         """
         if not self.fts_enabled:
             logger.warning("FTS5 not enabled, cannot perform sparse search.")
             return []
 
+        class MockDoc:
+            def __init__(self, content, metadata):
+                self.page_content = content
+                self.metadata = metadata
+
+        def mk_doc(row: dict) -> MockDoc:
+            title = row.get("title", "") or ""
+            desc = row.get("description", "") or ""
+            return MockDoc(
+                f"{title} {desc}",
+                {
+                    "isbn": row.get("isbn13", ""),
+                    "title": title,
+                    "authors": row.get("authors", ""),
+                    "categories": row.get("simple_categories", ""),
+                },
+            )
+
+        results: List[Any] = []
         try:
+            # 1. Main store (read-only, no contention)
             conn = metadata_store.connection
-            if not conn:
-                logger.warning("VectorDB: SQLite connection not available. Keyword search disabled.")
-                return []
+            if conn:
+                clean_query = query.strip().replace('"', '""')
+                if clean_query:
+                    fts_query = f'"{clean_query}"'
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        """
+                        SELECT isbn13, title, description, authors, simple_categories
+                        FROM books_fts WHERE books_fts MATCH ? ORDER BY rank LIMIT ?
+                        """,
+                        (fts_query, k),
+                    )
+                    for row in cursor.fetchall():
+                        results.append(mk_doc(dict(row)))
 
-            # FTS5 Full Text Search
-            query_sql = """
-                SELECT isbn13, title, description, authors, simple_categories, rank
-                FROM books_fts
-                WHERE books_fts MATCH ?
-                ORDER BY rank
-                LIMIT ?
-            """
-            
-            # Clean query for FTS5 (escape special chars)
-            clean_query = query.strip().replace('"', '""')
-            if not clean_query: return []
-            
-            # Prepare query for prefix search if needed
-            fts_query = f'"{clean_query}"'
-            
-            cursor = conn.cursor()
-            cursor.execute(query_sql, (fts_query, k))
-            rows = cursor.fetchall()
-
-            class MockDoc:
-                def __init__(self, content, metadata):
-                    self.page_content = content
-                    self.metadata = metadata
-
-            results = []
-            for row in rows:
-                content = f"{row['title']} {row['description']}"
-                metadata = {
-                    "isbn": row["isbn13"],
-                    "title": row["title"],
-                    "authors": row["authors"],
-                    "categories": row["simple_categories"]
-                }
-                results.append(MockDoc(content, metadata))
+            # 2. Online staging store (separate DB)
+            for row in online_books_store.fts_search(query, k=k):
+                results.append(mk_doc(row))
 
             logger.info(f"VectorDB: FTS5 keyword search found {len(results)} results.")
             return results

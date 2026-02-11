@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 from dotenv import load_dotenv
@@ -7,6 +8,7 @@ load_dotenv()
 
 # Project Root
 PROJECT_ROOT = Path(__file__).parent.parent.absolute()
+CONFIG_DIR = PROJECT_ROOT / "config"
 
 # Data Paths
 DATA_DIR = PROJECT_ROOT / "data"
@@ -32,3 +34,51 @@ TOP_K_FINAL = 10
 
 # Debug mode: set DEBUG=1 to enable verbose logging (research prototype style)
 DEBUG = os.getenv("DEBUG", "0") == "1"
+
+
+def _load_router_config() -> dict:
+    """Load router keywords from config/router.json. Env overrides for ops flexibility."""
+    defaults = {
+        "detail_keywords": [
+            "twist", "ending", "spoiler", "readers", "felt", "cried", "hated", "loved",
+            "review", "opinion", "think", "unreliable", "narrator", "realize", "find out",
+        ],
+        "freshness_keywords": [
+            "new", "newest", "latest", "recent", "modern", "contemporary", "current",
+        ],
+        "strong_freshness_keywords": ["newest", "latest"],
+    }
+    path = CONFIG_DIR / "router.json"
+    if path.exists():
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            return {**defaults, **data}
+        except Exception:
+            pass
+    return defaults
+
+
+_ROUTER_CFG = _load_router_config()
+
+# Dependencies can override via ROUTER_CONFIG_PATH for alternate config
+_path_override = os.getenv("ROUTER_CONFIG_PATH")
+if _path_override and Path(_path_override).exists():
+    try:
+        _ROUTER_CFG = {**_ROUTER_CFG, **json.loads(Path(_path_override).read_text(encoding="utf-8"))}
+    except Exception:
+        pass
+
+# Env: ROUTER_DETAIL_KEYWORDS = "twist,ending,spoiler,..." (comma-separated) overrides config
+_DETAIL_KW_RAW = os.getenv("ROUTER_DETAIL_KEYWORDS", "")
+ROUTER_DETAIL_KEYWORDS: frozenset[str] = (
+    frozenset(w.strip().lower() for w in _DETAIL_KW_RAW.split(",") if w.strip())
+    if _DETAIL_KW_RAW
+    else frozenset(str(k).lower() for k in _ROUTER_CFG.get("detail_keywords", []))
+)
+
+ROUTER_FRESHNESS_KEYWORDS: frozenset[str] = frozenset(
+    str(k).lower() for k in _ROUTER_CFG.get("freshness_keywords", [])
+)
+ROUTER_STRONG_FRESHNESS_KEYWORDS: frozenset[str] = frozenset(
+    str(k).lower() for k in _ROUTER_CFG.get("strong_freshness_keywords", [])
+)

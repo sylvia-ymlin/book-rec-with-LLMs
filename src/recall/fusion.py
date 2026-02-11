@@ -73,9 +73,18 @@ class RecallFusion:
         self.sasrec.load()
         self.models_loaded = True
 
-    def get_recall_items(self, user_id: str, history_items=None, k: int = 100):
+    def get_recall_items(
+        self,
+        user_id: str,
+        history_items=None,
+        k: int = 100,
+        real_time_seq=None,
+    ):
         """
         Multi-channel recall fusion using RRF. Channels and weights controlled by config.
+
+        Args:
+            real_time_seq: P1 - Session-level ISBNs to inject into SASRec (e.g. just-viewed).
         """
         if not self.models_loaded:
             self.load_models()
@@ -100,7 +109,9 @@ class RecallFusion:
             self._add_to_candidates(candidates, recs, cfg["swing"]["weight"])
 
         if cfg.get("sasrec", {}).get("enabled", False):
-            recs = self.sasrec.recommend(user_id, history_items, top_k=k)
+            recs = self.sasrec.recommend(
+                user_id, history_items, top_k=k, real_time_seq=real_time_seq
+            )
             self._add_to_candidates(candidates, recs, cfg["sasrec"]["weight"])
 
         if cfg.get("item2vec", {}).get("enabled", False):

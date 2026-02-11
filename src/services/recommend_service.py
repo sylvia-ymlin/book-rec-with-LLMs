@@ -8,6 +8,7 @@ from src.recall.fusion import RecallFusion
 from src.ranking.features import FeatureEngineer
 from src.ranking.explainer import RankingExplainer
 from src.ranking.din import DINRanker
+from src.core.diversity_reranker import DiversityReranker
 from src.utils import setup_logger
 
 logger = setup_logger(__name__)
@@ -93,9 +94,31 @@ class RecommendationService:
         self.metadata_store = metadata_store
         logger.info("RecommendationService: Zero-RAM mode enabled for metadata lookups.")
 
-    def get_recommendations(self, user_id, top_k=10, filter_favorites=True):
+        # P0: Diversity Reranker (MMR + Popularity penalty + Category constraint)
+        self.diversity_reranker = DiversityReranker(
+            metadata_store=metadata_store,
+            data_dir=str(self.data_dir),
+            mmr_lambda=0.75,
+            popularity_gamma=0.1,
+            max_per_category=3,
+        )
+
+    def get_recommendations(
+        self,
+        user_id,
+        top_k=10,
+        filter_favorites=True,
+        enable_diversity_rerank: bool = True,
+        real_time_sequence=None,
+    ):
         """
         Get personalized recommendations for a user.
+
+        Args:
+            enable_diversity_rerank: If True, apply MMR + popularity penalty + category
+                diversity (P0 optimization). Can disable for A/B testing.
+            real_time_sequence: P1 - List of ISBNs from current session (e.g. just-clicked).
+                Injected into SASRec recall and DIN/LGBM ranking.
 
         Returns:
             List of (isbn, score, explanations) tuples where explanations
@@ -104,6 +127,20 @@ class RecommendationService:
         from src.user.profile_store import list_favorites
 
         self.load_resources()
+
+        # P1: Build effective sequence (offline + real-time) for SASRec/DIN
+        effective_seq = None
+        override_user_emb = None
+        if real_time_sequence:
+            sasrec = self.fusion.sasrec
+            base = getattr(sasrec, "user_sequences", {}).get(user_id, [])
+            id2item = getattr(sasrec, "id_to_item", {})
+            base_isbns = [id2item[i] for i in base if i in id2item]
+            effective_seq = (base_isbns + list(real_time_sequence))[-50:]
+            try:
+                override_user_emb = sasrec._compute_emb_from_seq(effective_seq)
+            except Exception:
+                override_user_emb = None
 
         # 0. Get User Context (Favorites) for filtering
         fav_isbns = set()
@@ -114,9 +151,10 @@ class RecommendationService:
             except Exception as e:
                 logger.warning(f"Could not fetch favorites for filtering: {e}")
 
-        # 1. Recall
-        # Get candidates (oversample to allow for filtering)
-        candidates = self.fusion.get_recall_items(user_id, k=200)
+        # 1. Recall (P1: inject real_time_seq into SASRec)
+        candidates = self.fusion.get_recall_items(
+            user_id, k=200, real_time_seq=real_time_sequence
+        )
         if not candidates:
             return []
 
@@ -135,21 +173,36 @@ class RecommendationService:
             return []
 
         if self.din_ranker_loaded:
-            # DIN: deep model; optional aux features from FeatureEngineer
+            # DIN: deep model; P1: override_hist for real-time
             aux_arr = None
             if self.din_ranker.aux_feature_names:
-                X_df = self.fe.generate_features_batch(user_id, valid_candidates)
+                X_df = self.fe.generate_features_batch(
+                    user_id,
+                    valid_candidates,
+                    override_user_emb=override_user_emb,
+                    override_user_seq=effective_seq,
+                )
                 for col in self.din_ranker.aux_feature_names:
                     if col not in X_df.columns:
                         X_df[col] = 0
                 aux_arr = X_df[self.din_ranker.aux_feature_names].values.astype(np.float32)
-            scores = self.din_ranker.predict(user_id, valid_candidates, aux_arr)
+            scores = self.din_ranker.predict(
+                user_id,
+                valid_candidates,
+                aux_arr,
+                override_hist=effective_seq,
+            )
             explanations_list = [[] for _ in valid_candidates]
             final_scores = list(zip(valid_candidates, scores, explanations_list))
             final_scores.sort(key=lambda x: x[1], reverse=True)
         elif self.ranker_loaded:
-            # LGBM / stacking path
-            X_df = self.fe.generate_features_batch(user_id, valid_candidates)
+            # LGBM / stacking path. P1: override for real-time
+            X_df = self.fe.generate_features_batch(
+                user_id,
+                valid_candidates,
+                override_user_emb=override_user_emb,
+                override_user_seq=effective_seq,
+            )
             model_features = self.ranker.feature_name()
             for col in model_features:
                 if col not in X_df.columns:
@@ -185,6 +238,13 @@ class RecommendationService:
             for item, score in candidates:
                 if item not in fav_isbns:
                     final_scores.append((item, score, []))
+
+        # 2.5 P0: Diversity Rerank (MMR + popularity penalty + category constraint)
+        if enable_diversity_rerank and final_scores:
+            final_scores = self.diversity_reranker.rerank(
+                final_scores,
+                top_k=top_k * 2,  # Oversample for title dedup
+            )
 
         # 3. Deduplication by Title
         unique_results = []

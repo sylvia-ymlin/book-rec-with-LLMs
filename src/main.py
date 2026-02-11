@@ -98,6 +98,7 @@ class RecommendationRequest(BaseModel):
     query: str
     category: str = "All"
     user_id: Optional[str] = "local"
+    use_agentic: Optional[bool] = False  # LangGraph workflow: Router -> Retrieve -> Evaluate -> Web Fallback
 
 
 class FeatureContribution(BaseModel):
@@ -171,23 +172,44 @@ async def health_check():
     return {"status": "healthy"}
 
 @app.post("/recommend", response_model=RecommendationResponse)
-def get_recommendations(request: RecommendationRequest):
+async def get_recommendations(request: RecommendationRequest):
     """
     Generate book recommendations based on semantic search and emotion/category filtering.
+    Set use_agentic: true for LangGraph workflow (Router -> Retrieve -> Evaluate -> Web Fallback).
+    Async to avoid blocking event loop (web search fallback uses httpx).
     """
     if not recommender:
         raise HTTPException(status_code=503, detail="Service not ready")
-    
+
     try:
-        results = recommender.get_recommendations(
+        results = await recommender.get_recommendations(
             query=request.query,
             category=request.category,
-            user_id=request.user_id if hasattr(request, 'user_id') else "local"
+            user_id=request.user_id if hasattr(request, 'user_id') else "local",
+            use_agentic=request.use_agentic or False,
         )
         return {"recommendations": results}
     except Exception as e:
         logger.error(f"Error processing request: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/recommend/similar/{isbn}", response_model=RecommendationResponse)
+def get_similar_books(isbn: str, k: int = 10, category: str = "All"):
+    """
+    Content-based similar books by vector similarity.
+    
+    When user clicks a book, call this to show similar recommendations immediately.
+    No user history required; works for new users and new books in ChromaDB.
+    """
+    if not recommender:
+        raise HTTPException(status_code=503, detail="Service not ready")
+    try:
+        results = recommender.get_similar_books(isbn=isbn, k=k, category=category)
+        return {"recommendations": results}
+    except Exception as e:
+        logger.error(f"get_similar_books error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/categories")
 async def get_categories():
@@ -293,11 +315,11 @@ async def run_benchmark():
         recommender.vector_db.search(query, k=50)
         vector_latencies.append((time.perf_counter() - start) * 1000)
     
-    # Benchmark full recommendation
+    # Benchmark full recommendation (async)
     full_latencies = []
     for query in test_queries:
         start = time.perf_counter()
-        recommender.get_recommendations(query, "All", "All")
+        await recommender.get_recommendations(query, "All", "All")
         full_latencies.append((time.perf_counter() - start) * 1000)
     
     # Estimate size

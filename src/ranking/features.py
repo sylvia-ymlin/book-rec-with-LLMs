@@ -96,10 +96,16 @@ class FeatureEngineer:
 
 
 
-    def generate_features(self, user_id, candidate_item):
+    def generate_features(
+        self,
+        user_id,
+        candidate_item,
+        override_user_emb=None,
+        override_user_seq=None,
+    ):
         """
-        Generate feature vector for a (user, item) pair
-        Returns: dict of features
+        Generate feature vector for a (user, item) pair.
+        P1: override_user_emb, override_user_seq for real-time sequence.
         """
         feats = {}
         
@@ -131,10 +137,9 @@ class FeatureEngineer:
             feats['u_auth_avg'] = feats['u_mean'] # Fallback
             feats['u_auth_match'] = 0
             
-        # 4. SASRec Similarity (NEW)
+        # 4. SASRec Similarity (NEW). P1: override_user_emb
         if self.has_sasrec:
-            # Get User Seq Embedding
-            u_emb = self.user_seq_emb.get(user_id, None)
+            u_emb = override_user_emb if override_user_emb is not None else self.user_seq_emb.get(user_id, None)
             
             # Get Item Embedding
             # Check map
@@ -150,13 +155,16 @@ class FeatureEngineer:
         else:
             feats['sasrec_score'] = 0.0
         
-        # 5. Last-N Similarity Features (NEW - from news rec)
-        # Compute similarity between candidate and user's last N items
+        # 5. Last-N Similarity Features (NEW - from news rec). P1: override_user_seq
         sim_max, sim_min, sim_mean = 0.0, 0.0, 0.0
-        if self.has_sasrec and hasattr(self, 'user_sequences'):
-            user_seq = self.user_sequences.get(user_id, [])  # List of item indices
+        user_seq = None
+        if override_user_seq is not None and self.has_sasrec:
+            user_seq = [self.sasrec_item_map.get(str(i), 0) for i in override_user_seq]
+            user_seq = [x for x in user_seq if x > 0][-5:]
+        elif self.has_sasrec and hasattr(self, 'user_sequences'):
+            user_seq = self.user_sequences.get(user_id, [])
+        if self.has_sasrec and user_seq:
             i_idx = self.sasrec_item_map.get(candidate_item, 0)
-            
             if len(user_seq) > 0 and i_idx > 0:
                 cand_emb = self.sas_item_emb[i_idx]
                 last_n_indices = user_seq[-5:]  # Last 5 item indices
@@ -246,10 +254,16 @@ class FeatureEngineer:
         
         return feats
 
-    def generate_features_batch(self, user_id, candidate_items):
+    def generate_features_batch(
+        self,
+        user_id,
+        candidate_items,
+        override_user_emb=None,
+        override_user_seq=None,
+    ):
         """
         Optimized batch feature generation for a single user and multiple items.
-        Significantly faster than calling generate_features in a loop.
+        P1: override_user_emb — use when real_time_sequence merges session; override_user_seq — ISBNs.
         """
         import numpy as np
         
@@ -276,11 +290,11 @@ class FeatureEngineer:
             usercf_sim_users = usercf.u2u_sim[user_id] 
             # Pre-filter? No, we iterate candidates.
             
-        # 3. Batch SASRec (Vectorized)
+        # 3. Batch SASRec (Vectorized). P1: override_user_emb for real-time.
         sasrec_scores = np.zeros(len(candidate_items))
         has_sas = False
         if self.has_sasrec:
-            u_emb = self.user_seq_emb.get(user_id, None)
+            u_emb = override_user_emb if override_user_emb is not None else self.user_seq_emb.get(user_id, None)
             if u_emb is not None:
                 # Get valid indices
                 indices = [self.sasrec_item_map.get(item, 0) for item in candidate_items]
@@ -345,12 +359,14 @@ class FeatureEngineer:
             # To properly vectorize Last-N: (N_candidates, H) @ (Last_K_History, H).T -> (N, K) -> max/mean
             
             sim_max, sim_min, sim_mean = 0.0, 0.0, 0.0
-            # ... (Vectorized Last-N Implementation) ...
-            if has_sas and hasattr(self, 'user_sequences'):
-                 # We already have target_embs[idx] from batch step? 
-                 # Let's just use the loop logic for Last-N, it's safer.
-                 # But efficient: we already fetched u_emb, but we need LAST N items.
-                 user_seq = self.user_sequences.get(user_id, [])
+            # P1: override_user_seq (ISBNs) -> item_ids for Last-N
+            user_seq = None
+            if override_user_seq is not None and self.has_sasrec:
+                user_seq = [self.sasrec_item_map.get(str(i), 0) for i in override_user_seq]
+                user_seq = [x for x in user_seq if x > 0][-5:]
+            elif hasattr(self, 'user_sequences'):
+                 user_seq = self.user_sequences.get(user_id, [])[-5:]
+            if has_sas and user_seq:
                  i_idx_map = self.sasrec_item_map.get(item, 0)
                  if len(user_seq) > 0 and i_idx_map > 0:
                      cand_emb = self.sas_item_emb[i_idx_map]
@@ -366,8 +382,11 @@ class FeatureEngineer:
             
             # Copy logic from generate_features for correctness if not vectorizing everything
             if self.has_sasrec:
-                 # Re-use logic for now to ensure correctness
-                 feats_single = self.generate_features(user_id, item)
+                 feats_single = self.generate_features(
+                     user_id, item,
+                     override_user_emb=override_user_emb,
+                     override_user_seq=override_user_seq,
+                 )
                  row['sim_max'] = feats_single.get('sim_max', 0)
                  row['sim_min'] = feats_single.get('sim_min', 0)
                  row['sim_mean'] = feats_single.get('sim_mean', 0)
@@ -448,4 +467,4 @@ if __name__ == "__main__":
     })
     
     df_feats = fe.create_dateset(samples)
-    print(df_feats.head())
+    logger.debug("Feature sample:\n%s", df_feats.head())

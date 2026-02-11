@@ -92,7 +92,7 @@ def evaluate_rag(
 
     for query, relevant_isbns in golden.items():
         try:
-            recs = recommender.get_recommendations(query, top_k=top_k * 2)
+            recs = recommender.get_recommendations_sync(query, category="All")
             rec_isbns = [r.get("isbn") or r.get("isbn13") for r in recs if r]
             rec_isbns = [str(x).replace(".0", "") for x in rec_isbns if pd.notna(x)]
             rec_top = rec_isbns[:top_k]

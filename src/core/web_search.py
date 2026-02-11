@@ -97,6 +97,19 @@ def _parse_volume_info(volume_info: dict) -> Optional[dict]:
     }
 
 
+def _log_google_books_error(kind: str, query: str, detail: str = "") -> None:
+    """Log with [GoogleBooks:KIND] prefix for monitoring/grep. Distinguishes 429 vs timeout vs network."""
+    msg = f"[GoogleBooks:{kind}] query='{query}'"
+    if detail:
+        msg += f" - {detail}"
+    if kind == "RATE_LIMIT":
+        logger.error(msg)  # 429 needs alerting
+    elif kind in ("TIMEOUT", "NETWORK", "SERVER_ERROR"):
+        logger.warning(msg)
+    else:
+        logger.warning(msg)
+
+
 def search_google_books(query: str, max_results: int = 10) -> list[dict]:
     """
     Search Google Books by keyword query.
@@ -127,8 +140,14 @@ def search_google_books(query: str, max_results: int = 10) -> list[dict]:
             timeout=REQUEST_TIMEOUT
         )
         
+        if response.status_code == 429:
+            _log_google_books_error("RATE_LIMIT", query, f"quota exceeded (429)")
+            return []
+        if response.status_code >= 500:
+            _log_google_books_error("SERVER_ERROR", query, f"status={response.status_code}")
+            return []
         if response.status_code != 200:
-            logger.warning(f"Google Books API returned {response.status_code}")
+            _log_google_books_error("HTTP_ERROR", query, f"status={response.status_code}")
             return []
         
         data = response.json()
@@ -151,14 +170,87 @@ def search_google_books(query: str, max_results: int = 10) -> list[dict]:
         return results
         
     except requests.Timeout:
-        logger.warning(f"Google Books API timeout for query: {query}")
+        _log_google_books_error("TIMEOUT", query)
+        return []
+    except requests.ConnectionError as e:
+        _log_google_books_error("NETWORK", query, str(e))
         return []
     except requests.RequestException as e:
-        logger.error(f"Google Books API request failed: {e}")
+        _log_google_books_error("REQUEST_ERROR", query, str(e))
         return []
     except Exception as e:
-        logger.error(f"Unexpected error in search_google_books: {e}")
+        logger.exception(f"[GoogleBooks:UNEXPECTED] query='{query}' - {e}")
         return []
+
+
+async def search_google_books_async(query: str, max_results: int = 10) -> list[dict]:
+    """
+    Async version: Search Google Books by keyword query.
+    Uses httpx to avoid blocking the event loop in FastAPI.
+    """
+    if not query or not query.strip():
+        return []
+
+    max_results = min(max_results, 40)
+
+    try:
+        import httpx
+    except ImportError:
+        logger.warning("httpx not available, falling back to sync")
+        return search_google_books(query, max_results)
+
+    try:
+        async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
+            response = await client.get(
+                GOOGLE_BOOKS_API,
+                params={
+                    "q": query,
+                    "maxResults": max_results,
+                    "printType": "books",
+                    "orderBy": "relevance",
+                },
+            )
+    except httpx.TimeoutException:
+        _log_google_books_error("TIMEOUT", query)
+        return []
+    except httpx.ConnectError as e:
+        _log_google_books_error("NETWORK", query, str(e))
+        return []
+    except httpx.HTTPError as e:
+        _log_google_books_error("REQUEST_ERROR", query, str(e))
+        return []
+
+    if response.status_code == 429:
+        _log_google_books_error("RATE_LIMIT", query, "quota exceeded (429)")
+        return []
+    if response.status_code >= 500:
+        _log_google_books_error("SERVER_ERROR", query, f"status={response.status_code}")
+        return []
+    if response.status_code != 200:
+        _log_google_books_error("HTTP_ERROR", query, f"status={response.status_code}")
+        return []
+
+    try:
+        data = response.json()
+    except Exception as e:
+        logger.warning(f"[GoogleBooks:PARSE_ERROR] query='{query}' - {e}")
+        return []
+
+    total_items = data.get("totalItems", 0)
+    if total_items == 0:
+        logger.info(f"No results for query: {query}")
+        return []
+
+    items = data.get("items", [])
+    results = []
+    for item in items:
+        volume_info = item.get("volumeInfo", {})
+        parsed = _parse_volume_info(volume_info)
+        if parsed:
+            results.append(parsed)
+
+    logger.info(f"Google Books search '{query}': {len(results)} valid results")
+    return results
 
 
 @lru_cache(maxsize=500)
@@ -189,6 +281,9 @@ def fetch_book_by_isbn(isbn: str) -> Optional[dict]:
             timeout=REQUEST_TIMEOUT
         )
         
+        if response.status_code == 429:
+            _log_google_books_error("RATE_LIMIT", f"isbn:{isbn}", "quota exceeded (429)")
+            return None
         if response.status_code != 200:
             return None
         
@@ -203,8 +298,17 @@ def fetch_book_by_isbn(isbn: str) -> Optional[dict]:
         volume_info = items[0].get("volumeInfo", {})
         return _parse_volume_info(volume_info)
         
-    except Exception as e:
+    except requests.Timeout:
+        _log_google_books_error("TIMEOUT", f"isbn:{isbn}")
+        return None
+    except requests.ConnectionError as e:
+        _log_google_books_error("NETWORK", f"isbn:{isbn}", str(e))
+        return None
+    except requests.RequestException as e:
         logger.debug(f"fetch_book_by_isbn({isbn}) failed: {e}")
+        return None
+    except Exception as e:
+        logger.exception(f"[GoogleBooks:UNEXPECTED] fetch_book_by_isbn({isbn}) - {e}")
         return None
 
 

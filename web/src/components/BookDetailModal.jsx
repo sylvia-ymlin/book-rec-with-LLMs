@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { X, Sparkles, Info, MessageSquare, MessageCircle, Send, Star, Bookmark } from "lucide-react";
+import { getSimilarBooks } from "../api";
 
 const PLACEHOLDER_IMG = "/content/cover-not-found.jpg";
 
@@ -36,7 +37,36 @@ const BookDetailModal = ({
   onRatingChange,
   onStatusChange,
   onUpdateComment,
+  onOpenBook,
 }) => {
+  const [similarBooks, setSimilarBooks] = useState([]);
+  const [loadingSimilar, setLoadingSimilar] = useState(false);
+
+  useEffect(() => {
+    if (!book?.isbn) return;
+    setLoadingSimilar(true);
+    getSimilarBooks(book.isbn, 6)
+      .then((recs) => {
+        const mapped = recs.map((r) => ({
+          id: r.isbn,
+          title: r.title,
+          author: r.authors,
+          desc: r.description,
+          img: r.thumbnail,
+          isbn: r.isbn,
+          rating: r.average_rating || 0,
+          tags: r.tags || [],
+          review_highlights: r.review_highlights || [],
+          emotions: r.emotions || {},
+          aiHighlight: r.review_highlights?.[0] || "\u2014",
+          suggestedQuestions: ["Any similar recommendations?", "What's the core highlight?"],
+        }));
+        setSimilarBooks(mapped);
+      })
+      .catch(() => setSimilarBooks([]))
+      .finally(() => setLoadingSimilar(false));
+  }, [book?.isbn]);
+
   if (!book) return null;
 
   const isInCollection = myCollection.some((b) => b.isbn === book.isbn);
@@ -163,6 +193,40 @@ const BookDetailModal = ({
                 <div style={{ maxHeight: "180px", overflowY: "auto", whiteSpace: "pre-line" }}>
                   {book.desc}
                 </div>
+              </div>
+            </div>
+
+            {/* Similar Reads (Content-Based, Session-Level) */}
+            <div className="space-y-2">
+              <h4 className="flex items-center gap-2 text-[10px] font-bold uppercase text-gray-400 tracking-wider">
+                Similar Reads
+              </h4>
+              <div className="flex gap-2 overflow-x-auto pb-2 -mx-1">
+                {loadingSimilar ? (
+                  <div className="text-[10px] text-gray-400 py-4">Loading similar books...</div>
+                ) : similarBooks.length > 0 ? (
+                  similarBooks.map((sb) => (
+                    <button
+                      key={sb.isbn}
+                      onClick={() => onOpenBook && onOpenBook(sb)}
+                      className="flex-shrink-0 w-16 text-left group focus:outline-none"
+                    >
+                      <div className="border border-[#eee] p-0.5 bg-white group-hover:border-[#b392ac] transition-colors">
+                        <img
+                          src={sb.img || PLACEHOLDER_IMG}
+                          alt={sb.title}
+                          className="w-full aspect-[3/4] object-cover"
+                          onError={(e) => { e.target.onerror = null; e.target.src = PLACEHOLDER_IMG; }}
+                        />
+                      </div>
+                      <p className="text-[9px] text-[#666] mt-1 truncate group-hover:text-[#b392ac]" title={sb.title}>
+                        {sb.title}
+                      </p>
+                    </button>
+                  ))
+                ) : (
+                  <div className="text-[10px] text-gray-400 py-4">No similar books found</div>
+                )}
               </div>
             </div>
 

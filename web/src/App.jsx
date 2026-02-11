@@ -410,6 +410,7 @@ const App = () => {
             onRatingChange={handleRatingChange}
             onStatusChange={handleStatusChange}
             onUpdateComment={handleUpdateComment}
+            onOpenBook={openBook}
           />
         )}
 

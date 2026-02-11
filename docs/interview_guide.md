@@ -73,7 +73,145 @@
 
 > "在 `src/model/sasrec.py` 中，你使用了 Transformer。在推理（Inference）阶段，如果用户每点一本书我们都要刷新推荐，SASRec 的计算成本是很高的。你如何缓存用户的 Embedding 状态以避免每次从头计算整个序列？"
 > *(考察点：对深度学习模型线上推理（Inference）优化的理解。关键在于 KV Cache 或者增量计算)*
+
+
+
+**Q4. metadata_store 的 SQLite 高并发改造：**
+
+> "在 recommender.py 中，你提到了 'Zero-RAM mode' 并从 SQLite 读取元数据。在高并发场景下（QPS > 1000），SQLite 的磁盘 I/O 会成为致命瓶颈。**如果现在系统 QPS 暴涨 100 倍，除了加机器，你会怎么改造 metadata_store 的读写架构？**"
+> *(考察点：对存储层 scaling 的理解。评议：通常会用 Redis/Memcached 做热数据缓存，或使用 Cassandra/HBase 列式存储)*
+
+**建议回答**:
+
+> "我会分阶段改造 metadata_store：
 >
+> 1. **短期**：在 SQLite 前加 Redis 读缓存，对 ISBN 做 key-value 缓存。metadata 是静态/准静态数据，热门书籍命中率可到 80%+，SQLite 压力可下降一个数量级。
+> 2. **中期**：抽象 MetadataStore 接口，实现 `CachedMetadataStore`（Redis + SQLite fallback），并新增 `get_book_metadata_batch()` 批量查询，减少 N 次往返变成 1 次。
+> 3. **长期**：若仍不足，可将 metadata 迁移到 PostgreSQL 或 Cassandra，Redis 做热数据缓存。SQLite 退化为冷备份或离线数据源。
+>
+> 核心思路：把 SQLite 从 '唯一真相源' 降级为 '冷数据源'，高频读写交给 Redis 或分布式存储。"
+>
+> **补充：Staging 写入**：freshness_fallback 的在线爬取写入 `online_books.db`（独立 SQLite），不污染 `books_processed.csv` 和主 `books.db`。既解耦训练数据污染，又避免写锁阻塞读（主库只读）。
+>
+
+---
+
+## 🔬 深度技术问题 (Advanced Technical Q&A)
+
+### Q5. 负采样 (Negative Sampling)
+
+**问题**：你在 TECHNICAL_REPORT 中使用了 "Hard negative sampling from recall results"。这样做会不会导致 **False Negative** 问题（即把用户其实喜欢但没点击的物品当成了负样本）？在训练 DIN 或 LGBMRanker 时，你是如何平衡 Random Negatives 和 Hard Negatives 的比例的？这对模型收敛有什么影响？
+
+**考察点**：对推荐系统训练数据构造的理解，以及负采样策略的 trade-off。
+
+**建议回答**：
+
+> **False Negative 风险**：存在。Hard negatives 来自 Recall 的 top-50 中「不是正样本」的 item。这些 item 很可能是用户会喜欢但尚未交互的（未曝光、未点击、或未来会点击）。若被标成负样本，就会形成 False Negative。Leave-Last-Out 下，正样本是用户最后一次交互；Recall 中其他 item 可能是「未来正样本」，却被当作负样本训练。
+>
+> **比例策略**：当前实现是「hard 优先，random 补齐」。`neg_ratio=4` 表示每个正样本 4 个负样本；先用 recall 中非正样本填满，不足时用 random 补齐。没有显式比例（如 2 hard + 2 random）。
+>
+> **收敛影响**：Hard negatives 梯度更有信息量，但 False Negative 会误导模型。可考虑 Curriculum Learning（先 random 后 hard）、或显式控制 hard:random 比例做实验。
+
+---
+
+### Q6. 实时性 (Real-time / Near-line)
+
+**问题**：SASRec 主要是离线训练的。在 Spotify 场景下，如果用户刚刚连续听了 3 首 "Heavy Metal"，我们希望下一首推荐立刻跟上这个兴趣变化。在目前的架构下，如何将用户的**实时交互序列**（还没落库到 CSV）注入到 SASRec 或 DIN 的推理过程中？需要在 `RecommendationService` 里增加什么逻辑？
+
+**考察点**：对离线训练 / 在线推理架构的理解，以及 session-level 实时反馈的工程实现。
+
+**建议回答**：
+
+> **当前架构**：SASRec 的 `user_seq_emb` 和 DIN 的 `user_sequences` 都来自预计算的 pkl 文件，无法利用 session 内实时交互。
+>
+> **需要增加的逻辑**：
+>
+> 1. **SASRecRecall**：新增 `recommend(user_id, ..., real_time_seq=None)`。当 `real_time_seq` 非空时，将 `effective_seq = (离线序列 + real_time_seq)[-max_len:]` 送入 SASRec 做一次 forward，得到新 `u_emb`，再查 Faiss。
+> 2. **DINRanker**：`predict(..., override_hist=None)`，用 `override_hist` 覆盖 `user_sequences.get(user_id)`。
+> 3. **FeatureEngineer**：`generate_features_batch(..., override_seq=None)`，用 override 序列计算 `sasrec_score`、`sim_max` 等。
+> 4. **RecommendationService**：`get_recommendations(..., real_time_sequence=None)`，收到 session 内最近交互的 ISBN 列表，合并后传给上述各模块。
+>
+> **注意**：新 item 不在 `item_map` 时需 fallback；SASRec forward 有计算开销，可对 session 做短时缓存（如 5 分钟内相同 seq 复用 embedding）。
+
+---
+
+### Q7. 评估指标：Diversity 与 Serendipity
+
+**问题**：目前关注的是 HR@10 和 NDCG。作为内容平台，发现推荐列表里全是热门书（Harry Potter 效应）。如果要求在不显著降低 Accuracy 的前提下，提升推荐结果的 **Diversity（多样性）** 和 **Serendipity（惊喜感）**，你会如何在 Ranking 阶段或 Rerank 阶段修改目标函数或逻辑？
+
+**考察点**：对推荐系统多目标优化、trade-off 的理解，以及常见 diversity / serendipity 手段。
+
+**建议回答**：
+
+> **Rerank 阶段（推荐优先）**：
+>
+> 1. **MMR（Maximal Marginal Relevance）**：`score = λ * relevance - (1-λ) * max_sim(candidate, already_selected)`，用 category 或 embedding 相似度，λ 控制 accuracy vs diversity。
+> 2. **Category 多样性约束**：限制 top-k 中同一 category 最多 N 本（如 2–3 本）。
+> 3. **Popularity 惩罚**：对高 `i_cnt` 的 item 降权，`score_adj = score / (1 + γ * log(1 + item_cnt))`。
+>
+> **Ranking 阶段**：
+>
+> - 增加 diversity 相关特征（如 `category_coverage`、`popularity_penalty`）。
+> - 多目标优化：`loss = NDCG_loss + α * (-diversity_score)`。
+>
+> **Serendipity**：惩罚与用户历史过度相似的 item（如 `sim_max` 上限）；或引入「意外但合理」的 item（同大类不同子类、同一作者不同风格）。
+>
+> **评估**：补充 ILSD、Category Coverage、Gini 等 diversity 指标，做 accuracy–diversity Pareto 曲线。
+
+---
+
+## 📋 已知限制与改进方向 (Known Limitations & Improvement)
+
+### Q6. "Research" 风格的代码残留
+
+**现象**：代码库在向 production 演进过程中，仍保留了一些研究原型风格的痕迹。
+
+#### 6.1 注释掉的代码与 print 语句
+
+| 位置 | 问题 | 建议 |
+|------|------|------|
+| `scripts/model/evaluate.py:38-40` | 注释掉的 `service.ranker_loaded = False` 和 debug logger | 删除或移至 `if DEBUG` 分支 |
+| `src/ranking/features.py:470` | `if __name__` 中的 `print(df_feats.head())` | 改为 `logger.debug` 或删除 |
+| `src/services/recommend_service.py:282-286` | `if __name__` 中的硬编码 print | 保留（仅主程序入口），可改为 `logger.info` |
+| `src/recall/fusion.py`, `itemcf.py`, `usercf.py`, `item2vec.py` | 各模块 `if __name__` 中的 test print | 统一改为 `logger.info` 或移入测试脚本 |
+
+**原则**：调试输出应受 `DEBUG` 控制，或仅在 `__main__` 下使用 `logger`，避免裸 `print`。
+
+#### 6.2 混合范式：Dict vs Pydantic / DataFrame
+
+**问题**：API 层使用 Pydantic 模型（`BookResponse`, `RecommendationResponse`），但内部大量传递 `Dict[str, Any]`，导致：
+
+- IDE 无法自动补全字段
+- 类型检查失效，易出现 `KeyError`（如 `meta.get("title")` 拼写错误难以发现）
+- 与 pandas 脚本式风格混用（`df['user_id'].iloc[0]` 直接取数据）
+
+**典型分布**：
+
+| 层级 | 当前形态 | 涉及文件 |
+|------|----------|----------|
+| API 入/出 | Pydantic ✅ | `main.py`: `BookResponse`, `RecommendationResponse` |
+| 内部传递 | `Dict[str, Any]` | `recommendation_orchestrator`, `response_formatter`, `metadata_store`, `fallback_provider`, `reranker` |
+| 数据层 | `pd.DataFrame` + `iloc` | `recommend_service`, `recall/fusion`, `ranking/features` |
+
+**改进方向**：
+
+1. **定义领域模型**：为书籍元数据、推荐结果引入 Pydantic 或 TypedDict：
+   ```python
+   class BookMetadata(BaseModel):
+       isbn: str
+       title: str
+       authors: str
+       description: str
+       thumbnail: Optional[str] = None
+       average_rating: float = 0.0
+       # ...
+   ```
+2. **内层使用强类型**：`format_book_response(meta: BookMetadata, ...)` 替代 `meta: Dict[str, Any]`。
+3. **`__main__` 入口**：用 `BookMetadata.model_validate(row)` 或显式构造，避免 `df.iloc[0]` 直接当 dict 用。
+
+**面试话术**：
+
+> "项目从研究原型迭代而来，内部仍有 `Dict[str, Any]` 和 pandas 脚本式写法。若继续演进，我会在核心推荐流向 Pydantic 或 TypedDict 迁移，减少 KeyError 并提升 IDE 支持；同时将 `__main__` 中的 print 统一为受 DEBUG 控制的 logger。"
 
 ---
 

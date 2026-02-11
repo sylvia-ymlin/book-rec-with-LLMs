@@ -14,6 +14,7 @@ python-dotenv
 # LangChain components
 langchain
 langchain-community
+langgraph>=0.2.0
 langchain-text-splitters
 langchain-chroma
 langchain-huggingface

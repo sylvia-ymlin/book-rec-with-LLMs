@@ -11,7 +11,7 @@ for SIMD-accelerated approximate nearest neighbor search.
 import pickle
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 import faiss
 import numpy as np
@@ -66,8 +66,12 @@ class SASRecRecall:
         self.item_map = {}       # isbn -> item_index
         self.id_to_item = {}     # item_index -> isbn
         self.user_hist = {}      # user_id -> set of isbns (for filtering)
+        self.user_sequences = {}  # user_id -> list of item_ids (P1 real-time merge)
         self.faiss_index = None  # Faiss IndexFlatIP for fast inner-product search
         self.loaded = False
+        # P1: Real-time sequence support — lazy-loaded model for on-the-fly embedding
+        self._sasrec_model = None
+        self._max_len = 50
 
     def fit(
         self,
@@ -211,11 +215,11 @@ class SASRecRecall:
             self.faiss_index.add(item_emb_f32)
             logger.info(f"Faiss index built: {self.faiss_index.ntotal} items, dim={dim}")
 
-            # 5. User history for filtering
+            # 5. User history for filtering + ordered sequences (P1 real-time)
             try:
                 with open(self.data_dir / 'user_sequences.pkl', 'rb') as f:
                     user_seqs = pickle.load(f)
-                # Convert item indices back to ISBNs for filtering
+                self.user_sequences = user_seqs  # user_id -> list of item_ids (for merge)
                 self.user_hist = {}
                 for uid, seq in user_seqs.items():
                     self.user_hist[uid] = set(
@@ -223,6 +227,7 @@ class SASRecRecall:
                     )
             except Exception as e:
                 logger.warning(f"SASRec: user_sequences.pkl not found: {e}")
+                self.user_sequences = {}
                 self.user_hist = {}
 
             self.loaded = True
@@ -234,21 +239,79 @@ class SASRecRecall:
             self.loaded = False
             return False
 
-    def recommend(self, user_id, history_items=None, top_k=50):
+    def _load_sasrec_model(self) -> bool:
+        """Lazy-load SASRec model for real-time sequence embedding (P1)."""
+        if self._sasrec_model is not None:
+            return True
+        try:
+            model_path = self.model_dir.parent / "rec" / "sasrec_model.pth"
+            if not model_path.exists():
+                return False
+            state_dict = torch.load(model_path, map_location="cpu")
+            num_items = len(self.item_map)
+            self._sasrec_model = SASRec(num_items, self._max_len, hidden_dim=64).to("cpu")
+            self._sasrec_model.load_state_dict(state_dict, strict=False)
+            self._sasrec_model.eval()
+            logger.info("SASRec model loaded for real-time inference")
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to load SASRec model for real-time: {e}")
+            return False
+
+    def _compute_emb_from_seq(self, seq_isbns: List[str]) -> Optional[np.ndarray]:
+        """
+        Compute user embedding from sequence of ISBNs (P1 real-time).
+        seq_isbns: list of ISBNs (offline + real-time merged). Use last max_len.
+        """
+        if not self._load_sasrec_model():
+            return None
+        # Convert ISBNs to item_ids
+        item_ids = [self.item_map.get(str(i), 0) for i in seq_isbns]
+        item_ids = [x for x in item_ids if x > 0]
+        if not item_ids:
+            return None
+        item_ids = item_ids[-self._max_len:]
+        padded = np.zeros(self._max_len, dtype=np.int64)
+        padded[-len(item_ids) :] = item_ids
+        with torch.no_grad():
+            t = torch.LongTensor(padded).unsqueeze(0)
+            out = self._sasrec_model(t)
+            emb = out[:, -1, :].numpy()[0]
+        return emb.astype(np.float32)
+
+    def recommend(
+        self,
+        user_id,
+        history_items=None,
+        top_k=50,
+        real_time_seq: Optional[List[str]] = None,
+    ):
         if not self.loaded or self.faiss_index is None:
             return []
 
-        # Get user embedding
-        u_emb = self.user_seq_emb.get(user_id)
+        # Get user embedding (P1: real-time seq overrides precomputed)
+        u_emb = None
+        if real_time_seq:
+            base_isbns = [
+                self.id_to_item[i]
+                for i in self.user_sequences.get(user_id, [])
+                if i in self.id_to_item
+            ]
+            merged = (base_isbns + list(real_time_seq))[-self._max_len :]
+            u_emb = self._compute_emb_from_seq(merged)
+        if u_emb is None:
+            u_emb = self.user_seq_emb.get(user_id)
         if u_emb is None:
             return []
 
-        # Build history mask
+        # Build history mask (include real_time_seq for filtering)
         history_set = set()
         if history_items:
             history_set = set(history_items)
-        elif user_id in self.user_hist:
-            history_set = self.user_hist[user_id]
+        if user_id in self.user_hist:
+            history_set.update(self.user_hist[user_id])
+        if real_time_seq:
+            history_set.update(str(i) for i in real_time_seq)
 
         # Faiss search (inner product)
         query = np.ascontiguousarray(u_emb.reshape(1, -1).astype(np.float32))

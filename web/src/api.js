@@ -1,7 +1,7 @@
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? "" : "http://127.0.0.1:6006");
 
-export async function recommend(query, category = "All", tone = "All", user_id = "local") {
-  const body = { query, category, tone, user_id };
+export async function recommend(query, category = "All", tone = "All", user_id = "local", use_agentic = false) {
+  const body = { query, category, tone, user_id, use_agentic };
   const resp = await fetch(`${API_URL}/recommend`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -16,6 +16,14 @@ export async function getPersonalizedRecommendations(user_id = "local", limit = 
   // Use URLSearchParams for query parameters
   const params = new URLSearchParams({ user_id, limit: limit.toString() });
   const resp = await fetch(`${API_URL}/api/recommend/personal?${params.toString()}`);
+  if (!resp.ok) throw new Error(await resp.text());
+  const data = await resp.json();
+  return data.recommendations || [];
+}
+
+export async function getSimilarBooks(isbn, k = 6, category = "All") {
+  const params = new URLSearchParams({ k: k.toString(), category });
+  const resp = await fetch(`${API_URL}/api/recommend/similar/${encodeURIComponent(isbn)}?${params.toString()}`);
   if (!resp.ok) throw new Error(await resp.text());
   const data = await resp.json();
   return data.recommendations || [];

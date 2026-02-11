@@ -7,9 +7,16 @@ import numpy as np
 import logging
 from tqdm import tqdm
 from src.services.recommend_service import RecommendationService
+from src.core.metadata_store import metadata_store
+from src.core.diversity_metrics import compute_diversity_metrics
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+
+def _get_category(isbn: str) -> str:
+    meta = metadata_store.get_book_metadata(str(isbn))
+    return (meta.get("simple_categories", "") or "Unknown").strip()
 
 def evaluate_baseline(sample_n=1000):
     logger.info("Initializing Evaluation...")
@@ -28,10 +35,6 @@ def evaluate_baseline(sample_n=1000):
     # 2. Init Service
     service = RecommendationService()
     service.load_resources()
-    # FORCE DISABLE RANKER for debugging - ENABLED NOW
-    # service.ranker_loaded = False
-    # logger.info("DEBUG: Ranker DISABLED to test Recall performance.")
-    
     # Load ISBN -> Title map for evaluation
     isbn_to_title = {}
     try:
@@ -46,10 +49,11 @@ def evaluate_baseline(sample_n=1000):
     k = 10
     hits = 0
     mrr_sum = 0.0
-    
-    # Cache for speed analysis
-    total_time = 0
-    
+    # P3: Diversity metrics (aggregate over all users)
+    diversity_cov_sum = 0.0
+    diversity_ilsd_sum = 0.0
+    diversity_count = 0
+
     results = []
     
     for idx, (_, row) in tqdm(enumerate(eval_df.iterrows()), total=len(eval_df), desc="Evaluating"):
@@ -59,8 +63,9 @@ def evaluate_baseline(sample_n=1000):
         # Get Recs
         try:
             # We disable favorite filtering for evaluation to handle potential data leakage in test set splits
-            recs = service.get_recommendations(user_id, top_k=50, filter_favorites=False) 
-            
+            recs = service.get_recommendations(user_id, top_k=50, filter_favorites=False)
+            # P3: Optional A/B test diversity: enable_diversity_rerank=True by default
+
             if not recs:
                 if idx < 5: 
                     logger.warning(f"Empty recs for user {user_id}")
@@ -89,6 +94,13 @@ def evaluate_baseline(sample_n=1000):
                            # logger.info(f"Title Match! Target: {target_isbn} ({target_title}) matches Rec: {r_isbn}")
                            break
             
+            # P3: Diversity metrics on top-10
+            if rec_isbns:
+                d = compute_diversity_metrics(rec_isbns, _get_category, top_k=10)
+                diversity_cov_sum += d["category_coverage"]
+                diversity_ilsd_sum += d["ilsd"]
+                diversity_count += 1
+
             if hit:
                 # HR@10
                 if rank < 10:
@@ -96,7 +108,7 @@ def evaluate_baseline(sample_n=1000):
 
                 # MRR (consider top 50)
                 # MRR@5 (Strict)
-                if (rank + 1) <= 5: # Check if rank is within top 5 (1-indexed)
+                if (rank + 1) <= 5:  # Check if rank is within top 5 (1-indexed)
                     mrr_sum += 1.0 / (rank + 1)
             else:
                 if idx < 5:
@@ -110,14 +122,16 @@ def evaluate_baseline(sample_n=1000):
 
     # 4. Report
     hr_10 = hits / len(eval_df)
-    mean_mrr = mrr_sum / len(eval_df) # Changed from mrr to mrr_sum
-    
+    mean_mrr = mrr_sum / len(eval_df)
+    div_n = max(diversity_count, 1)
     logger.info("==============================")
-    logger.info("  EVALUATION RESULTS (Strict)") # Changed title
+    logger.info("  EVALUATION RESULTS (Strict)")
     logger.info("==============================")
     logger.info(f"Users Evaluated: {len(eval_df)}")
     logger.info(f"Hit Rate@10:   {hr_10:.4f}")
-    logger.info(f"MRR@5:         {mean_mrr:.4f}") # Changed MRR@50 to MRR@5
+    logger.info(f"MRR@5:         {mean_mrr:.4f}")
+    logger.info(f"P3 Category Coverage@10: {diversity_cov_sum / div_n:.4f}")
+    logger.info(f"P3 ILSD@10:              {diversity_ilsd_sum / div_n:.4f}")
     logger.info("==============================")
 
 if __name__ == "__main__":
