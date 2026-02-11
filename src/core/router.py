@@ -1,74 +1,178 @@
 import re
-from typing import Dict, Any, List
+from pathlib import Path
+from typing import Dict, Any, List, Optional
+
 from src.utils import setup_logger
 
 logger = setup_logger(__name__)
+
 
 class QueryRouter:
     """
     Intelligent Router for the RAG Pipeline.
     Classifies user queries to select the optimal retrieval strategy.
-    
+
+    Uses model-based intent classifier when available; falls back to rule-based
+    heuristics when classifier not trained/loaded.
+
     Strategies:
     1. EXACT (ISBN/ID) -> Pure BM25 (High Precision, No Rerank noise).
     2. FAST (Keywords) -> Hybrid (RRF), No Rerank (Low Latency).
     3. DEEP (Complex)  -> Hybrid + Rerank (High Latency, High contextual relevance).
+    
+    Freshness-Aware Routing:
+    - Detects queries asking for "new", "latest", or specific years (2024, 2025, etc.)
+    - Sets freshness_fallback=True to enable Web Search when local results insufficient
     """
+
+    # Keywords that indicate user wants fresh/recent content
+    # Note: Year numbers are detected dynamically in _detect_freshness()
+    FRESHNESS_KEYWORDS = {
+        "new", "newest", "latest", "recent", "modern", "contemporary", "current",
+    }
     
-    def __init__(self):
-        # Regex for ISBN-10 and ISBN-13
-        self.isbn_pattern = re.compile(r'^(?:\d{9}[\dX]|\d{13})$')
-    
+    # Strong freshness indicators (always trigger fallback)
+    STRONG_FRESHNESS_KEYWORDS = {
+        "newest", "latest",
+    }
+
+    def __init__(self, model_dir: str | Path | None = None):
+        self.isbn_pattern = re.compile(r"^(?:\d{9}[\dX]|\d{13})$")
+        if model_dir is None:
+            from src.config import DATA_DIR
+            model_dir = DATA_DIR / "model"
+        self.model_dir = Path(model_dir)
+        self._classifier = None
+
+    def _get_classifier(self):
+        """Lazy-load intent classifier when first needed."""
+        if self._classifier is not None:
+            return self._classifier
+        try:
+            from src.core.intent_classifier import IntentClassifier
+            clf = IntentClassifier(self.model_dir / "intent_classifier.pkl")
+            if clf.load():
+                self._classifier = clf
+        except Exception as e:
+            logger.debug("Intent classifier not available: %s", e)
+        return self._classifier
+
+    def _detect_freshness(self, words: list) -> tuple[bool, bool, Optional[int]]:
+        """
+        Detect if query requires fresh content.
+        
+        Returns:
+            (is_temporal, freshness_fallback, target_year)
+            - is_temporal: Should apply temporal boost to local results
+            - freshness_fallback: Should enable Web Search if local results insufficient  
+            - target_year: Specific year user is looking for (if detected)
+        """
+        from datetime import datetime
+        current_year = datetime.now().year
+        
+        lower_words = {w.lower() for w in words}
+        
+        is_temporal = bool(lower_words & self.FRESHNESS_KEYWORDS)
+        freshness_fallback = bool(lower_words & self.STRONG_FRESHNESS_KEYWORDS)
+        
+        # Extract explicit year from query
+        target_year = None
+        for word in words:
+            if word.isdigit() and len(word) == 4:
+                year = int(word)
+                if 2000 <= year <= 2050:
+                    target_year = year
+                    # Recent years (within last 3 years) trigger freshness
+                    if year >= current_year - 2:
+                        is_temporal = True
+                        freshness_fallback = True
+                    break
+        
+        return is_temporal, freshness_fallback, target_year
+
+    def _route_by_rules(
+        self, 
+        cleaned_query: str, 
+        words: list, 
+        is_temporal: bool,
+        freshness_fallback: bool = False,
+        target_year: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """Fallback: rule-based routing (original logic + freshness)."""
+        detail_keywords = {
+            "twist", "ending", "spoiler", "readers", "felt", "cried", "hated", "loved",
+            "review", "opinion", "think", "unreliable", "narrator", "realize", "find out",
+        }
+        
+        base_result = {
+            "temporal": is_temporal,
+            "freshness_fallback": freshness_fallback,
+            "freshness_threshold": 3,  # Trigger web search if < 3 results
+            "target_year": target_year,
+        }
+        
+        if any(w.lower() in detail_keywords for w in words):
+            logger.info("Router (rules): Detail Query -> SMALL_TO_BIG")
+            return {**base_result, "strategy": "small_to_big", "alpha": 0.5, "rerank": False, "k_final": 5}
+        if len(words) <= 2:
+            logger.info("Router (rules): Keyword -> FAST (Temporal=%s, Freshness=%s)", is_temporal, freshness_fallback)
+            return {**base_result, "strategy": "fast", "alpha": 0.5, "rerank": False, "k_final": 5}
+        logger.info("Router (rules): Natural Language -> DEEP (Temporal=%s, Freshness=%s)", is_temporal, freshness_fallback)
+        return {**base_result, "strategy": "deep", "alpha": 0.5, "rerank": True, "k_final": 10}
+
     def route(self, query: str) -> Dict[str, Any]:
         """
         Analyze query and return retrieval parameters.
-        Returns dict with: 'strategy', 'hybrid_alpha', 'rerank'
+        
+        Returns dict with:
+            - 'strategy': 'exact' | 'fast' | 'deep' | 'small_to_big'
+            - 'alpha': float (hybrid search weight)
+            - 'rerank': bool (use cross-encoder reranking)
+            - 'k_final': int (number of results)
+            - 'temporal': bool (apply temporal boost)
+            - 'freshness_fallback': bool (enable web search if local results insufficient)
+            - 'freshness_threshold': int (min local results before triggering web search)
+            - 'target_year': int | None (specific year user requested)
         """
         cleaned_query = query.strip()
         words = cleaned_query.split()
-        
-        # 1. Check for ISBN (Exact Match)
-        # Remove hyphens/spaces for check
+
+        # 1. ISBN: keep regex (deterministic, correct)
         normalized = cleaned_query.replace("-", "").replace(" ", "")
         if self.isbn_pattern.match(normalized):
-            logger.info(f"Router: Detected ISBN -> EXACT Strategy ({normalized})")
-            return {"strategy": "exact", "alpha": 1.0, "rerank": False, "k_final": 5}
-
-        # 2. Check for Temporal Keywords (Freshness Bias)
-        temporal_keywords = {"new", "newest", "latest", "recent", "modern", "contemporary", "2020", "2021", "2022", "2023", "2024", "2025"}
-        is_temporal = any(word.lower() in temporal_keywords for word in words)
-        
-        # 3. Check for Detail-Oriented Queries (Triggers Small-to-Big)
-        # These are queries asking about specific plot points, reactions, or hidden details
-        detail_keywords = {"twist", "ending", "spoiler", "readers", "felt", "cried", "hated", "loved", 
-                          "review", "opinion", "think", "unreliable", "narrator", "realize", "find out"}
-        is_detail = any(word.lower() in detail_keywords for word in words)
-        
-        if is_detail:
-            logger.info(f"Router: Detected Detail Query -> SMALL_TO_BIG Strategy")
+            logger.info("Router: ISBN -> EXACT (%s)", normalized)
             return {
-                "strategy": "small_to_big",
-                "rerank": False,  # Small-to-Big already does precision matching
+                "strategy": "exact", 
+                "alpha": 1.0, 
+                "rerank": False, 
                 "k_final": 5,
-                "temporal": is_temporal
+                "temporal": False,
+                "freshness_fallback": False,
+                "freshness_threshold": 1,
+                "target_year": None,
             }
-        
-        # 4. Check for Simple Keyword Search (Short queries)
-        if len(words) <= 2:
-             logger.info(f"Router: Detected Keyword -> FAST Strategy (Temporal={is_temporal})")
-             return {
-                 "strategy": "fast",
-                 "rerank": False,     # Skip expensive rerank
-                 "k_final": 5,
-                 "temporal": is_temporal
-             }
 
-        # 5. Default to Deep Search
-        logger.info(f"Router: Detected Natural Language -> DEEP Strategy (Temporal={is_temporal})")
-        return {
-            "strategy": "deep",
-            "rerank": True,
-            "k_final": 10,
-            "temporal": is_temporal
-        }
+        # 2. Freshness detection (temporal boost + web fallback)
+        is_temporal, freshness_fallback, target_year = self._detect_freshness(words)
+
+        # 3. Model-based vs rule-based intent
+        clf = self._get_classifier()
+        if clf is not None:
+            try:
+                intent = clf.predict(cleaned_query)
+                logger.info("Router (model): %s -> %s (Freshness=%s)", intent, intent.upper(), freshness_fallback)
+                return {
+                    "strategy": intent,
+                    "alpha": 0.5,
+                    "rerank": intent == "deep",
+                    "k_final": 10 if intent == "deep" else 5,
+                    "temporal": is_temporal,
+                    "freshness_fallback": freshness_fallback,
+                    "freshness_threshold": 3,
+                    "target_year": target_year,
+                }
+            except Exception as e:
+                logger.warning("Intent classifier failed, falling back to rules: %s", e)
+
+        return self._route_by_rules(cleaned_query, words, is_temporal, freshness_fallback, target_year)
 

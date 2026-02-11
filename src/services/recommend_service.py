@@ -7,9 +7,11 @@ from pathlib import Path
 from src.recall.fusion import RecallFusion
 from src.ranking.features import FeatureEngineer
 from src.ranking.explainer import RankingExplainer
+from src.ranking.din import DINRanker
 from src.utils import setup_logger
 
 logger = setup_logger(__name__)
+
 
 class RecommendationService:
     def __init__(self, data_dir='data/rec', model_dir='data/model'):
@@ -21,6 +23,8 @@ class RecommendationService:
 
         self.ranker = None
         self.ranker_loaded = False
+        self.din_ranker = DINRanker(str(data_dir), str(model_dir))
+        self.din_ranker_loaded = False
         self.xgb_ranker = None
         self.meta_model = None
         self.use_stacking = False
@@ -34,7 +38,14 @@ class RecommendationService:
         self.fusion.load_models()
         self.fe.load_base_data()
 
-        # Load Ranker (LightGBM)
+        # Prefer DIN ranker when available (deep model)
+        din_path = self.model_dir / 'ranking/din_ranker.pt'
+        if din_path.exists():
+            if self.din_ranker.load():
+                self.din_ranker_loaded = True
+                logger.info("DIN ranker loaded — using deep model for ranking")
+
+        # Load LGBM ranker (fallback when DIN not available)
         ranker_path = self.model_dir / 'ranking/lgbm_ranker.txt'
         if ranker_path.exists():
             self.ranker = lgb.Booster(model_file=str(ranker_path))
@@ -119,29 +130,34 @@ class RecommendationService:
         candidate_items = [item for item, score in candidates]
 
         # 2. Ranking
-        if self.ranker_loaded:
-            # Filter candidates first
-            valid_candidates = [item for item in candidate_items if item not in fav_isbns]
-            
-            if not valid_candidates:
-                return []
+        valid_candidates = [item for item in candidate_items if item not in fav_isbns]
+        if not valid_candidates:
+            return []
 
-            # Batch Feature Generation (Optimized)
+        if self.din_ranker_loaded:
+            # DIN: deep model; optional aux features from FeatureEngineer
+            aux_arr = None
+            if self.din_ranker.aux_feature_names:
+                X_df = self.fe.generate_features_batch(user_id, valid_candidates)
+                for col in self.din_ranker.aux_feature_names:
+                    if col not in X_df.columns:
+                        X_df[col] = 0
+                aux_arr = X_df[self.din_ranker.aux_feature_names].values.astype(np.float32)
+            scores = self.din_ranker.predict(user_id, valid_candidates, aux_arr)
+            explanations_list = [[] for _ in valid_candidates]
+            final_scores = list(zip(valid_candidates, scores, explanations_list))
+            final_scores.sort(key=lambda x: x[1], reverse=True)
+        elif self.ranker_loaded:
+            # LGBM / stacking path
             X_df = self.fe.generate_features_batch(user_id, valid_candidates)
-
-            # Align features to match model
             model_features = self.ranker.feature_name()
             for col in model_features:
                 if col not in X_df.columns:
                     X_df[col] = 0
             X_df = X_df[model_features]
 
-            # Predict
             if self.use_stacking and self.xgb_ranker is not None and self.meta_model is not None:
-                # Stacking: Level-1 predictions -> Level-2 meta-learner
                 lgb_scores = self.ranker.predict(X_df)
-                
-                # Check if XGB Ranker is a raw Booster or Sklearn Estimator
                 if isinstance(self.xgb_ranker, xgb.Booster):
                     dtest = xgb.DMatrix(X_df)
                     xgb_scores = self.xgb_ranker.predict(dtest)
@@ -150,24 +166,19 @@ class RecommendationService:
                 meta_features = np.column_stack([lgb_scores, xgb_scores])
                 scores = self.meta_model.predict_proba(meta_features)[:, 1]
             else:
-                # Fallback: LightGBM only (backward compatible)
                 scores = self.ranker.predict(X_df)
 
-            # Compute SHAP explanations (V2.7)
             explanations_list = []
             if self.explainer is not None:
                 try:
                     explanations_list = self.explainer.explain(X_df, top_k=3)
                 except Exception as e:
-                    logger.warning(f"SHAP explanation failed: {e}")
                     explanations_list = [[] for _ in valid_candidates]
             else:
                 explanations_list = [[] for _ in valid_candidates]
 
-            # Combine with explanations
             final_scores = list(zip(valid_candidates, scores, explanations_list))
             final_scores.sort(key=lambda x: x[1], reverse=True)
-
         else:
             # Fallback to recall scores, but filter
             final_scores = []

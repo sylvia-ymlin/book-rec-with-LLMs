@@ -217,6 +217,8 @@ Architecture: Self-Attentive Sequential Recommendation with Transformer blocks
 - Training: 30 epochs, 64-dim embeddings, BCE loss with negative sampling
 - Dual use: (1) ranking feature via `sasrec_score`, (2) independent recall channel via embedding dot-product
 
+**Time-split (no leakage)**: SASRec is trained on `train.csv` only. `user_seq_emb` and `sas_item_emb` are computed from train-only sequences. When Ranking uses `sasrec_score` for val samples, the user's history contains only train interactions—never val/test. `build_sequences.py` and SASRec/YoutubeDNN all use train-only.
+
 ### 4.3 LGBMRanker (LambdaRank) + Model Stacking
 
 Replaced XGBoost binary classifier with LightGBM LambdaRank that directly optimizes NDCG. In v2.6.0, a Stacking ensemble (LGBMRanker + XGBClassifier → LogisticRegression meta-learner) further improves ranking robustness.
@@ -225,6 +227,8 @@ Replaced XGBoost binary classifier with LightGBM LambdaRank that directly optimi
 - Hard negative sampling: negatives mined from recall results (not random items)
 - 20K users sampled from 168K validation set for training speed
 - 4× negative ratio per positive sample
+
+**Feature consistency**: Recall models (SASRec, ItemCF, etc.) are trained on train.csv. Ranking labels come from val.csv. Features like `sasrec_score` use train-only embeddings. Pipeline order: `split_rec_data` → `build_sequences` (train-only) → recall models (train) → ranker (val).
 
 **17 features** in 5 groups:
 - User statistics: u_cnt, u_mean, u_std
@@ -264,9 +268,11 @@ Feature importance (v2.6.0 LGBMRanker, representative subset):
 |--------|------------------------|-------------|
 | ISBN Recall | 0% | 100% |
 | Keyword Precision | Low | High (BM25 boost) |
-| Detail Query Recall | 0% | Demonstrated via curated examples (Small-to-Big) |
+| Detail Query Recall | 0% | Golden Test Set (Accuracy@K, Recall@K, MRR@K) |
 | Avg Latency | 100ms | 300-800ms |
 | Chat Context Limit | ~10 turns | Extended via compression (no formal limit) |
+
+**Golden Test Set**: Human-annotated Query-Book pairs (`data/rag_golden.csv`) replace curated examples. Run `python scripts/model/evaluate_rag.py` for Accuracy@K, Recall@K, MRR@K. Extend with ~500+ pairs for production.
 
 ### 5.2 Latency Benchmarks
 
@@ -371,7 +377,7 @@ src/
 
 - **Single-dataset evaluation**: All RecSys metrics are on Amazon Books 200K; no cross-domain or external validation.
 - **Rule-based router**: Intent classification uses heuristics (e.g., `len(words) <= 2` for keyword); may not generalize to other domains.
-- **RAG evaluation**: RAG quality is demonstrated via curated examples (e.g., "Harry Potter", ISBN recall); no systematic human evaluation or large-scale relevance judgments.
+- **RAG evaluation**: Use Golden Test Set (`data/rag_golden.csv`) for Accuracy@K, Recall@K, MRR@K. Extend to 500+ human-annotated Query-Book pairs for production.
 - **Protocol sensitivity**: RecSys metrics can vary with evaluation protocol (e.g., ISBN-only vs title-relaxed matching); see [Experiment Archive](experiments/experiment_archive.md) for discussion.
 
 ---

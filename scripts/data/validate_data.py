@@ -144,9 +144,27 @@ def validate_rec():
         print(f"  User sequences: {len(seqs):,}")
         avg_len = np.mean([len(s) for s in seqs.values()])
         print(f"  Avg sequence length: {avg_len:.1f}")
+
+        # Time-split: no val items in sequences (prevents sasrec_score leakage)
+        if ITEM_MAP.exists():
+            with open(ITEM_MAP, "rb") as f:
+                item_map = pickle.load(f)
+            id_to_item = {v: k for k, v in item_map.items()}
+            leaked = 0
+            for _, row in val.iterrows():
+                uid, val_isbn = str(row["user_id"]), str(row["isbn"])
+                if uid not in seqs:
+                    continue
+                val_iid = item_map.get(val_isbn)
+                if val_iid is None:
+                    continue  # val item not in map (train-only) -> no leak possible
+                if val_iid in seqs[uid]:
+                    leaked += 1
+            check(leaked == 0, f"Time-split violation: {leaked} users have val items in sequence")
+            print("  ✅ Time-split OK (no val in sequences)")
     else:
         print("  ⚠️  User sequences not found (run build_sequences.py)")
-    
+
     print("  ✅ Rec data validation passed")
     return True
 

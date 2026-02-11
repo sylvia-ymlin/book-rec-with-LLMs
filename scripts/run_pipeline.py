@@ -44,6 +44,7 @@ class Pipeline:
         skip_models: bool = False,
         skip_index: bool = False,
         stacking: bool = False,
+        train_din: bool = False,
     ):
         self.project_root = Path(project_root)
         self.data_dir = self.project_root / "data"
@@ -53,6 +54,7 @@ class Pipeline:
         self.skip_models = skip_models
         self.skip_index = skip_index
         self.stacking = stacking
+        self.train_din = train_din
 
     def _run_step(self, name: str, fn, *args, **kwargs):
         """Run a step with timing log."""
@@ -153,8 +155,19 @@ class Pipeline:
         from scripts.model.train_ranker import train_ranker, train_stacking
         self._run_step("Train Ranker", train_stacking if self.stacking else train_ranker)
 
+        from scripts.model.train_intent_router import main as train_intent
+        self._run_step("Train intent classifier", train_intent)
+
+        if getattr(self, "train_din", False):
+            from scripts.model.train_din_ranker import train_din
+            self._run_step("Train DIN ranker", lambda: train_din(
+                data_dir=str(self.rec_dir),
+                model_dir=str(self.model_dir),
+                recall_dir=str(self.model_dir / "recall"),
+            ))
+
     def run_evaluation(self) -> None:
-        """Stage 5: Validation."""
+        """Stage 5: Validation + RAG Golden Test Set (if exists)."""
         def _validate():
             from scripts.data.validate_data import (
                 validate_raw, validate_processed, validate_rec,
@@ -167,6 +180,18 @@ class Pipeline:
             validate_models()
 
         self._run_step("Validate pipeline", _validate)
+
+        # RAG Golden Test Set evaluation (optional)
+        golden = self.rec_dir.parent / "rag_golden.csv"
+        if not golden.exists():
+            golden = self.rec_dir.parent / "rag_golden.example.csv"
+        if golden.exists():
+            def _run_rag_eval():
+                from scripts.model.evaluate_rag import evaluate_rag
+                m = evaluate_rag(str(golden))
+                logger.info("RAG Accuracy@%d: %.4f  Recall@%d: %.4f  MRR@%d: %.4f",
+                    m["top_k"], m["accuracy_at_k"], m["top_k"], m["recall_at_k"], m["top_k"], m["mrr_at_k"])
+            self._run_step("RAG Golden Test Set", _run_rag_eval)
 
     def run(self, stage: str = "all") -> None:
         """Execute full pipeline: Data Cleaning -> Training -> Evaluation."""
@@ -201,6 +226,7 @@ def main():
     parser.add_argument("--validate-only", action="store_true", help="Only run validation")
     parser.add_argument("--device", default=None, help="Device for ML (cpu/cuda/mps)")
     parser.add_argument("--stacking", action="store_true", help="Enable stacking ranker")
+    parser.add_argument("--din", action="store_true", help="Train DIN ranker (deep model)")
     args = parser.parse_args()
 
     if args.validate_only:
@@ -213,6 +239,7 @@ def main():
         skip_models=args.skip_models,
         skip_index=args.skip_index,
         stacking=args.stacking,
+        train_din=args.din,
     )
     pipeline.run(stage=args.stage)
 

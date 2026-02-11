@@ -39,6 +39,9 @@ scikit-learn
 scipy
 requests
 
+# Intent classifier backends (optional)
+# fasttext  # Uncomment for FastText backend: pip install fasttext
+
 # LLM Agent & Fine-tuning
 faiss-cpu
 diffusers

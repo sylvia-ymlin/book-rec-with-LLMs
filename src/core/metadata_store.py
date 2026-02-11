@@ -142,6 +142,148 @@ class MetadataStore:
             logger.error(f"MetadataStore insert_book failed: {e}")
             return False
 
+    def insert_book_with_fts(self, row: Dict[str, Any]) -> bool:
+        """
+        Insert a new book into both main table AND FTS5 index.
+        
+        This enables incremental indexing - new books are immediately searchable
+        via keyword search without requiring a full index rebuild.
+        
+        Args:
+            row: Book data dict with keys: isbn13, title, description, authors, simple_categories, etc.
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        conn = self.connection
+        if not conn:
+            return False
+        
+        try:
+            # 1. Insert into main books table
+            if not self.insert_book(row):
+                return False
+            
+            # 2. Insert into FTS5 index
+            # FTS5 columns: isbn13, title, description, authors, simple_categories
+            isbn13 = str(row.get("isbn13", ""))
+            title = str(row.get("title", ""))
+            description = str(row.get("description", ""))
+            authors = str(row.get("authors", ""))
+            categories = str(row.get("simple_categories", ""))
+            
+            # Check if FTS5 table exists
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='books_fts'"
+            )
+            if not cursor.fetchone():
+                logger.warning("MetadataStore: FTS5 table 'books_fts' not found. Skipping FTS index.")
+                return True  # Main insert succeeded, FTS just not available
+            
+            # Insert into FTS5 (use INSERT OR REPLACE to handle updates)
+            cursor.execute(
+                """
+                INSERT OR REPLACE INTO books_fts (isbn13, title, description, authors, simple_categories)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (isbn13, title, description, authors, categories)
+            )
+            conn.commit()
+            
+            logger.info(f"MetadataStore: Inserted book {isbn13} into FTS5 index")
+            return True
+            
+        except sqlite3.OperationalError as e:
+            # FTS5 might not support OR REPLACE, try without
+            if "REPLACE" in str(e):
+                try:
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        """
+                        INSERT INTO books_fts (isbn13, title, description, authors, simple_categories)
+                        VALUES (?, ?, ?, ?, ?)
+                        """,
+                        (isbn13, title, description, authors, categories)
+                    )
+                    conn.commit()
+                    return True
+                except Exception as inner_e:
+                    logger.error(f"MetadataStore FTS5 insert failed: {inner_e}")
+                    return False
+            logger.error(f"MetadataStore FTS5 insert failed: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"MetadataStore insert_book_with_fts failed: {e}")
+            return False
+
+    def book_exists(self, isbn: str) -> bool:
+        """Check if a book with given ISBN exists in the database."""
+        isbn = str(isbn).strip().replace(".0", "")
+        row = self._query_one(
+            "SELECT 1 FROM books WHERE isbn13 = ? OR isbn10 = ? LIMIT 1",
+            (isbn, isbn)
+        )
+        return row is not None
+
+    def get_newest_book_year(self) -> Optional[int]:
+        """Get the publication year of the newest book in the database."""
+        conn = self.connection
+        if not conn:
+            return None
+        try:
+            cursor = conn.cursor()
+            # Try publishedDate column
+            cursor.execute(
+                "SELECT publishedDate FROM books WHERE publishedDate IS NOT NULL "
+                "ORDER BY publishedDate DESC LIMIT 1"
+            )
+            row = cursor.fetchone()
+            if row and row[0]:
+                # Extract year from date string
+                date_str = str(row[0])
+                if len(date_str) >= 4:
+                    return int(date_str[:4])
+        except Exception as e:
+            logger.debug(f"get_newest_book_year failed: {e}")
+        return None
+
+    def get_book_count(self) -> int:
+        """Get total number of books in the database."""
+        conn = self.connection
+        if not conn:
+            return 0
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM books")
+            row = cursor.fetchone()
+            return row[0] if row else 0
+        except Exception as e:
+            logger.error(f"get_book_count failed: {e}")
+            return 0
+
+    def get_books_by_year_distribution(self) -> Dict[int, int]:
+        """Get distribution of books by publication year."""
+        conn = self.connection
+        if not conn:
+            return {}
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT SUBSTR(publishedDate, 1, 4) as year, COUNT(*) as count
+                FROM books
+                WHERE publishedDate IS NOT NULL AND LENGTH(publishedDate) >= 4
+                GROUP BY year
+                ORDER BY year DESC
+                LIMIT 20
+                """
+            )
+            return {int(row[0]): row[1] for row in cursor.fetchall() if row[0].isdigit()}
+        except Exception as e:
+            logger.debug(f"get_books_by_year_distribution failed: {e}")
+            return {}
+
     def load_books_processed(self): pass
     def load_train_data(self): pass
 

@@ -321,7 +321,14 @@ class VectorDB:
 
     def add_book(self, book_data: dict):
         """
-        Dynamically add a new book to the vector database and update indices.
+        Dynamically add a new book to the ChromaDB vector index.
+        
+        Note: FTS5 incremental updates are handled separately via
+        metadata_store.insert_book_with_fts() called from BookRecommender.add_new_book().
+        This method only handles the dense vector index.
+        
+        Args:
+            book_data: Dict with isbn13, title, authors, description, etc.
         """
         from langchain_core.documents import Document
         
@@ -330,7 +337,7 @@ class VectorDB:
         author = book_data.get("authors", "")
         description = book_data.get("description", "")
         
-        # 1. Add to Chroma
+        # Add to ChromaDB (dense vector index)
         content = f"Title: {title}\nAuthor: {author}\nDescription: {description}\nISBN: {isbn}"
         doc = Document(
             page_content=content, 
@@ -346,7 +353,4 @@ class VectorDB:
         if self.db:
             self.db.add_documents([doc])
             logger.info(f"Added book {isbn} to ChromaDB")
-            
-        if hasattr(self, 'fts_enabled') and self.fts_enabled:
-            logger.info("Note: FTS5 database updates are not implemented in add_book yet.")
 

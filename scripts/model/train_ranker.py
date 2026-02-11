@@ -15,18 +15,15 @@ Input:
     - data/rec/train.csv              (for fallback random negatives)
     - data/model/recall/*.pkl         (recall models for hard negative mining)
 
-Output (Standard):
-    - data/model/ranking/lgbm_ranker.txt
-
-Output (Stacking):
-    - data/model/ranking/lgbm_ranker.txt   (full retrained LGB)
-    - data/model/ranking/xgb_ranker.json   (full retrained XGB)
-    - data/model/ranking/stacking_meta.pkl (LogisticRegression meta-model)
+TIME-SPLIT (no leakage):
+    - Recall models (SASRec, etc.) are trained on train.csv only.
+    - Ranking uses val.csv for labels; recall for hard negatives.
+    - sasrec_score and user_seq_emb come from train-only SASRec.
+    - Pipeline order: split -> build_sequences(train-only) -> recall(train) -> ranker(val).
 
 Negative Sampling Strategy:
     - Hard negatives: items from recall results that are NOT the positive
     - Random negatives: fill remaining slots if recall returns too few
-    - This teaches the ranker to distinguish between "close but wrong" vs "right"
 """
 
 import sys
