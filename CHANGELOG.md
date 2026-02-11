@@ -4,35 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Added - 2024-01-07
-- **UI Refinements**: Book detail modal layout improvements
-  - Author name displayed separately below book cover
-  - Optimized spacing between elements (reduced excessive whitespace)
-  - Removed mood/emotion display from detail modal for cleaner interface
-  - Review highlights positioned directly after AI highlight box
-
-### Added - 2024-01-XX
-- **Review Highlights Feature**: Semantic sentence extraction with clustering
-  - scripts/extract_review_sentences.py for processing book descriptions
-  - Review highlights display in React frontend
-  - Average rating display in book detail modal
-  - REVIEW_HIGHLIGHTS.md documentation
-
-### Changed - 2024-01-XX
-- **Frontend Migration**: Moved from dual UI (Gradio + React) to React-only
-  - Updated README.md with React frontend setup instructions
-  - Updated Dockerfile to run FastAPI backend (port 8000)
-  - Updated docker-compose.yml to remove Gradio service
-  - Cleaned up documentation references to Gradio
-
-### Removed - 2024-01-XX
-- app.py (264-line Gradio legacy UI)
-- Makefile run-ui target
-- docker-compose.yml ui service definition
-
----
-
-### Added - 2024-01-06
+### Added - 2026-01-06
 - **Real-time Book Cover Fetching**: New `src/cover_fetcher.py` module that fetches book covers dynamically from Google Books API and Open Library
   - LRU cache (1000 items) to avoid redundant API calls
   - Automatic fallback to Open Library if Google Books fails
@@ -40,24 +12,25 @@ All notable changes to this project will be documented in this file.
   - ~0.5-1s latency increase per recommendation query (10-20 books)
 - **Client-Server Architecture**: Separated UI and API into independent processes
   - API server runs on port 6006 (FastAPI backend)
-  - React frontend runs on port 5173 (development)
+  - UI runs on port 7860 (Gradio frontend)
   - Enables better scalability and deployment flexibility
 
-### Changed - 2024-01-06
-- **React Frontend (web/)**: Created modern UI with book search and recommendations
-  - React 18 + Vite for fast development
-  - Tailwind CSS for styling
-  - Book detail modal with review highlights
+### Changed - 2026-01-06
+- **app.py**: Refactored to use REST API calls instead of direct model loading
+  - Removed local model initialization to reduce memory footprint
+  - Added proper error handling for API communication
+  - Fixed Gradio 6.0 compatibility (moved theme to launch method, added allowed_paths)
+  - Fixed payload format to match API schema (query, category, tone)
 - **Makefile**: Updated `run` command to explicitly use port 6006 for API server
 - **src/recommender.py**: Integrated real-time cover fetcher in `_format_results()`
   - Replaced hardcoded file paths with dynamic API calls
   - Each recommendation now fetches fresh cover URLs
-  - Added review_highlights and average_rating fields
 
-### Fixed - 2024-01-06
+### Fixed - 2026-01-06
 - Port mismatch between API (8000) and UI (expected 6006)
-- API validation errors due to payload field name mismatch
-- Response structure improvements for frontend integration
+- Gradio InvalidPathError for local file paths from old project directory
+- API validation errors due to payload field name mismatch (description vs query)
+- Response structure mismatch (direct list vs {recommendations: []} object)
 
 ### Added
 - **Super App Architecture**: Transformed into "End-to-End AI E-Commerce Platform" with 3-tab UI.
@@ -79,8 +52,8 @@ All notable changes to this project will be documented in this file.
 - Updated README with project structure section
 
 ### Fixed
-- React 18 compatibility issues
-- Dockerfile startup command (updated to run FastAPI backend)
+- Gradio 6.0 compatibility (removed `gr.Div`, simplified theme)
+- Dockerfile startup command (FastAPI → Gradio for HF Spaces)
 
 ---
 

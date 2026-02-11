@@ -6,6 +6,9 @@ setup:
 run:
 	uvicorn src.main:app --reload --port 6006
 
+run-ui:
+	python app.py
+
 test:
 	pytest tests/
 

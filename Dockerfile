@@ -19,8 +19,9 @@ COPY . .
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
 
-# Expose port for API
+# Expose ports for both API and Gradio
 EXPOSE 8000
+EXPOSE 7860
 
-# Default command: Run FastAPI backend
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Default command: Run the Gradio UI for Hugging Face Spaces
+CMD ["python", "app.py"]
