@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from src.config import BOOKS_CSV
+from src.config import BOOKS_CSV, COVER_NOT_FOUND
 from src.utils import setup_logger
 
 logger = setup_logger(__name__)
@@ -18,7 +18,7 @@ def load_books_data() -> pd.DataFrame:
         books["large_thumbnail"] = books["thumbnail"] + "&fife=w800"
         books["large_thumbnail"] = np.where(
             books["large_thumbnail"].isna(),
-            "cover-not-found.jpg",
+            str(COVER_NOT_FOUND),
             books["large_thumbnail"],
         )
         
