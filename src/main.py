@@ -37,8 +37,33 @@ app = FastAPI(
 # Include Routers
 app.include_router(chat_router)
 
-# 挂载静态目录，确保前端能访问 /assets/cover-not-found.jpg
-app.mount("/assets", StaticFiles(directory="assets"), name="assets")
+# --- Frontend Serving (SPA) ---
+import os
+from fastapi.responses import FileResponse
+
+# 1. Mount React Assets (JS/CSS)
+if os.path.exists("web/dist/assets"):
+    app.mount("/assets", StaticFiles(directory="web/dist/assets"), name="assets")
+
+# 2. Mount Local Content Assets (Book Covers)
+app.mount("/content", StaticFiles(directory="assets"), name="content")
+
+# 3. Serve React App (Catch-All for Client-Side Routing)
+@app.get("/{full_path:path}")
+async def serve_react_app(full_path: str):
+    # API requests pass through (FastAPI matches specific routes first)
+    if full_path.startswith("api") or full_path.startswith("docs") or full_path.startswith("openapi"):
+        raise HTTPException(status_code=404, detail="Not Found")
+        
+    # Serve index.html for all other routes (SPA)
+    if os.path.exists("web/dist/index.html"):
+        return FileResponse("web/dist/index.html")
+    
+    # Fallback if frontend isn't built
+    return {
+        "message": "Backend is running. Frontend not found (did you run npm build?)",
+        "docs_url": "/docs"
+    }
 
 
 

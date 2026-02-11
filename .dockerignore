@@ -1,0 +1,28 @@
+# Exclude version control
+.git
+.gitignore
+
+# Exclude local dependencies
+node_modules/
+web/node_modules/
+__pycache__/
+*.pyc
+
+# Exclude data (will be downloaded or mounted)
+data/
+!data/.gitkeep
+
+# Exclude local environment
+.env
+.venv
+venv/
+
+# Exclude VSCode
+.vscode/
+
+# Exclude existing builds
+web/dist/
+build/
+dist/
+eggs/
+.eggs/

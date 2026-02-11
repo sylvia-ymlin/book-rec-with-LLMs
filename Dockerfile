@@ -1,3 +1,13 @@
+# --- Stage 1: Build Frontend ---
+FROM node:18-alpine as frontend-builder
+
+WORKDIR /app/web
+COPY web/package*.json ./
+RUN npm ci
+COPY web/ .
+RUN npm run build
+
+# --- Stage 2: Final Backend Image ---
 FROM python:3.10-slim
 
 WORKDIR /app
@@ -12,14 +22,17 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install "uvicorn[standard]"
 
-# Copy application code
+# Copy backend code
 COPY . .
+
+# Copy built frontend assets from Stage 1
+# We allow the copy to fail if web dir isn't perfect, but here we expect success
+COPY --from=frontend-builder /app/web/dist /app/web/dist
 
 # Create a non-root user (Standard for HF Spaces)
 RUN useradd -m -u 1000 user
 
 # Create data directory and set permissions
-# This ensures local fallback works and persistent storage mountpoint is accessible
 RUN mkdir -p /app/data && chown -R user:user /app
 
 # Switch to non-root user
