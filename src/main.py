@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import time
@@ -12,6 +13,7 @@ from src.utils import setup_logger
 from src.user.profile_store import add_favorite, list_favorites
 from src.marketing.persona import build_persona
 from src.marketing.highlights import generate_highlights
+from src.api.chat import router as chat_router # ✨ NEW
 
 logger = setup_logger(__name__)
 
@@ -19,11 +21,18 @@ logger = setup_logger(__name__)
 REQUEST_COUNT = Counter("http_requests_total", "Total count of HTTP requests", ["method", "endpoint", "status_code"])
 REQUEST_LATENCY = Histogram("http_request_duration_seconds", "HTTP request latency in seconds", ["method", "endpoint"])
 
+
 app = FastAPI(
     title="Book Recommender API",
-    description="API for Intelligent Book Recommendation System",
-    version="1.0.0"
+    description="API for Intelligent Book Recommendation System (RAG Capabilities Enabled)",
+    version="2.0.0"
 )
+
+# Include Routers
+app.include_router(chat_router)
+
+# 挂载静态目录，确保前端能访问 /assets/cover-not-found.jpg
+app.mount("/assets", StaticFiles(directory="assets"), name="assets")
 
 # Allow local frontend dev origins
 app.add_middleware(
@@ -84,6 +93,7 @@ class RecommendationRequest(BaseModel):
     query: str
     category: str = "All"
     tone: str = "All"
+    user_id: Optional[str] = "local"
 
 class BookResponse(BaseModel):
     isbn: str
@@ -127,7 +137,8 @@ async def get_recommendations(request: RecommendationRequest):
         results = recommender.get_recommendations(
             query=request.query,
             category=request.category,
-            tone=request.tone
+            tone=request.tone,
+            user_id=request.user_id if hasattr(request, 'user_id') else "local"
         )
         return {"recommendations": results}
     except Exception as e:
@@ -160,6 +171,33 @@ async def favorites_add(req: FavoriteRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/favorites/list/{user_id}")
+async def favorites_list(user_id: str):
+    """Return user's favorite books with full details."""
+    if not recommender:
+        raise HTTPException(status_code=503, detail="Service not ready")
+    try:
+        isbn_list = list_favorites(user_id)
+        books_df = recommender.books
+        results = []
+        for isbn in isbn_list:
+            book_row = books_df[books_df["isbn13"].astype(str) == str(isbn)]
+            if not book_row.empty:
+                row = book_row.iloc[0]
+                results.append({
+                    "isbn": isbn,
+                    "title": row.get("title", ""),
+                    "author": row.get("authors", "Unknown"),
+                    "img": row.get("thumbnail", "/assets/cover-not-found.jpg"),
+                    "category": row.get("simple_categories", ""),
+                    "mood": "Joy" if row.get("joy", 0) > 0.3 else "Neutral"
+                })
+        return {"favorites": results}
+    except Exception as e:
+        logger.error(f"favorites_list error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/user/{user_id}/persona")
 async def user_persona(user_id: str):
     if not recommender:
@@ -181,7 +219,13 @@ async def marketing_highlights(req: HighlightsRequest):
         favs = list_favorites(req.user_id or "local")
         persona = build_persona(favs, recommender.books)
         result = generate_highlights(req.isbn, persona, recommender.books)
-        return {"persona": persona, "highlights": result.get("highlights", []), "meta": result}
+        # highlights和meta.description都unescape
+        from html import unescape
+        highlights = [unescape(h) for h in result.get("highlights", [])]
+        meta = result.copy()
+        if "description" in meta:
+            meta["description"] = unescape(meta["description"])
+        return {"persona": persona, "highlights": highlights, "meta": meta}
     except Exception as e:
         logger.error(f"marketing_highlights error: {e}")
         raise HTTPException(status_code=500, detail=str(e))

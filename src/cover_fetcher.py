@@ -30,15 +30,16 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PLACEHOLDER_COVER = str(PROJECT_ROOT / "assets" / "cover-not-found.jpg")
 
 @lru_cache(maxsize=1000)
-def fetch_book_cover(isbn: str, title: str = "") -> tuple[str, str]:
+def fetch_book_cover(isbn: str, title: str = "") -> tuple[str, str, str]:
     """
-    Fetch book cover URL (Google Books -> Open Library) and best-effort authors.
+    Fetch book cover URL (Google Books -> Open Library), authors and description.
 
     Returns:
-        (cover_url, authors_str)
+        (cover_url, authors_str, description_from_api)
     """
     cover = PLACEHOLDER_COVER
     authors_str = "Unknown"
+    api_description = ""
 
     # Try Google Books API first
     try:
@@ -65,6 +66,8 @@ def fetch_book_cover(isbn: str, title: str = "") -> tuple[str, str]:
                     authors = volume.get("authors") or []
                     if authors:
                         authors_str = ", ".join(authors)
+                    # Optional: use Google Books description if provided
+                    api_description = volume.get("description") or api_description
     except Exception:
         pass  # Fall through to Open Library
 
@@ -78,7 +81,7 @@ def fetch_book_cover(isbn: str, title: str = "") -> tuple[str, str]:
         except Exception:
             pass
 
-    return cover, authors_str
+    return cover, authors_str, api_description
 
 
 def fetch_covers_batch(books_data: list) -> list:
@@ -94,10 +97,12 @@ def fetch_covers_batch(books_data: list) -> list:
     for book in books_data:
         isbn = book.get("isbn", "")
         title = book.get("title", "")
-        cover, authors = fetch_book_cover(isbn, title)
+        cover, authors, api_desc = fetch_book_cover(isbn, title)
         book["thumbnail"] = cover
         if authors != "Unknown":
             book["authors"] = authors
+        if api_desc:
+            book["description_api"] = api_desc
         # Small delay to avoid rate limiting
         time.sleep(0.05)
     

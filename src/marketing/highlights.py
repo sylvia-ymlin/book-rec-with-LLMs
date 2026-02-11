@@ -1,9 +1,15 @@
 from typing import Dict, List, Any
 import pandas as pd
+import os
 
 from src.utils import setup_logger
+from src.core.llm import LLMFactory
+from src.user.profile_store import get_cached_highlight, save_cached_highlight
 
 logger = setup_logger(__name__)
+
+# Check for API key in environment (for non-BYOK default mode)
+DEFAULT_LLM_KEY = os.getenv("OPENAI_API_KEY", "")
 
 
 def _first_words(text: str, n: int = 30) -> str:
@@ -14,10 +20,15 @@ def _first_words(text: str, n: int = 30) -> str:
         return ""
 
 
-def generate_highlights(isbn: str, persona: Dict[str, Any], books: pd.DataFrame) -> Dict[str, Any]:
+def generate_highlights(
+    isbn: str, 
+    persona: Dict[str, Any], 
+    books: pd.DataFrame,
+    api_key: str = None  # Optional BYOK key
+) -> Dict[str, Any]:
     """
-    Generate a natural, concise highlight about the book based on its attributes.
-    Returns { highlights: List[str], title: str, authors: str, category: str, description: str }
+    Generate a personalized, LLM-powered highlight about the book.
+    Uses persona to tailor the message to the user's reading preferences.
     """
     book_row = books[books["isbn13"].astype(str) == str(isbn)]
     if book_row.empty:
@@ -34,12 +45,13 @@ def generate_highlights(isbn: str, persona: Dict[str, Any], books: pd.DataFrame)
     title = str(row.get("title", ""))
     authors_raw = str(row.get("authors", ""))
     category = str(row.get("simple_categories", ""))
-    desc = str(row.get("description", ""))
+    desc = _first_words(str(row.get("description", "")), 50)
     
-    # Extract tags and emotions
-    tags_raw = str(row.get("tags", ""))
-    tags = [t.strip() for t in tags_raw.split(";") if t.strip()][:3]  # top 3 tags
-    
+    # Parse authors
+    authors = [a.strip() for a in authors_raw.split(";") if a.strip() and a.strip().lower() != "unknown"]
+    author_display = ", ".join(authors) if authors else "Unknown"
+
+    # Extract emotions
     emotions = {
         "joy": float(row.get("joy", 0.0)),
         "sadness": float(row.get("sadness", 0.0)),
@@ -47,55 +59,59 @@ def generate_highlights(isbn: str, persona: Dict[str, Any], books: pd.DataFrame)
         "anger": float(row.get("anger", 0.0)),
         "surprise": float(row.get("surprise", 0.0)),
     }
-    dominant_emotion = max(emotions.items(), key=lambda x: x[1])[0] if emotions else None
-    
-    # Build natural language highlight
-    parts = []
-    
-    # Emotional tone
-    emotion_map = {
-        "joy": "uplifting and heartwarming",
-        "sadness": "deeply moving and contemplative",
-        "fear": "gripping and suspenseful",
-        "anger": "powerful and thought-provoking",
-        "surprise": "unexpected and engaging"
-    }
-    if dominant_emotion and emotions.get(dominant_emotion, 0) > 0.3:
-        parts.append(f"A {emotion_map.get(dominant_emotion, 'compelling')} {category.lower() if category else 'read'}")
-    elif category:
-        parts.append(f"An engaging {category.lower()} work")
+    dominant_emotion = max(emotions.items(), key=lambda x: x[1])[0] if emotions else "neutral"
+
+    persona_summary = persona.get("summary", "a curious reader")
+
+    # --- LLM Generation ---
+    # 1. Check Cache First
+    # Assuming user_id is passed or available context. For now using 'local' if api_key not set, 
+    # but ideally should come from request context. 
+    # Since api_key is optional param here, we can infer user context implicitly or explicit param.
+    # Note: Using "local" as default user_id for cache to match single-user demo assumption.
+    user_id = "local" 
+    cached_highlight = get_cached_highlight(user_id, isbn)
+    if cached_highlight:
+        highlight_text = cached_highlight
     else:
-        parts.append("A captivating read")
-    
-    # Theme tags
-    if tags:
-        parts.append(f"exploring themes of {', '.join(tags)}")
-    
-    # Author mention (if available)
-    authors = [a.strip() for a in authors_raw.split(";") if a.strip() and a.strip().lower() != "unknown"]
-    if authors:
-        parts.append(f"by {authors[0]}")
-    
-    # Construct final sentence
-    highlight = " ".join(parts) + "."
-    
-    # Handle author display
-    if authors and authors_raw.lower() != "unknown":
-        author_display = ", ".join(authors)
-    else:
-        author_display = "Unknown"
+        try:
+            # Use local Ollama by default (llama3), fallback to mock if fails
+            llm = LLMFactory.create(provider="ollama", model_name="llama3", temperature=0.7)
+            
+            prompt = f"""You are a literary concierge. Generate a SHORT, personalized highlight (1-2 sentences max) for the following book, tailored to the reader's profile.
+
+Book: "{title}" by {author_display}
+Category: {category}
+Emotional Tone: {dominant_emotion}
+Description: {desc}
+
+Reader Profile: {persona_summary}
+
+Generate a compelling, personalized highlight that explains why THIS reader would enjoy this book. Be concise and engaging. Do not use phrases like "As someone who..." or "Based on your profile...". Just state the value directly."""
+
+            response = llm.invoke(prompt)
+            highlight_text = response.content.strip()
+            
+            # 2. Save to Cache
+            save_cached_highlight(user_id, isbn, highlight_text)
+            
+        except Exception as e:
+            logger.warning(f"LLM generation failed, falling back to template: {e}")
+            # Fallback to simple template
+            highlight_text = f"A {dominant_emotion} {category.lower() if category else 'read'} that resonates with your literary taste."
 
     return {
         "title": title,
         "authors": author_display,
         "category": category,
-        "description": desc,
-        "highlights": [highlight],
-        "persona_summary": persona.get("summary", ""),
+        "description": str(row.get("description", "")),
+        "highlights": [highlight_text],
+        "persona_summary": persona_summary,
         "meta": {
             "title": title,
             "authors": author_display,
             "category": category,
-            "description": desc
+            "description": str(row.get("description", ""))
         }
     }
+

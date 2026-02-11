@@ -1,21 +1,26 @@
-.PHONY: setup run test lint docker-build docker-up
+# Environment
+env-create:
+	conda env create -f environment.yml
 
-setup:
-	pip install -r requirements.txt
+env-update:
+	conda env update -f environment.yml --prune
 
+# Development
 run:
 	uvicorn src.main:app --reload --port 6006
 
-run-ui:
-	python app.py
-
+# Quality
 test:
 	pytest tests/
 
 lint:
-	pip install ruff
 	ruff check src/
 
+clean:
+	find . -type d -name "__pycache__" -exec rm -rf {} +
+	find . -type f -name "*.pyc" -delete
+
+# Docker
 docker-build:
 	docker-compose build
 

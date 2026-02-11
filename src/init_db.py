@@ -7,10 +7,10 @@ from pathlib import Path
 # Add project root to Python path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from langchain_chroma import Chroma
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_community.vectorstores import Chroma
+from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_core.documents import Document
-from src.config import DESCRIPTIONS_TXT, CHROMA_DB_DIR, EMBEDDING_MODEL
+from src.config import REVIEW_HIGHLIGHTS_TXT, CHROMA_DB_DIR, EMBEDDING_MODEL
 from tqdm import tqdm
 
 def init_db():
@@ -18,16 +18,23 @@ def init_db():
     print("📚 Book Recommender: Vector Database Builder")
     print("="*50)
     
-    # Check for Mac GPU (Metal Performance Shaders)
-    if torch.backends.mps.is_available():
-        device = "mps"
-        print("⚡️  MacOS GPU (MPS) Detected! switching to GPU acceleration.")
-    elif torch.cuda.is_available():
-        device = "cuda"
-        print("⚡️  NVIDIA GPU (CUDA) Detected!")
-    else:
-        device = "cpu"
-        print("🐢  No GPU detected, running on CPU (this might be slow).")
+    # FIX: Disable Tokenizers Parallelism to prevent deadlocks on macOS
+    os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
+    # Force CPU for data ingestion to avoid MPS (Metal) async hangs during long processing
+    # We only need speed for inference, reliability is key for building the DB.
+    device = "cpu"
+    print("🐢  Forcing CPU for stable database ingestion (prevents macOS Freezes).")
+    
+    # if torch.backends.mps.is_available():
+    #     device = "mps"
+    #     print("⚡️  MacOS GPU (MPS) Detected! switching to GPU acceleration.")
+    # elif torch.cuda.is_available():
+    #     device = "cuda"
+    #     print("⚡️  NVIDIA GPU (CUDA) Detected!")
+    # else:
+    #     device = "cpu"
+    #     print("🐢  No GPU detected, running on CPU (this might be slow).")
 
     # 1. Clear existing DB if any (to avoid duplicates/corruption)
     if CHROMA_DB_DIR.exists():
@@ -50,21 +57,21 @@ def init_db():
     )
     
     # 4. Stream and Index
-    if not DESCRIPTIONS_TXT.exists():
-        print(f"❌ Error: Description file not found at {DESCRIPTIONS_TXT}")
+    if not REVIEW_HIGHLIGHTS_TXT.exists():
+        print(f"❌ Error: Review Highlights file not found at {REVIEW_HIGHLIGHTS_TXT}")
         return
 
     # Count lines first for progress bar
     print("📊 Counting documents...")
-    total_lines = sum(1 for _ in open(DESCRIPTIONS_TXT, 'r', encoding='utf-8'))
+    total_lines = sum(1 for _ in open(REVIEW_HIGHLIGHTS_TXT, 'r', encoding='utf-8'))
     print(f"   Found {total_lines} documents to index.")
     
     batch_size = 2000  # Increased batch size for optimal GPU throughput
     documents = []
     
-    print("🚀 Starting Ingestion...")
-    with open(DESCRIPTIONS_TXT, 'r', encoding='utf-8') as f:
-        for line in tqdm(f, total=total_lines, unit="doc", desc="Indexing Books"):
+    print("🚀 Starting Ingestion (Source: Review Highlights)...")
+    with open(REVIEW_HIGHLIGHTS_TXT, 'r', encoding='utf-8') as f:
+        for line in tqdm(f, total=total_lines, unit="doc", desc="Indexing Reviews"):
             line = line.strip()
             if not line: 
                 continue

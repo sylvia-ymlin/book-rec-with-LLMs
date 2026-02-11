@@ -1,11 +1,13 @@
 import React, { useState } from "react";
 import { Bookmark, Heart, Search, Layers, Smile, Sparkles, Star, Trophy, BarChart3, X, MessageCircle, MessageSquare, Info, Send } from "lucide-react";
-import { recommend, addFavorite, getPersona, getHighlights } from "./api";
+import { recommend, addFavorite, getPersona, getHighlights, streamChat, getFavorites } from "./api";
+import { Settings } from "lucide-react";
 
 // --- Elegant Book Discovery UI ---
 
 const CATEGORIES = ["All", "Fiction", "History", "Philosophy", "Science", "Art"];
 const MOODS = ["All", "Happy", "Suspenseful", "Angry", "Sad", "Surprising"];
+const PLACEHOLDER_IMG = "http://localhost:6006/assets/cover-not-found.jpg";
 
 const StudyButton = ({ children, active, color, className, onClick }) => {
   const colors = {
@@ -14,7 +16,7 @@ const StudyButton = ({ children, active, color, className, onClick }) => {
     tab: "bg-transparent text-[#b392ac] border-b-2 border-[#b392ac]",
   };
   return (
-    <button 
+    <button
       onClick={onClick}
       className={`px-4 py-2 text-sm font-bold transition-all ${colors[color] || colors.purple} ${className || ""}`}
     >
@@ -33,66 +35,140 @@ const App = () => {
   const [selectedBook, setSelectedBook] = useState(null);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
-  const [myCollection, setMyCollection] = useState([]); 
+  const [myCollection, setMyCollection] = useState([]);
+
+  // Load favorites on startup
+  React.useEffect(() => {
+    getFavorites("local")
+      .then(favs => {
+        setMyCollection(favs);
+        localStorage.setItem('myCollection', JSON.stringify(favs));
+      })
+      .catch(console.error);
+  }, []);
   const [showMyShelf, setShowMyShelf] = useState(false);
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  
+
   const [searchQuery, setSearchQuery] = useState("");
   const [searchCategory, setSearchCategory] = useState("All");
   const [searchMood, setSearchMood] = useState("All");
 
-  const handleSend = (text) => {
+  // --- NEW: Settings & Auth ---
+  const [showSettings, setShowSettings] = useState(false);
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem("openai_key") || "");
+  const [llmProvider, setLlmProvider] = useState(() => localStorage.getItem("llm_provider") || "openai");
+
+  const saveKey = () => {
+    localStorage.setItem("openai_key", apiKey);
+    localStorage.setItem("llm_provider", llmProvider);
+    setShowSettings(false);
+  };
+
+
+  const handleSend = async (text) => {
     if (!text) return;
+    // 1. User Message
     const newMsgs = [...messages, { role: 'user', content: text }];
     setMessages(newMsgs);
     setInput("");
-    setTimeout(() => {
-      setMessages([...newMsgs, { role: 'ai', content: `Based on "${selectedBook?.title || ''}" and your reading taste, I recommend paying attention to the thematic elements—they truly resonate with your preferences.` }]);
-    }, 600);
+
+    // 2. AI Placeholder
+    setMessages(prev => [...prev, { role: 'ai', content: "Thinking..." }]);
+    const aiMsgIndex = newMsgs.length; // The index of the new AI message
+
+    // 3. Stream Response
+    let currentAiMsg = "";
+    await streamChat({
+      isbn: selectedBook.isbn,
+      query: text,
+      apiKey: apiKey,
+      provider: llmProvider, // Pass the selected provider
+      onChunk: (chunk) => {
+        currentAiMsg += chunk;
+        setMessages(prev => {
+          const updated = [...prev];
+          updated[aiMsgIndex] = { role: 'ai', content: currentAiMsg };
+          return updated;
+        });
+      },
+      onError: (err) => {
+        setMessages(prev => {
+          const updated = [...prev];
+          updated[aiMsgIndex] = { role: 'ai', content: `Error: ${err.message}. Check your API Key in Settings.` };
+          return updated;
+        });
+      }
+    });
   };
 
   const toggleCollect = async (book) => {
     try {
       await addFavorite(book.isbn);
+      let updated;
       if (myCollection.some(b => b.isbn === book.isbn)) {
-        setMyCollection(myCollection.filter(b => b.isbn !== book.isbn));
+        updated = myCollection.filter(b => b.isbn !== book.isbn);
       } else {
-        setMyCollection([...myCollection, book]);
+        updated = [...myCollection, book];
       }
+      setMyCollection(updated);
+      localStorage.setItem('myCollection', JSON.stringify(updated));
     } catch (e) {
       console.error(e);
     }
   };
 
-  const openBook = async (book) => {
-    setSelectedBook(book);
-    setMessages([]);
-    try {
-      const res = await getHighlights(book.isbn);
-      const meta = res?.meta || {};
-      setSelectedBook({ ...book, aiHighlight: (res?.highlights || []).join("\n") || '—', suggestedQuestions: [
+  const openBook = (book) => {
+    // 1. Immediately show modal with placeholder
+    setSelectedBook({
+      ...book,
+      aiHighlight: '✨ ...',
+      suggestedQuestions: [
         `Who is the target audience for this book?`,
         `Does the author have similar works?`,
         `Can you summarize the main content?`
-      ], desc: meta?.description || book.desc });
-    } catch (e) {
-      // keep default
-    }
+      ]
+    });
+    setMessages([]);
+
+    // 2. Async fetch highlight in background
+    getHighlights(book.isbn)
+      .then(res => {
+        const meta = res?.meta || {};
+        // Strip quotes that LLM sometimes adds
+        const rawHighlight = (res?.highlights || []).join("\n") || '—';
+        const cleanHighlight = rawHighlight.replace(/^["']|["']$/g, '').trim();
+        setSelectedBook(prev => ({
+          ...prev,
+          aiHighlight: cleanHighlight,
+          desc: meta?.description || prev.desc
+        }));
+      })
+      .catch(e => {
+        setSelectedBook(prev => ({
+          ...prev,
+          aiHighlight: 'Unable to generate highlight.'
+        }));
+      });
   };
 
   const startDiscovery = async () => {
-    setLoading(true); 
+    setLoading(true);
     setError("");
+    setBooks([]);  // Clear previous results immediately
     try {
-      const recs = await recommend(searchQuery || 'adventure', searchCategory, searchMood);
+      const recs = await recommend(searchQuery || 'adventure', searchCategory, searchMood, "local");
       const mapped = (recs || []).map((r, idx) => ({
         id: r.isbn,
         title: r.title,
         author: r.authors,
         category: searchCategory,
-        mood: searchMood,
+        mood: searchMood !== "All" ? searchMood : (
+          r.emotions && Object.keys(r.emotions).length > 0
+            ? Object.entries(r.emotions).reduce((a, b) => a[1] > b[1] ? a : b)[0]
+            : "Literary"
+        ),
         rank: idx + 1,
         rating: r.average_rating || 0,
         tags: r.tags || [],
@@ -133,15 +209,64 @@ const App = () => {
           <p className="text-[10px] text-gray-400 font-medium tracking-widest">Discover books that resonate with your soul</p>
         </div>
         <div className="flex gap-2">
-          <StudyButton 
-            active={showMyShelf} 
+          <StudyButton
+            active={showMyShelf}
             color={showMyShelf ? "purple" : "tab"}
             onClick={() => setShowMyShelf(!showMyShelf)}
           >
             <Bookmark className="w-4 h-4 inline mr-1" /> {showMyShelf ? "Back to Gallery" : "My Collection"}
           </StudyButton>
+          <button
+            onClick={() => setShowSettings(true)}
+            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+            title="Settings"
+          >
+            <Settings className="w-4 h-4 text-gray-500" />
+          </button>
         </div>
       </header>
+
+      {/* Settings Modal */}
+      {showSettings && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/10 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white p-6 shadow-xl border border-[#333] w-full max-w-md relative">
+            <button onClick={() => setShowSettings(false)} className="absolute top-2 right-2"><X className="w-4 h-4" /></button>
+            <h3 className="font-bold uppercase tracking-widest mb-4 text-[#b392ac]">Configuration</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 mb-1">LLM Provider</label>
+                <select
+                  value={llmProvider}
+                  onChange={e => setLlmProvider(e.target.value)}
+                  className="w-full border p-2 text-sm outline-none focus:border-[#b392ac] bg-white"
+                >
+                  <option value="openai">OpenAI (Requires Key)</option>
+                  <option value="ollama">Ollama (Local Default)</option>
+                  <option value="mock">Mock (Test)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-500 mb-1">OpenAI API Key</label>
+                <input
+                  type="password"
+                  className="w-full border p-2 text-sm outline-none focus:border-[#b392ac]"
+                  placeholder="sk-..."
+                  value={apiKey}
+                  onChange={e => setApiKey(e.target.value)}
+                />
+                <p className="text-[9px] text-gray-400 mt-1">
+                  Required if using OpenAI. For Ollama/Mock, this is ignored.
+                  Stored locally.
+                </p>
+              </div>
+              <StudyButton active color="purple" className="w-full" onClick={saveKey}>
+                Save Settings
+              </StudyButton>
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="max-w-5xl mx-auto px-4 pb-20">
         {!showMyShelf && (
@@ -153,12 +278,12 @@ const App = () => {
                 </h4>
                 <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
                   {getRecommendedBooks().map(book => (
-                    <div 
-                      key={book.id} 
+                    <div
+                      key={book.id}
                       onClick={() => openBook(book)}
                       className="min-w-[280px] flex gap-4 bg-white border border-[#333] p-3 shadow-sm hover:shadow-md cursor-pointer transition-all"
                     >
-                      <img src={book.img} className="w-20 h-28 object-cover border border-[#eee]" />
+                      <img src={book.img || PLACEHOLDER_IMG} className="w-20 h-28 object-cover border border-[#eee]" onError={e => { e.target.onerror = null; e.target.src = PLACEHOLDER_IMG; }} />
                       <div className="flex flex-col justify-between">
                         <div>
                           <h5 className="text-[12px] font-bold text-[#333]">{book.title}</h5>
@@ -178,7 +303,7 @@ const App = () => {
               <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
                 <div className="md:col-span-6 flex items-center bg-white border border-[#ddd] p-2 shadow-sm">
                   <Search className="w-4 h-4 mr-3 text-gray-300 ml-2" />
-                  <input 
+                  <input
                     className="w-full outline-none text-sm placeholder-gray-400 bg-transparent font-serif"
                     placeholder="Search for a topic, mood, or dream..."
                     value={searchQuery}
@@ -187,7 +312,7 @@ const App = () => {
                 </div>
                 <div className="md:col-span-3 flex items-center bg-white border border-[#ddd] p-2 shadow-sm">
                   <Layers className="w-4 h-4 mr-3 text-gray-300 ml-2" />
-                  <select 
+                  <select
                     className="w-full outline-none text-sm bg-transparent text-gray-500 font-serif"
                     value={searchCategory}
                     onChange={(e) => setSearchCategory(e.target.value)}
@@ -197,7 +322,7 @@ const App = () => {
                 </div>
                 <div className="md:col-span-3 flex items-center bg-white border border-[#ddd] p-2 shadow-sm">
                   <Smile className="w-4 h-4 mr-3 text-gray-300 ml-2" />
-                  <select 
+                  <select
                     className="w-full outline-none text-sm bg-transparent text-gray-500 font-serif"
                     value={searchMood}
                     onChange={(e) => setSearchMood(e.target.value)}
@@ -219,20 +344,28 @@ const App = () => {
 
         {showMyShelf && (
           <div className="mb-8 flex items-center gap-4 text-xs font-bold text-[#b392ac] bg-[#e5d9f2]/30 p-4 border border-[#b392ac]/20">
-            <BarChart3 className="w-4 h-4" /> 
+            <BarChart3 className="w-4 h-4" />
             Your collection shows a preference for: {myCollection.map(b => b.mood).filter((v, i, a) => a.indexOf(v) === i).join(", ")}
           </div>
         )}
 
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
           {currentViewBooks.length > 0 ? currentViewBooks.map((book, idx) => (
-            <div 
+            <div
               key={idx}
               onClick={() => openBook(book)}
               className="group cursor-pointer transform hover:-translate-y-1 transition-all"
             >
               <div className="bg-white border border-[#eee] p-1 relative shadow-sm group-hover:shadow-md overflow-hidden">
-                <img src={book.img} alt={book.title} className="w-full aspect-[3/4] object-cover opacity-90 group-hover:opacity-100 transition-opacity" />
+                <img
+                  src={book.img || PLACEHOLDER_IMG}
+                  alt={book.title}
+                  className="w-full aspect-[3/4] object-cover opacity-90 group-hover:opacity-100 transition-opacity"
+                  onError={e => {
+                    e.target.onerror = null;
+                    e.target.src = PLACEHOLDER_IMG;
+                  }}
+                />
                 <div className="absolute inset-0 bg-white/80 flex items-center justify-center p-4 opacity-0 group-hover:opacity-100 transition-opacity text-center px-4">
                   <p className="text-[10px] font-bold text-[#b392ac] leading-relaxed italic">
                     {book.aiHighlight}
@@ -266,7 +399,7 @@ const App = () => {
         {selectedBook && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/5 backdrop-blur-sm animate-in fade-in duration-300 overflow-y-auto">
             <StudyCard className="relative bg-white max-w-5xl w-full shadow-2xl border-[#333] my-8">
-              <button 
+              <button
                 onClick={() => setSelectedBook(null)}
                 className="absolute top-4 right-4 text-gray-300 hover:text-gray-600 transition-colors z-10"
               >
@@ -275,46 +408,35 @@ const App = () => {
 
               <div className="grid md:grid-cols-12 gap-8 md:gap-10 px-6 md:px-10 py-6">
                 <div className="md:col-span-5 flex flex-col items-center border-r border-[#f5f5f5] pr-0 md:pr-6">
-                  <div className="border border-[#eee] p-1 bg-white shadow-sm mb-4 w-52 md:w-56">
-                    <img src={selectedBook.img} alt="cover" className="w-full aspect-[3/4] object-cover" />
+                  <div className="border border-[#eee] p-1 bg-white shadow-sm mb-2 w-52 md:w-56">
+                    <img
+                      src={selectedBook.img || PLACEHOLDER_IMG}
+                      alt="cover"
+                      className="w-full aspect-[3/4] object-cover"
+                      onError={e => { e.target.onerror = null; e.target.src = PLACEHOLDER_IMG; }}
+                    />
                   </div>
-                  
+
+                  <p className="text-xs text-[#999] mb-2 tracking-tighter text-center w-full">{selectedBook.author}</p>
+
                   <h2 className="text-xl font-bold text-[#333] mb-1 text-center md:text-left w-full">{selectedBook.title}</h2>
-                  <p className="text-xs text-[#999] mb-4 tracking-tighter text-center md:text-left w-full">{selectedBook.author} • ISBN: {selectedBook.isbn}</p>
-                  
-                  <div className="bg-[#fff9f9] border border-[#f4acb7] p-4 w-full relative mb-6">
+                  <p className="text-xs text-[#999] mb-2 tracking-tighter text-center md:text-left w-full">ISBN: {selectedBook.isbn}</p>
+
+                  <div className="bg-[#fff9f9] border border-[#f4acb7] p-4 w-full relative mb-4">
                     <Sparkles className="w-3 h-3 text-[#f4acb7] absolute -top-1.5 -left-1.5 fill-current" />
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-[11px] font-bold text-[#f4acb7]">{selectedBook.rating ? selectedBook.rating.toFixed(1) : '0.0'}</span>
                       <div className="flex gap-0.5 text-[#f4acb7]">
-                        {[1,2,3,4,5].map(i => <Star key={i} className={`w-3 h-3 ${i <= selectedBook.rating ? 'fill-current' : ''}`} />)}
+                        {[1, 2, 3, 4, 5].map(i => <Star key={i} className={`w-3 h-3 ${i <= selectedBook.rating ? 'fill-current' : ''}`} />)}
                       </div>
                     </div>
                     <p className="text-[11px] font-bold text-[#f4acb7] italic leading-relaxed">
                       {selectedBook.aiHighlight}
                     </p>
                   </div>
-                  
-                  <div className="w-full mb-6">
-                    <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1 mb-2">
-                      <Smile className="w-3 h-3" /> Mood
-                    </h4>
-                    <div className="flex flex-wrap gap-1">
-                      {(Object.entries(selectedBook.emotions || {})
-                        .sort((a, b) => b[1] - a[1])
-                        .slice(0, 2)).map(([emo, score]) => (
-                        <span key={emo} className="text-[9px] text-[#735d78] capitalize">
-                          {emo} {Math.round(score * 100)}%
-                        </span>
-                      ))}
-                      {(!selectedBook.emotions || Object.keys(selectedBook.emotions).length === 0) && (
-                        <span className="text-[9px] text-gray-300 italic">No mood data</span>
-                      )}
-                    </div>
-                  </div>
-                  
+
                   {selectedBook.review_highlights && selectedBook.review_highlights.length > 0 && (
-                    <div className="w-full mt-auto space-y-2 text-left">
+                    <div className="w-full space-y-2 text-left">
                       {selectedBook.review_highlights.slice(0, 3).map((highlight, idx) => {
                         const isCompleteSentence = /^[A-Z]/.test(highlight.trim());
                         const prefix = isCompleteSentence ? '' : '...';
@@ -331,10 +453,12 @@ const App = () => {
                 <div className="md:col-span-7 flex flex-col space-y-6">
                   <div className="space-y-2">
                     <h4 className="flex items-center gap-2 text-[10px] font-bold uppercase text-gray-400 tracking-wider">
-                      <Info className="w-3.5 h-3.5" /> Summary
+                      <Info className="w-3.5 h-3.5" /> Description
                     </h4>
                     <div className="p-4 bg-white border border-[#eee] text-[12px] leading-relaxed text-[#666] italic border-l-[4px] border-l-[#b392ac]">
-                      "{selectedBook.desc}"
+                      <div style={{ maxHeight: '180px', overflowY: 'auto', whiteSpace: 'pre-line' }}>
+                        {selectedBook.desc}
+                      </div>
                     </div>
                   </div>
 
@@ -352,11 +476,10 @@ const App = () => {
                       </div>
                       {messages.map((m, i) => (
                         <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                          <div className={`max-w-[80%] p-2 border text-[11px] shadow-sm ${
-                            m.role === 'user' 
-                              ? 'bg-[#b392ac] text-white border-[#b392ac]' 
-                              : 'bg-white text-[#666] border-[#eee]'
-                          }`}>
+                          <div className={`max-w-[80%] p-2 border text-[11px] shadow-sm ${m.role === 'user'
+                            ? 'bg-[#b392ac] text-white border-[#b392ac]'
+                            : 'bg-white text-[#666] border-[#eee]'
+                            }`}>
                             {m.content}
                           </div>
                         </div>
@@ -365,7 +488,7 @@ const App = () => {
                     <div className="p-3 bg-white border-t border-[#eee] space-y-3">
                       <div className="flex flex-wrap gap-2">
                         {(selectedBook.suggestedQuestions || []).map((q, idx) => (
-                          <button 
+                          <button
                             key={idx}
                             onClick={() => handleSend(q)}
                             className="text-[9px] px-2 py-1 bg-[#f8f9fa] border border-[#eee] text-gray-500 hover:border-[#b392ac] hover:text-[#b392ac] transition-colors"
@@ -375,12 +498,12 @@ const App = () => {
                         ))}
                       </div>
                       <div className="flex gap-2">
-                        <input 
+                        <input
                           value={input}
                           onChange={(e) => setInput(e.target.value)}
                           onKeyDown={(e) => e.key === 'Enter' && handleSend(input)}
-                          className="flex-grow border border-[#eee] p-2 text-[11px] outline-none focus:border-[#b392ac] bg-[#faf9f6] font-serif" 
-                          placeholder="Ask a question..." 
+                          className="flex-grow border border-[#eee] p-2 text-[11px] outline-none focus:border-[#b392ac] bg-[#faf9f6] font-serif"
+                          placeholder="Ask a question..."
                         />
                         <button onClick={() => handleSend(input)} className="bg-[#333] text-white p-2">
                           <Send className="w-3.5 h-3.5" />
@@ -390,9 +513,9 @@ const App = () => {
                   </div>
 
                   <div className="flex gap-3">
-                    <StudyButton 
-                      active 
-                      color={myCollection.some(b => b.isbn === selectedBook.isbn) ? "peach" : "purple"} 
+                    <StudyButton
+                      active
+                      color={myCollection.some(b => b.isbn === selectedBook.isbn) ? "peach" : "purple"}
                       className="flex-grow py-3 text-sm flex items-center justify-center gap-2 font-bold"
                       onClick={() => toggleCollect(selectedBook)}
                     >
