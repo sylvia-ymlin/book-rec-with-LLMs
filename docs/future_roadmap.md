@@ -1,70 +1,246 @@
-# Advanced RAG Architecture: Future Roadmap
+# Future Roadmap: 技术演进计划
 
-This document outlines the technical evolution path for the Book Recommender system, moving from a standard RAG demo to an enterprise-grade intelligent system.
-
-## 1. Knowledge Representation: GraphRAG
-
-**The Problem**: Vector search handles "similarity" well but fails at "connectivity" and structural reasoning (e.g., "Find hard sci-fi like *Three Body Problem* but discussing the *Fermi Paradox*").
-
-**The Solution**:
-- **Graph Construction**: Use LLM to extract entities (Book, Author, Genre) and relationships (Series, Influenced_By, Theme, Adapted_From) into a Knowledge Graph (e.g., Neo4j or NetworkX).
-- **Graph-Enhanced Retrieval**: 
-  1. **Traversal**: Perform multi-hop traversal to find structurally related books (e.g., query -> "Hard Sci-Fi" node -> "Fermi Paradox" theme node -> candidate books).
-  2. **Fusion**: Combine Graph Candidates with Vector Similarity Candidates for final ranking.
-
-**Key Value**: Solves "Semantic Drift" in long-tail recommendations and enables reasoning over interconnected data.
+本文档记录项目的技术演进路线，从当前版本到目标版本的升级计划。
 
 ---
 
-## 2. Retrieval Precision: Domain-Specific Embeddings
+## 📈 版本演进路线图
 
-**The Problem**: General-purpose embeddings (like OpenAI `text-embedding-3`) conflate domain-specific sentiments. In book reviews, "Sad" might mean "Depressing" (negative) or "Cathartic/Moving" (positive).
-
-**The Solution**:
-- **Contrastive Fine-Tuning**: Construct `(Query, Positive_Book, Negative_Book)` triplets from the user rating data (`Books_rating.csv`). Fine-tune a model like BGE or Sentence-BERT to learn the specific semantic space of book reviews.
-- **Matryoshka Embeddings**: Train variable-length embeddings.
-    - Use short vectors (e.g., 64d) for extremely fast initial retrieval (10x speedup).
-    - Use full vectors (e.g., 768d) for precision reranking of the top candidates.
-
-**Key Value**: Domain Adaptation (estimated +15% Recall) and significant Cost/Latency Efficiency.
-
----
-
-## 3. System Architecture: Agentic RAG
-
-**The Problem**: Linear RAG pipelines (`Query -> Retrieve -> Generate`) fail on complex, multi-dimensional questions (e.g., "Compare the author's early vs. late writing style").
-
-**The Solution**:
-- **Router Agent**: Analyzes query complexity to route the request:
-  - *Simple*: Direct Vector Search.
-  - *Complex*: Knowledge Graph Traversal + Vector Search.
-  - *External*: Web Search (Google Books API) for missing/real-time info.
-- **Self-Correction (Self-RAG)**: The Agent evaluates its own retrieved documents. If they are irrelevant or insufficient, it rewrites the search query and tries again before attempting to answer.
-
-**Key Value**: Solves "Hallucination" and enables handling of complex, investigative queries.
-
----
-
-## 4. Cost & Performance: Context Compression
-
-**The Problem**: Feeding large amounts of raw text (e.g., 50 full book reviews) to an LLM is expensive, slow, and causes "Lost in the Middle" (attention gradation) issues.
-
-**The Solution**:
-- **Compression Pipeline**: `Retrieval -> [Cross-Encoder / Summarizer Model] -> LLM`. Extract only the most relevant sentences/segments from the retrieved docs before sending to the LLM.
-- **KV Cache Optimization**: For multi-turn chat, dynamically summarize the conversation history to maintain long-term context without linear growth in token usage.
-
-**Key Value**: Up to 60% Token Cost Reduction and improved model attention/accuracy.
+```
+V1.0 基础RAG                V2.0 当前版本              V3.0 目标版本
+(向量检索)                   (Agentic + RecSys)         (智能自适应)
+    │                             │                          │
+    │  ┌──────────────────────────┘                          │
+    │  │                                                      │
+    │  │  已实现:                                             │
+    │  │  - Agentic Router (规则)                            │
+    │  │  - Hybrid Search + RRF                              │
+    │  │  - Cross-Encoder Rerank                             │
+    │  │  - Small-to-Big Retrieval                           │
+    │  │  - 多路召回 (ItemCF/UserCF/YoutubeDNN)              │
+    │  │  - XGBoost 精排                                     │
+    │  │                                                      │
+    │  └──────────────────────────────────────────────────────┤
+    │                                                          │
+    │                             计划实现:                    │
+    │                             - 神经意图路由               │
+    │                             - 推理链检索                │
+    │                             - 在线反馈学习              │
+    │                             - 不确定性追问              │
+    └───────────────────────────────────────────────────────────
+```
 
 ---
 
-## 5. Recommendation Logic: Temporal Dynamics
+## 🚀 V3.0 升级计划
 
-**The Problem**: User profiles are often treated as static. The system doesn't distinguish between a book liked 5 years ago and one liked yesterday.
+### 1. 神经意图路由 (Neural Intent Router)
 
-**The Solution**:
-- **Decay Embeddings**: Apply time-decay functions to user interactions when building the User Profile Vector (Recent interactions > Historical ones).
-- **Dual-Slot Profile**: Separate the user profile into:
-    - "Long-term Preference" (Stability/Identity)
-    - "Short-term Interest" (Burstiness/Current Mood)
+**当前**: 规则路由 (RegEx + 关键词)
+**升级**: 轻量级 ML 路由 + 个性化融合
 
-**Key Value**: Solves "Recommendation Lag" and better captures user Interest Drift.
+```python
+class NeuralIntentRouter:
+    """
+    意图分类器 + 个性化路由
+    
+    意图类别：
+    - exact_search: ISBN/书名精确搜索
+    - semantic_search: 语义模糊搜索
+    - detail_query: 细节问询 (结局/评价)
+    - similar_to: 相似推荐 ("类似三体的书")
+    - personalized: 无 Query 个性化推荐
+    - clarify_needed: 意图不明确需追问
+    """
+    
+    def __init__(self):
+        self.intent_model = AutoModelForSequenceClassification.from_pretrained(
+            "distilbert-base-uncased",  # 轻量级
+            num_labels=6
+        )
+        
+    def route(self, query: str, user_id: str = None) -> Dict:
+        # 1. 空 Query → 推荐模式
+        if not query.strip():
+            return {"strategy": "personalized_rec", "user_id": user_id}
+        
+        # 2. 规则优先 (高置信度情况)
+        if self._is_isbn(query):
+            return {"strategy": "bm25", "confidence": 1.0}
+        
+        # 3. 神经意图分类
+        intent_probs = self._predict_intent(query)
+        top_intent = max(intent_probs, key=intent_probs.get)
+        confidence = intent_probs[top_intent]
+        
+        # 4. 不确定性处理
+        if confidence < 0.6:
+            return {
+                "strategy": "clarify",
+                "clarifying_question": self._generate_clarification(query)
+            }
+        
+        return {"strategy": top_intent, "confidence": confidence}
+```
+
+**技术收益**:
+- 处理模糊查询 ("找一本让人感动的书")
+- 多轮对话意图跟踪
+- 可解释的 confidence score
+- 降低无效检索 40%
+
+---
+
+### 2. 推理链检索 (Chain-of-Thought Retrieval)
+
+**当前**: 单次检索 + 生成
+**升级**: 查询分解 → 多跳检索 → 推理融合
+
+```python
+class ChainOfThoughtRetriever:
+    """
+    思维链驱动的多跳检索
+    
+    适用场景：
+    - "读完《百年孤独》后该读什么"
+    - "适合雨天读的哲学小说"
+    - "既有科幻元素又讲亲情的书"
+    """
+    
+    def retrieve(self, query: str) -> List[Book]:
+        # Step 1: 查询分解
+        sub_queries = self._decompose_query(query)
+        # "适合雨天读的哲学小说" → ["哲学小说", "雨天阅读氛围", "沉思类书籍"]
+        
+        # Step 2: 并行检索
+        results_per_query = []
+        for sub_q in sub_queries:
+            results_per_query.append(self.vector_db.search(sub_q, k=20))
+        
+        # Step 3: 结果融合 (带推理)
+        fused = self._reason_and_fuse(results_per_query, original_query=query)
+        
+        # Step 4: 验证性检索 (可选)
+        if self._needs_verification(fused):
+            verification_results = self._verify_results(fused)
+            fused = self._merge_with_verification(fused, verification_results)
+        
+        return fused[:10]
+    
+    def _decompose_query(self, query: str) -> List[str]:
+        """使用轻量级 LLM 分解查询"""
+        prompt = f"""将图书查询分解为2-3个子查询：
+原查询：{query}
+
+子查询（每行一个）："""
+        
+        response = llm.generate(prompt, max_tokens=100)
+        return response.strip().split('\n')
+```
+
+**技术收益**:
+- 复杂查询召回率提升 32%
+- 支持多条件组合检索
+- 可解释的检索过程
+
+---
+
+### 3. 在线反馈学习 (Online Feedback Learning)
+
+**当前**: 静态数据集训练
+**升级**: 用户反馈 → 增量更新
+
+```python
+class OnlineLearningSystem:
+    """
+    收集用户隐式反馈，增量更新模型
+    
+    反馈信号：
+    - 点击：用户点了哪个推荐
+    - 停留时间：阅读详情的时长
+    - 后续行为：加入书架/评分
+    - 放弃：未点击任何结果
+    """
+    
+    def __init__(self):
+        self.feedback_buffer = []
+        self.update_interval = 1000  # 每1000条反馈更新一次
+        
+    def log_feedback(self, session: Dict):
+        """记录用户会话反馈"""
+        feedback = {
+            "user_id": session["user_id"],
+            "query": session.get("query"),
+            "recommendations": session["rec_list"],
+            "clicked_isbn": session.get("clicked"),
+            "dwell_time_ms": session.get("dwell_time"),
+            "timestamp": time.time(),
+        }
+        
+        self.feedback_buffer.append(feedback)
+        
+        if len(self.feedback_buffer) >= self.update_interval:
+            self._trigger_update()
+    
+    def _trigger_update(self):
+        """触发模型增量更新"""
+        # 1. 提取正负样本
+        positives = [f for f in self.feedback_buffer if f["clicked_isbn"]]
+        negatives = self._mine_hard_negatives()  # 曝光未点击的
+        
+        # 2. 更新 XGBoost 特征权重
+        self.ranker.partial_fit(positives, negatives)
+        
+        # 3. (可选) 更新 Embedding 模型
+        # self.embedding_updater.update(positives, negatives)
+        
+        # 4. 清空 buffer
+        self.feedback_buffer = []
+```
+
+---
+
+## 📊 技术提升对照表
+
+| 维度 | V2.0 (当前) | V3.0 (目标) | 预期提升 |
+|------|-------------|-------------|----------|
+| **意图理解** | 规则 Router | Neural Router | 模糊查询准确率 +40% |
+| **复杂查询** | 单次检索 | CoT 多跳检索 | 召回率 +32% |
+| **个性化** | XGBoost 精排 | + 在线反馈学习 | CTR +15% |
+| **用户体验** | 无追问 | 不确定性追问 | 无效检索 -40% |
+
+---
+
+## 🎯 面试叙事线
+
+### 技术演进故事
+
+> "这个项目经历了三次架构迭代：
+> 
+> **V1.0**: 最初是标准的向量检索 + LLM 生成，发现对复杂查询效果差。
+> 
+> **V2.0 (当前)**: 引入 Agentic Router 做意图分类，但规则匹配有局限。同时整合了推荐系统做个性化，使用 ItemCF + XGBoost 精排的标准架构。
+> 
+> **V3.0 (进行中)**: 正在将规则路由升级为神经路由，并引入思维链检索处理复杂查询。比如'推荐读完三体后该读什么'，系统会先分解查询，识别'三体风格'和'续读推荐'两个子意图，分别检索后融合。"
+
+### 技术亮点总结
+
+1. **端到端推荐系统**: 多路召回 → 特征工程 → XGBoost 精排
+2. **Agentic RAG**: 自适应路由 + Hybrid Search + 多策略检索
+3. **(规划中) 神经意图理解**: 从规则到 ML 的演进
+4. **(规划中) 推理链检索**: 复杂查询分解 + 多跳检索
+
+---
+
+## 📅 实施优先级
+
+| 优先级 | 功能 | 预估时间 | 依赖 |
+|--------|------|----------|------|
+| **P0** | 完成 Phase 7 推荐系统 | 3-5 天 | 当前进行中 |
+| **P1** | 神经意图路由 | 1-2 天 | 需要标注数据 |
+| **P2** | 推理链检索 | 1-2 天 | 无 |
+| **P3** | 在线反馈学习 | 2-3 天 | 需要前端改造 |
+
+---
+
+*最后更新: 2026-01-08*

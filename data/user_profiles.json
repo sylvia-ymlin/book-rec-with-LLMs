@@ -1,9 +1,18 @@
 {
   "local": {
     "favorites": [
-      "0006551688",
-      "0060001453",
-      "0060194502"
-    ]
+      "0130608556",
+      "0132681528",
+      "0070397635"
+    ],
+    "cached_highlights": {
+      "0078817609": "\"Unlock the secrets of C++ programming and ignite your passion for coding with 'Teach Yourself C++'! This comprehensive guide will fuel your joy in learning, as you explore the latest developments and defensive coding techniques to bring your projects to life.\"",
+      "0130608556": "\"Unleash your inner coding curiosity with 'Introduction to C Programming: A Modular Approach'! With its modular structure and real-world applications, this book is perfect for those looking to build a strong foundation in programming fundamentals - and discover the thrill of creating something from scratch.\"",
+      "0132681528": "\"Get ready to unleash your inner coding ninja! This book's unique 'use it, then build it' approach will have you building real-world projects from the start, and its focus on object-oriented programming will give you the skills to tackle complex problems with ease.\"",
+      "0070397635": "\"Get ready to crunch numbers with ease! This applied mathematics textbook, written by Lial, Greenwell, and Ritchey, will unlock the power of finite math for you, just like it has for computer enthusiasts who crave problem-solving fun.\"",
+      "0192802607": "\"Embrace the complexity of human emotions with Chekhov's masterful short stories, where the intricacies of love, relationships, and mortality are expertly woven together. Your affinity for precise mathematical logic will appreciate the deliberate pacing and nuanced character development that unfolds like a perfectly crafted algorithm.\"",
+      "0060959479": "\"Discover how bell hooks' groundbreaking work on love and relationships can bridge the gaps in your own life, just as you've bridged mathematical concepts to uncover their underlying truths. 'All About Love: New Visions' offers a profound exploration of human connection that will resonate deeply with your affinity for authors who delve into the complexities of the human experience.\"",
+      "0001048228": "\"Get ready to unravel the intricate mysteries of the human heart with 'Pale Battalions'! This gripping tale, reminiscent of Margaret L. Lial's masterful storytelling, will keep you enthralled as Leonora and Penelope navigate the complexities of grief, family secrets, and self-discovery - all set against the stunning backdrop of Paris.\""
+    }
   }
 }
