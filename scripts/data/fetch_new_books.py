@@ -33,8 +33,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.utils import setup_logger
-from src.core.web_search import search_new_books_by_category, search_google_books
-from src.core.metadata_store import metadata_store
+from src.core.rag.web_search import search_new_books_by_category, search_google_books
+from src.data.stores.metadata_store import metadata_store
 from src.core.recommendation_orchestrator import RecommendationOrchestrator
 
 logger = setup_logger(__name__)

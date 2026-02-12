@@ -1,7 +1,7 @@
 import time
 import pandas as pd
 from typing import List
-from src.vector_db import VectorDB
+from src.core.rag.vector_db import VectorDB
 
 def run_benchmark():
     print("🚀 Starting Retrieval Benchmark (BASELINE)...")

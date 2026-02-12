@@ -8,11 +8,11 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from src.recall.fusion import _merge_config, RecallFusion, DEFAULT_CHANNEL_CONFIG
-from src.recall.itemcf import ItemCF
-from src.recall.swing import Swing
-from src.recall.popularity import PopularityRecall
-from src.recall.usercf import UserCF
+from src.recsys.recall.fusion import _merge_config, RecallFusion, DEFAULT_CHANNEL_CONFIG
+from src.recsys.recall.itemcf import ItemCF
+from src.recsys.recall.swing import Swing
+from src.recsys.recall.popularity import PopularityRecall
+from src.recsys.recall.usercf import UserCF
 
 
 class TestMergeConfig:

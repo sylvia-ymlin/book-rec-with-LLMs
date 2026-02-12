@@ -6,7 +6,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(PROJECT_ROOT))
 
-from src.user.profile_store import get_favorites_with_metadata, _load_store, _migrate_favorites
+from src.data.stores.profile_store import get_favorites_with_metadata, _load_store, _migrate_favorites
 
 def test_migration():
     print("Testing profile migration...")

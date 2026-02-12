@@ -35,8 +35,8 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
 
-from src.ranking.din import DIN
-from src.recall.fusion import RecallFusion
+from src.recsys.ranking.din import DIN
+from src.recsys.recall.fusion import RecallFusion
 
 logging.basicConfig(
     level=logging.INFO,
@@ -174,7 +174,7 @@ def train_din(
     aux_df = None
     aux_cols: list[str] = []
     if use_aux:
-        from src.ranking.features import FeatureEngineer
+        from src.recsys.ranking.features import FeatureEngineer
         fe = FeatureEngineer(data_dir, recall_dir)
         fe.load_base_data()
         logger.info("Generating aux features for DIN...")

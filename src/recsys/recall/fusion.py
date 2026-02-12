@@ -1,0 +1,154 @@
+"""
+Multi-Channel Recall Fusion via Reciprocal Rank Fusion (RRF).
+
+Moved from `src/recall/fusion.py` into the `recsys.recall` package.
+The original module remains as a shim for backward compatibility.
+"""
+import logging
+from collections import defaultdict
+from typing import Optional
+
+from src.config import RRF_K
+from src.recsys.recall.itemcf import ItemCF
+from src.recsys.recall.usercf import UserCF
+from src.recsys.recall.popularity import PopularityRecall
+from src.recsys.recall.embedding import YoutubeDNNRecall
+from src.recsys.recall.swing import Swing
+from src.recsys.recall.item2vec import Item2Vec
+from src.recsys.recall.sasrec_recall import SASRecRecall
+
+
+logger = logging.getLogger(__name__)
+
+# Default: only the 3 most effective channels enabled. Others available but off.
+DEFAULT_CHANNEL_CONFIG = {
+    "itemcf": {"enabled": True, "weight": 1.0},
+    "sasrec": {"enabled": True, "weight": 1.0},
+    "youtube_dnn": {"enabled": True, "weight": 1.0},
+    "usercf": {"enabled": False, "weight": 1.0},
+    "swing": {"enabled": False, "weight": 1.0},
+    "item2vec": {"enabled": False, "weight": 0.8},
+    "popularity": {"enabled": True, "weight": 0.5},  # P0: Cold-start fallback
+}
+
+
+def _merge_config(default: dict, override: Optional[dict]) -> dict:
+    """Deep-merge override into default (shallow per channel)."""
+    merged = {k: dict(v) for k, v in default.items()}
+    if override:
+        for ch, cfg in override.items():
+            if ch in merged:
+                merged[ch].update(cfg)
+            else:
+                merged[ch] = dict(cfg)
+    return merged
+
+
+class RecallFusion:
+    def __init__(
+        self,
+        data_dir: str = "data/rec",
+        model_dir: str = "data/model/recall",
+        channel_config: Optional[dict] = None,
+        rrf_k: int = RRF_K,
+    ):
+        self.data_dir = data_dir
+        self.model_dir = model_dir
+        self.channel_config = _merge_config(DEFAULT_CHANNEL_CONFIG, channel_config)
+        self.rrf_k = rrf_k
+
+        self.itemcf = ItemCF(data_dir, model_dir)
+        self.usercf = UserCF(data_dir, model_dir)
+        self.popularity = PopularityRecall(data_dir, model_dir)
+        self.youtube_dnn = YoutubeDNNRecall(data_dir, model_dir)
+        self.swing = Swing(data_dir, model_dir)
+        self.item2vec = Item2Vec(data_dir, model_dir)
+        self.sasrec = SASRecRecall(data_dir, model_dir)
+
+        self.models_loaded = False
+
+    def load_models(self) -> None:
+        if self.models_loaded:
+            return
+
+        logger.info("Loading recall models...")
+        self.itemcf.load()
+        self.usercf.load()
+        self.popularity.load()
+        self.youtube_dnn.load()
+        self.swing.load()
+        self.item2vec.load()
+        self.sasrec.load()
+        self.models_loaded = True
+
+    def get_recall_items(
+        self,
+        user_id: str,
+        history_items=None,
+        k: int = 100,
+        real_time_seq=None,
+    ):
+        """
+        Multi-channel recall fusion using RRF. Channels and weights controlled by config.
+
+        Args:
+            real_time_seq: P1 - Session-level ISBNs to inject into SASRec (e.g. just-viewed).
+        """
+        if not self.models_loaded:
+            self.load_models()
+
+        candidates = defaultdict(float)
+        cfg = self.channel_config
+
+        if cfg.get("youtube_dnn", {}).get("enabled", False):
+            recs = self.youtube_dnn.recommend(user_id, history_items, top_k=k)
+            self._add_to_candidates(candidates, recs, cfg["youtube_dnn"]["weight"])
+
+        if cfg.get("itemcf", {}).get("enabled", False):
+            recs = self.itemcf.recommend(user_id, history_items, top_k=k)
+            self._add_to_candidates(candidates, recs, cfg["itemcf"]["weight"])
+
+        if cfg.get("usercf", {}).get("enabled", False):
+            recs = self.usercf.recommend(user_id, history_items, top_k=k)
+            self._add_to_candidates(candidates, recs, cfg["usercf"]["weight"])
+
+        if cfg.get("swing", {}).get("enabled", False):
+            recs = self.swing.recommend(user_id, history_items, top_k=k)
+            self._add_to_candidates(candidates, recs, cfg["swing"]["weight"])
+
+        if cfg.get("sasrec", {}).get("enabled", False):
+            recs = self.sasrec.recommend(
+                user_id, history_items, top_k=k, real_time_seq=real_time_seq
+            )
+            self._add_to_candidates(candidates, recs, cfg["sasrec"]["weight"])
+
+        if cfg.get("item2vec", {}).get("enabled", False):
+            recs = self.item2vec.recommend(user_id, history_items, top_k=k)
+            self._add_to_candidates(candidates, recs, cfg["item2vec"]["weight"])
+
+        if cfg.get("popularity", {}).get("enabled", False):
+            recs = self.popularity.recommend(user_id, top_k=k)
+            self._add_to_candidates(candidates, recs, cfg["popularity"]["weight"])
+
+        sorted_cands = sorted(candidates.items(), key=lambda x: x[1], reverse=True)
+        # P0: Cold-start fallback — when all channels return empty, use popularity
+        if not sorted_cands:
+            pop_recs = self.popularity.recommend(user_id, top_k=k)
+            sorted_cands = [(item, s) for item, s in pop_recs]
+        return sorted_cands[:k]
+
+    def _add_to_candidates(self, candidates, recs, weight: float) -> None:
+        """
+        Reciprocal Rank Fusion (RRF): Merge ranked lists from different channels.
+
+        Formula: score += weight * 1/(k + rank + 1)
+        """
+        if not recs:
+            return
+        for rank, (item, _score) in enumerate(recs):
+            rrf_score = weight * (1.0 / (self.rrf_k + rank + 1))
+            candidates[item] += rrf_score
+
+
+__all__ = ["RecallFusion", "DEFAULT_CHANNEL_CONFIG"]
+

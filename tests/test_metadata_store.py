@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import patch, MagicMock, PropertyMock
-from src.core.metadata_store import MetadataStore
+from src.data.stores.metadata_store import MetadataStore
 import sqlite3
 from pathlib import Path
 

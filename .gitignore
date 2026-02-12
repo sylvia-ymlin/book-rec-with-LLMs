@@ -1,4 +1,4 @@
-# Environment variables
+# Env
 .env
 .env.local
 .env.*.local
@@ -10,94 +10,68 @@ __pycache__/
 *.so
 .Python
 build/
-develop-eggs/
 dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
 *.egg-info/
-.installed.cfg
 *.egg
 
-# Jupyter Notebook
-.ipynb_checkpoints
+# Venv
+.venv/
+venv/
 
-# IDE / Agent configs
+# IDE
 .vscode/
 .idea/
 .cursor/
 .claude/
+.cursorrules
 *.swp
 *.swo
 
-# Virtual environments (should live outside project)
-.venv/
-venv/
-.worktree-clean/
-
 # OS
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
 .Trashes
-ehthumbs.db
 Thumbs.db
 
-# Data files
+# Data (generated / large)
 *.csv
 *.txt
 !requirements.txt
-# keep historical root snapshots after cleanup
 !data/legacy_root_exports/
 !data/legacy_root_exports/*.csv
 !data/legacy_root_exports/*.txt
-# data/books_processed.csv and others are now loaded at runtime from HF
 
-# Model files (downloaded at runtime from HF Hub)
 data/model/
 data/rec/
+data/chroma_db/
+data/chroma_chunks/
+data/review_chunks.jsonl
+data/*.db
+
+# Model artifacts
 *.pkl
 *.pth
 *.pt
 *.joblib
 *.h5
 
-# Large data files (rebuild with scripts/init_dual_index.py)
-data/chroma_chunks/
-data/review_chunks.jsonl
-data/*.db
-
 # Logs
 *.log
 logs/
 
-# Temp files
+# Temp
 *.tmp
 *.temp
 *.gz
+*.bak
 
-# Linter / test cache
+# Tools
 .ruff_cache/
 .pytest_cache/
 
-# Vector database (generated at runtime)
-data/chroma_db/
-
-# Node modules and build artifacts
+# Web
 web/node_modules/
 web/dist/
 node_modules/
 
-# Backup files
-*.bak
-
-# External reference projects
-CompetitionTianChi_newsRecommendation/
-
+# Jupyter
+.ipynb_checkpoints

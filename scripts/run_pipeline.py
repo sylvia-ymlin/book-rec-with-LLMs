@@ -129,27 +129,27 @@ class Pipeline:
         import pandas as pd
         df = pd.read_csv(train_path)
 
-        from src.recall.itemcf import ItemCF
+        from src.recsys.recall.itemcf import ItemCF
         self._run_step("Train ItemCF", lambda: ItemCF().fit(df))
 
-        from src.recall.usercf import UserCF
+        from src.recsys.recall.usercf import UserCF
         self._run_step("Train UserCF", lambda: UserCF().fit(df))
 
-        from src.recall.swing import Swing
+        from src.recsys.recall.swing import Swing
         self._run_step("Train Swing", lambda: Swing().fit(df))
 
-        from src.recall.popularity import PopularityRecall
+        from src.recsys.recall.popularity import PopularityRecall
         self._run_step("Train Popularity", lambda: PopularityRecall().fit(df))
 
-        from src.recall.item2vec import Item2Vec
+        from src.recsys.recall.item2vec import Item2Vec
         self._run_step("Train Item2Vec", lambda: Item2Vec().fit(df))
 
-        from src.recall.embedding import YoutubeDNNRecall
+        from src.recsys.recall.embedding import YoutubeDNNRecall
         self._run_step("Train YoutubeDNN", lambda: YoutubeDNNRecall().fit(
             df, books_path=self.data_dir / "books_processed.csv"
         ))
 
-        from src.recall.sasrec_recall import SASRecRecall
+        from src.recsys.recall.sasrec_recall import SASRecRecall
         self._run_step("Train SASRec", lambda: SASRecRecall().fit(df))
 
         from scripts.model.train_ranker import train_ranker, train_stacking

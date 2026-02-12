@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import patch, MagicMock
-from src.vector_db import VectorDB
+from src.core.rag.vector_db import VectorDB
 
 
 class TestVectorDB:
@@ -9,9 +9,9 @@ class TestVectorDB:
     @pytest.fixture
     def mock_initialization(self):
         """Mock HuggingFaceEmbeddings and Chroma to avoid loading real models."""
-        with patch("src.vector_db.HuggingFaceEmbeddings") as mock_emb, \
-             patch("src.vector_db.Chroma") as mock_chroma, \
-             patch("src.vector_db.CHROMA_DB_DIR") as mock_dir:
+        with patch("src.core.rag.vector_db.HuggingFaceEmbeddings") as mock_emb, \
+             patch("src.core.rag.vector_db.Chroma") as mock_chroma, \
+             patch("src.core.rag.vector_db.CHROMA_DB_DIR") as mock_dir:
             mock_dir.exists.return_value = False
             mock_dir.iterdir.return_value = []
             yield {"embeddings": mock_emb, "chroma": mock_chroma, "dir": mock_dir}

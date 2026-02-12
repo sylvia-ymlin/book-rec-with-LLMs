@@ -5,10 +5,10 @@ import xgboost as xgb
 import numpy as np
 from pathlib import Path
 from src.config import MMR_LAMBDA_DEFAULT, POPULARITY_GAMMA_DEFAULT, MAX_PER_CATEGORY_DEFAULT
-from src.recall.fusion import RecallFusion
-from src.ranking.features import FeatureEngineer
-from src.ranking.explainer import RankingExplainer
-from src.ranking.din import DINRanker
+from src.recsys.recall.fusion import RecallFusion
+from src.recsys.ranking.features import FeatureEngineer
+from src.recsys.ranking.explainer import RankingExplainer
+from src.recsys.ranking.din import DINRanker
 from src.core.diversity_reranker import DiversityReranker
 from src.utils import setup_logger
 
@@ -92,7 +92,7 @@ class RecommendationService:
             logger.warning(f"Ranker model not found at {ranker_path}, prediction will be skipped")
 
         # Deduplication now uses MetadataStore for Title lookups (Zero-RAM mode)
-        from src.core.metadata_store import metadata_store
+        from src.data.stores.metadata_store import metadata_store
         self.metadata_store = metadata_store
         logger.info("RecommendationService: Zero-RAM mode enabled for metadata lookups.")
 
@@ -126,7 +126,7 @@ class RecommendationService:
             List of (isbn, score, explanations) tuples where explanations
             is a list of dicts with feature contributions from SHAP.
         """
-        from src.user.profile_store import list_favorites
+        from src.data.stores.profile_store import list_favorites
 
         self.load_resources()
 
@@ -148,7 +148,9 @@ class RecommendationService:
         fav_isbns = set()
         if filter_favorites:
             try:
-                user_favs = list_favorites(user_id)
+                from src.data.stores.profile_store import list_favorites as _list_favorites
+
+                user_favs = _list_favorites(user_id)
                 fav_isbns = set(user_favs)
             except Exception as e:
                 logger.warning(f"Could not fetch favorites for filtering: {e}")

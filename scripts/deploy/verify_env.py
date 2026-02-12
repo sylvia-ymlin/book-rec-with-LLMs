@@ -36,7 +36,7 @@ def check_torch():
 def check_vector_db():
     print("\n=== Vector Database Check ===")
     try:
-        from src.vector_db import VectorDB
+        from src.core.rag.vector_db import VectorDB
         
         start = time.perf_counter()
         print("Loading VectorDB (this loads embeddings)...")

@@ -1,7 +1,7 @@
 import time
 import pandas as pd
-from src.vector_db import VectorDB
-from src.core.router import QueryRouter
+from src.core.rag.vector_db import VectorDB
+from src.core.rag.router import QueryRouter
 
 def run_benchmark():
     print("🚀 Starting Agentic Router Benchmark...")

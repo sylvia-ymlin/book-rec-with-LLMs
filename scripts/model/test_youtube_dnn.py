@@ -10,7 +10,7 @@ import os
 
 # Add src to path
 sys.path.append(os.path.abspath('.'))
-from src.recall.youtube_dnn import YoutubeDNN
+from src.recsys.recall.youtube_dnn import YoutubeDNN
 
 # Config
 BATCH_SIZE = 128

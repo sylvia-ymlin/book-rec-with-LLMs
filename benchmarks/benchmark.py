@@ -27,7 +27,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.core.recommendation_orchestrator import RecommendationOrchestrator
-from src.vector_db import VectorDB
+from src.core.rag.vector_db import VectorDB
 
 
 # Test queries for benchmarking

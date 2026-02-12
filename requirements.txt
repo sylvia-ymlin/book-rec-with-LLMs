@@ -1,20 +1,93 @@
 # =============================================================================
-# Book Recommendation System — Dependencies
+# Book Recommendation System — Python Dependencies
 # =============================================================================
 #
-# LAYERED INSTALL:
-#   Production (API + RAG + RecSys):  pip install -r requirements-base.txt
-#   Development (+ tests, ruff):      pip install -r requirements-dev.txt
-#   Fine-tuning (LoRA/SFT scripts):   pip install -r requirements-optional.txt
+# Recommended usage:
+#   pip install -r requirements.txt
 #
-# LOCK FILE (reproducible builds via pip-tools):
-#   pip install pip-tools
-#   pip-compile requirements-base.txt -o requirements-base.lock
-#   pip-sync requirements-base.lock
+# This installs:
+#   - Core backend (FastAPI + RAG + RecSys)
+#   - Evaluation + dev tools (pytest, ruff, benchmark helpers)
 #
-# LEGACY: Full install (base + dev, no optional):
-#   pip install -r requirements-base.txt -r requirements-dev.txt
+# Optional heavy fine-tuning / LoRA / SFT dependencies are listed at the bottom
+# in a separate commented section and can be installed only when needed.
 # =============================================================================
 
--r requirements-base.txt
--r requirements-dev.txt
+# --- Base / production dependencies (API + RAG + RecSys) ---------------------
+
+# API
+fastapi>=0.109.0,<0.116.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.0.0,<3.0.0
+pydantic-settings>=2.0.0
+
+# Data handling
+pandas>=2.0.0
+numpy>=1.24.0,<2.0.0
+python-dotenv>=1.0.0
+
+# LangChain / RAG stack
+langchain>=0.2.0
+langchain-community>=0.2.0
+langgraph>=0.2.0
+langchain-huggingface>=0.0.3
+langchain-openai>=0.1.0
+
+# ML / NLP
+transformers>=4.40.0
+torch>=2.0.0
+sentence-transformers>=2.2.2
+onnxruntime>=1.16.0
+gensim>=4.3.0
+lightgbm>=4.0.0
+xgboost>=2.0.0
+shap>=0.45.0
+scikit-learn>=1.3.0
+scipy>=1.11.0
+
+# Infrastructure
+redis>=5.0.0
+huggingface-hub>=0.23.0
+requests>=2.28.0
+prometheus-client>=0.19.0
+tqdm>=4.65.0
+
+# Vector DB
+faiss-cpu>=1.7.0
+
+# OpenAI / LLM client
+openai>=1.0.0
+
+
+# --- Development / testing dependencies --------------------------------------
+
+pytest>=7.0.0
+pytest-cov>=4.0.0
+ruff>=0.1.0
+httpx>=0.25.0
+
+
+# --- Optional extras: fine-tuning / LoRA / SFT / ColBERT --------------------
+#
+# These are only needed for:
+#   - zero_shot / marketing fine-tuning scripts
+#   - alternative reranker backends (e.g. ColBERT)
+#
+# Install manually when needed, e.g.:
+#   pip install datasets accelerate peft trl bitsandbytes modelscope
+#
+
+# FastText backend for intent classifier (INTENT_BACKEND=fasttext)
+# fasttext
+
+# ColBERT reranker (RERANKER_BACKEND=colbert, lower latency)
+# llama-index-postprocessor-colbert-rerank
+
+# Fine-tuning (LoRA/SFT scripts in marketing/ and zero_shot/)
+# datasets>=2.14.0
+# accelerate>=0.26.0
+# peft>=0.4.0
+# trl>=0.7.0
+# bitsandbytes>=0.41.0
+# modelscope>=1.9.0
+

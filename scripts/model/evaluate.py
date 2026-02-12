@@ -7,7 +7,7 @@ import numpy as np
 import logging
 from tqdm import tqdm
 from src.services.recommend_service import RecommendationService
-from src.core.metadata_store import metadata_store
+from src.data.stores.metadata_store import metadata_store
 from src.core.diversity_metrics import compute_diversity_metrics
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')

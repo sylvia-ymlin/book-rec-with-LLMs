@@ -4,8 +4,8 @@ Single responsibility: write path for web-discovered books; decouples from recom
 """
 from typing import Any, Dict, Optional
 
-from src.core.metadata_store import metadata_store
-from src.core.online_books_store import online_books_store
+from src.data.stores.metadata_store import metadata_store
+from src.data.stores.online_books_store import online_books_store
 from src.utils import setup_logger
 
 logger = setup_logger(__name__)
@@ -28,7 +28,7 @@ class BookIngestion:
 
     def _get_vector_db(self):
         if self._vector_db is None:
-            from src.vector_db import VectorDB
+            from src.core.rag.vector_db import VectorDB
             self._vector_db = VectorDB()
         return self._vector_db
 

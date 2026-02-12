@@ -17,12 +17,12 @@ from src.config import (
     FRESHNESS_THRESHOLD,
 )
 from src.core.models import BookResponseDict, RouterDecision
-from src.vector_db import VectorDB
+from src.core.rag.vector_db import VectorDB
 from src.cache import CacheManager
-from src.core.metadata_store import metadata_store
-from src.core.isbn_extractor import extract_isbn
+from src.data.stores.metadata_store import metadata_store
+from src.core.rag.isbn_extractor import extract_isbn
 from src.core.metadata_enricher import enrich_and_format
-from src.core.fallback_provider import FallbackProvider
+from src.core.rag.fallback_provider import FallbackProvider
 from src.core.book_ingestion import BookIngestion
 from src.utils import setup_logger
 
@@ -177,9 +177,9 @@ class RecommendationOrchestrator:
         enable_diversity_rerank: bool = True,
     ) -> List[BookResponseDict]:
         """Classic Router -> Hybrid/Small-to-Big -> optional Diversity Rerank -> Web Fallback."""
-        from src.core.router import QueryRouter
+        from src.core.rag.router import QueryRouter as _QueryRouter
 
-        router = QueryRouter()
+        router = _QueryRouter()
         decision = router.route(query)
         logger.info(f"Retrieval Strategy: {decision}")
 

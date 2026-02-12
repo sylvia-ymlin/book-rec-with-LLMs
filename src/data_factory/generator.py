@@ -13,7 +13,7 @@ import json
 import random
 from typing import List, Dict, Tuple, Optional
 from pathlib import Path
-from src.core.llm import LLMFactory
+from src.core.rag.llm import LLMFactory
 from src.utils import setup_logger
 
 logger = setup_logger(__name__)

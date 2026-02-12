@@ -44,8 +44,8 @@ from collections import Counter
 from tqdm import tqdm
 from sklearn.model_selection import GroupKFold
 from sklearn.linear_model import LogisticRegression
-from src.ranking.features import FeatureEngineer
-from src.recall.fusion import RecallFusion
+from src.recsys.ranking.features import FeatureEngineer
+from src.recsys.recall.fusion import RecallFusion
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)

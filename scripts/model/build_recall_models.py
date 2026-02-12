@@ -21,11 +21,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 import pandas as pd
 import logging
 
-from src.recall.itemcf import ItemCF
-from src.recall.usercf import UserCF
-from src.recall.swing import Swing
-from src.recall.popularity import PopularityRecall
-from src.recall.item2vec import Item2Vec
+from src.recsys.recall.itemcf import ItemCF
+from src.recsys.recall.usercf import UserCF
+from src.recsys.recall.swing import Swing
+from src.recsys.recall.popularity import PopularityRecall
+from src.recsys.recall.item2vec import Item2Vec
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)

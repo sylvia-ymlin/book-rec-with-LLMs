@@ -1,8 +1,8 @@
 import os
 import psutil
 import pytest
-from src.core.metadata_store import MetadataStore
-from src.recall.itemcf import ItemCF
+from src.data.stores.metadata_store import MetadataStore
+from src.recsys.recall.itemcf import ItemCF
 from src.core.recommendation_orchestrator import RecommendationOrchestrator
 from src.services.recommend_service import RecommendationService
 

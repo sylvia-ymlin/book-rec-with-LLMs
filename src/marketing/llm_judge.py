@@ -26,13 +26,13 @@ class MarketingJudge:
                 self.client = None
                 print(f"Judge Warning: Could not connect to Ollama: {e}")
         else:
-            # Use Real OpenAI
-            self.api_key = api_key or os.getenv("OPENAI_API_KEY")
+            # Use Real OpenAI with explicitly provided API key only (no env fallback)
+            self.api_key = api_key
             if self.api_key and OpenAI:
                 self.client = OpenAI(api_key=self.api_key)
             else:
                 self.client = None
-                print("Judge Warning: No OPENAI_API_KEY found. using Mock.")
+                print("Judge Warning: No API key passed. Using Mock judge.")
 
     def evaluate(self, product_name: str, generated_copy: str, target_audience: str) -> Dict[str, Any]:
         """

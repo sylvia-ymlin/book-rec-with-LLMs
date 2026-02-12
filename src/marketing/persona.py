@@ -19,7 +19,7 @@ def build_persona(fav_isbns: List[str], books: Optional[Any] = None) -> Dict[str
         }
 
     # ENGINEERING IMPROVEMENT: Zero-RAM Lookup
-    from src.core.metadata_store import metadata_store
+    from src.data.stores.metadata_store import metadata_store
     
     authors_list: List[str] = []
     categories_list: List[str] = []

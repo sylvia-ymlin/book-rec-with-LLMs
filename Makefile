@@ -1,3 +1,5 @@
+.PHONY: env-create env-update run data-pipeline data-validate data-prep train-models test lint format clean docker-build docker-up
+
 # Environment
 env-create:
 	conda env create -f environment.yml
@@ -28,6 +30,9 @@ test:
 
 lint:
 	ruff check src/
+
+format:
+	ruff format src/
 
 clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} +

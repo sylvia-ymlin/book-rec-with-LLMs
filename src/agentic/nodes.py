@@ -5,7 +5,7 @@ from typing import Any, Dict
 
 from src.agentic.state import RAGState
 from src.config import TOP_K_INITIAL
-from src.core.isbn_extractor import extract_isbn
+from src.core.rag.isbn_extractor import extract_isbn
 from src.utils import setup_logger
 
 logger = setup_logger(__name__)
@@ -13,7 +13,7 @@ logger = setup_logger(__name__)
 
 def router_node(state: RAGState) -> Dict[str, Any]:
     """Determine retrieval strategy using QueryRouter."""
-    from src.core.router import QueryRouter
+    from src.core.rag.router import QueryRouter
 
     router = QueryRouter()
     decision = router.route(state["query"])
@@ -30,7 +30,7 @@ def router_node(state: RAGState) -> Dict[str, Any]:
 
 def retrieve_node(state: RAGState) -> Dict[str, Any]:
     """Execute retrieval based on strategy."""
-    from src.vector_db import VectorDB
+    from src.core.rag.vector_db import VectorDB
 
     vector_db = VectorDB()
     strategy = state.get("strategy", "deep")
@@ -97,8 +97,8 @@ async def web_fallback_node(state: RAGState, config=None) -> Dict[str, Any]:
     Fetch from Google Books API when local results insufficient (async).
     Uses search_google_books_async to avoid blocking the event loop.
     """
-    from src.core.web_search import search_google_books_async
-    from src.core.metadata_store import metadata_store
+    from src.core.rag.web_search import search_google_books_async
+    from src.data.stores.metadata_store import metadata_store
 
     query = state["query"]
     category = state.get("category", "All")

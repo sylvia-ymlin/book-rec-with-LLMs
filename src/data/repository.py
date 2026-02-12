@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 import sqlite3
 
 from src.config import DATA_DIR
-from src.core.metadata_store import metadata_store
+from src.data.stores.metadata_store import metadata_store
 from src.utils import setup_logger
 
 logger = setup_logger(__name__)

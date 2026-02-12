@@ -1,10 +1,10 @@
 from typing import Generator, Optional, Dict, Any, List
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, BaseMessage
 
-from src.core.llm import LLMFactory
+from src.core.rag.llm import LLMFactory
 from src.data.repository import data_repository
 from src.marketing.persona import build_persona
-from src.user.profile_store import list_favorites
+from src.data.stores.profile_store import list_favorites
 from src.utils import setup_logger
 
 logger = setup_logger(__name__)

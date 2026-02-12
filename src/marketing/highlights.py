@@ -1,15 +1,11 @@
 from typing import Dict, List, Any
 import pandas as pd
-import os
 
 from src.utils import setup_logger
-from src.core.llm import LLMFactory
-from src.user.profile_store import get_cached_highlight, save_cached_highlight
+from src.core.rag.llm import LLMFactory
+from src.data.stores.profile_store import get_cached_highlight, save_cached_highlight
 
 logger = setup_logger(__name__)
-
-# Check for API key in environment (for non-BYOK default mode)
-DEFAULT_LLM_KEY = os.getenv("OPENAI_API_KEY", "")
 
 
 def _first_words(text: str, n: int = 30) -> str:
@@ -21,10 +17,11 @@ def _first_words(text: str, n: int = 30) -> str:
 
 
 def generate_highlights(
-    isbn: str, 
-    persona: Dict[str, Any], 
-    books: pd.DataFrame = None, # Deprecated, unused
-    api_key: str = None 
+    isbn: str,
+    persona: Dict[str, Any],
+    books: pd.DataFrame = None,  # Deprecated, unused
+    provider: str = "ollama",
+    api_key: str | None = None,
 ) -> Dict[str, Any]:
     # ... (previous code) ...
 
@@ -41,32 +38,21 @@ def generate_highlights(
         highlight_text = cached_highlight
     else:
         try:
-            # 2. Select Provider Best-Effort
-            # Priority: Groq (if key) > OpenAI (if key) > Ollama (if local) > Mock
-            import os
-            groq_key = os.getenv("GROQ_API_KEY")
-            openai_key = os.getenv("OPENAI_API_KEY")
-            
-            provider = "mock"
+            # 2. Select provider explicitly:
+            # - "ollama": local dev, no API key required
+            # - "openai"/"groq"/others: must be provided via api_key (BYOK)
             model_name = None
-            
-            if api_key: # If passed specifically
-                provider = "openai" # Assume OpenAI if manually passed? Or generic?
-                # Actually, blindly passing generic key to generic openai client might be risky if it is groq key
-                pass
-            
-            if groq_key:
-                provider = "groq"
-                model_name = "llama3-70b-8192" # Updated valid model
-            elif openai_key:
-                provider = "openai"
+            if provider == "groq":
+                model_name = "llama3-70b-8192"
+            elif provider == "openai":
                 model_name = "gpt-3.5-turbo"
-            else:
-                # Try Ollama only if likely local dev
-                provider = "ollama"
+            elif provider == "ollama":
                 model_name = "llama3"
 
-            llm = LLMFactory.create(provider=provider, model_name=model_name, temperature=0.7)
+            if provider in {"openai", "groq"} and not api_key:
+                raise ValueError(f"API key is required for provider '{provider}'")
+
+            llm = LLMFactory.create(provider=provider, api_key=api_key, model_name=model_name, temperature=0.7)
             
             prompt = f"""You are a literary concierge. Generate a SHORT, personalized highlight (1-2 sentences max) for the following book, tailored to the reader's profile.
 

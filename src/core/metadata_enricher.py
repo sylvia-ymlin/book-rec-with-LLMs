@@ -4,7 +4,7 @@ Single responsibility: data completion for recommendation results.
 """
 from typing import List, Optional
 
-from src.core.metadata_store import metadata_store
+from src.data.stores.metadata_store import metadata_store
 from src.core.models import BookResponseDict
 from src.core.response_formatter import format_book_response
 from src.utils import enrich_book_metadata

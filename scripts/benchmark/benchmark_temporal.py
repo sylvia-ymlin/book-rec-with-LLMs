@@ -1,5 +1,5 @@
 import pandas as pd
-from src.vector_db import VectorDB
+from src.core.rag.vector_db import VectorDB
 
 def run_benchmark():
     print("🚀 Starting Temporal Dynamics Benchmark...")
