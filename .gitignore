@@ -28,11 +28,18 @@ wheels/
 # Jupyter Notebook
 .ipynb_checkpoints
 
-# IDE
+# IDE / Agent configs
 .vscode/
 .idea/
+.cursor/
+.claude/
 *.swp
 *.swo
+
+# Virtual environments (should live outside project)
+.venv/
+venv/
+.worktree-clean/
 
 # OS
 .DS_Store
@@ -76,14 +83,16 @@ logs/
 *.temp
 *.gz
 
-# Linter cache
+# Linter / test cache
 .ruff_cache/
+.pytest_cache/
 
 # Vector database (generated at runtime)
 data/chroma_db/
 
-# Node modules
+# Node modules and build artifacts
 web/node_modules/
+web/dist/
 node_modules/
 
 # Backup files

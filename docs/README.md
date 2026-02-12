@@ -13,7 +13,9 @@ This file is the canonical navigation entry for project documentation.
 | Document | Audience | Purpose |
 |:---|:---|:---|
 | [../README.md](../README.md) | Recruiter / first-time visitor | 5-minute project overview and quick start |
-| [architecture/TECHNICAL_REPORT.md](architecture/TECHNICAL_REPORT.md) | Engineer / interviewer | Full architecture and design decisions |
+| [ONBOARDING.md](ONBOARDING.md) | **New contributors** | **30-minute guided tour (START HERE!)** |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Engineer / interviewer | System design and module dependencies |
+| [architecture/TECHNICAL_REPORT.md](architecture/TECHNICAL_REPORT.md) | ML Engineer / researcher | Full architecture and algorithmic details |
 | [experiments/experiment_archive.md](experiments/experiment_archive.md) | Research / reviewer | Consolidated experiment timeline and conclusions |
 | [../CHANGELOG.md](../CHANGELOG.md) | Maintainer | Versioned change history |
 
@@ -22,11 +24,13 @@ This file is the canonical navigation entry for project documentation.
 | Document | Purpose |
 |:---|:---|
 | [development/DEVELOPMENT.md](development/DEVELOPMENT.md) | Extend recall/ranking/router and maintain pipeline |
+| [development/REFACTORING_GUIDE.md](development/REFACTORING_GUIDE.md) | How to refactor large files and improve code structure |
 | [development/build_guide.md](development/build_guide.md) | Local build and service startup pipeline |
 | [development/huggingface_deployment.md](development/huggingface_deployment.md) | HF Spaces deployment notes |
 | [performance/memory_optimization.md](performance/memory_optimization.md) | Zero-RAM SQLite and memory trade-offs |
 | [performance/LATENCY_OPTIMIZATION.md](performance/LATENCY_OPTIMIZATION.md) | Latency tuning options and trade-offs |
 | [performance/performance_debugging_report.md](performance/performance_debugging_report.md) | Root-cause analysis and debugging playbook |
+| [../benchmarks/README.md](../benchmarks/README.md) | **Benchmarking guide: measure and optimize performance** |
 | [../CONTRIBUTING.md](../CONTRIBUTING.md) | Contribution guidelines |
 
 ## 3) Presentation Material
