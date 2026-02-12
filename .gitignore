@@ -47,6 +47,10 @@ Thumbs.db
 *.csv
 *.txt
 !requirements.txt
+# keep historical root snapshots after cleanup
+!data/legacy_root_exports/
+!data/legacy_root_exports/*.csv
+!data/legacy_root_exports/*.txt
 # data/books_processed.csv and others are now loaded at runtime from HF
 
 # Model files (downloaded at runtime from HF Hub)

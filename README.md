@@ -7,7 +7,7 @@ app_port: 8000
 
 # Intelligent Book Recommendation System
 
-*Frozen at v2.6.0 — maintenance mode for portfolio use.*
+*Frozen at v2.6.0 (model/features baseline) — maintenance mode for portfolio use. Post-freeze updates are limited to bug fixes, refactor, and documentation.*
 
 ## Problem
 
@@ -64,14 +64,16 @@ cd web && npm install && npm run dev   # UI http://localhost:5173
 
 ## Documentation
 
+Start from the internal documentation hub: [`docs/README.md`](docs/README.md).
+
 | Doc | Purpose |
 |:---|:---|
-| [Technical Report](docs/TECHNICAL_REPORT.md) | Architecture, design decisions |
-| [Development Guide](docs/DEVELOPMENT.md) | 添加召回通道、调整路由规则 |
-| [Contributing](CONTRIBUTING.md) | 贡献者指南 |
-| [Experiment Archive](docs/experiments/experiment_archive.md) | Full experiment log (V1.0 → v2.6.0) |
-| [Interview Guide](docs/interview_guide.md) | Q&A, STAR cases |
-| [Build Guide](docs/build_guide.md) | Deployment instructions |
+| [Docs Hub](docs/README.md) | Canonical documentation navigation |
+| [Technical Report](docs/architecture/TECHNICAL_REPORT.md) | Architecture and design decisions |
+| [Experiment Archive](docs/experiments/experiment_archive.md) | Consolidated experiment log (V1.0 → v2.6.0) |
+| [Development Guide](docs/development/DEVELOPMENT.md) | Engineering playbook for extension/refactor |
+| [Build Guide](docs/development/build_guide.md) | Build and deployment instructions |
+| [Changelog](CHANGELOG.md) | Versioned change history |
 
 ## License
 

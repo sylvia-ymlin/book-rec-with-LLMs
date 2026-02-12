@@ -9,7 +9,9 @@ All notable changes to this project will be documented in this file.
 - **Version alignment**: Updated `src/main.py`, `web/package.json` to 2.6.0. Unified version references across README, docs, technical_report, experiment_archive, interview_guide, roadmap.
 - **Freeze notice**: Added to README, docs/README, experiment_archive, roadmap.
 
-## [Unreleased]
+## [Post-freeze maintenance] - 2026-02-12
+
+Post-freeze updates after v2.6.0 baseline lock. Scope: bug fixes, architecture cleanup, and documentation/engineering maintenance.
 
 ### Added - A/B Testing & RAG Diversity (2026-02-12)
 - **A/B testing framework** (`src/core/ab_experiments.py`): Minimal experiment assignment via `get_variant(user_id, experiment_id)`; `get_experiment_config()` returns control/treatment params. Enable with `AB_EXPERIMENTS_ENABLED=true`.
@@ -28,7 +30,7 @@ All notable changes to this project will be documented in this file.
 - **Fallback rules improved**: Replaced brittle `len(words) <= 2` with NL keyword detection (`ROUTER_NL_KEYWORDS`: like, similar, recommend, want, looking, ...). Short queries (≤6 words) without NL keywords → FAST; queries with NL keywords → DEEP.
 - **Config**: `natural_language_keywords` in router config; `ROUTER_NL_KEYWORDS` in `src/config.py`.
 
-### Added - Latency Optimizations (LATENCY_OPTIMIZATION.md)
+### Added - Latency Optimizations (`docs/performance/LATENCY_OPTIMIZATION.md`)
 - **1. 裁剪候选集**: `RERANK_CANDIDATES_MAX=20` (env overridable); rerank top 20 instead of 50.
 - **2. ColBERT**: `RERANKER_BACKEND=colbert`; optional `llama-index-postprocessor-colbert-rerank`.
 - **3. Rerank 异步化**: `fast=true` skips rerank (~150ms); `async_rerank=true` returns RRF first, reranks in background, next request gets cached reranked.

@@ -347,5 +347,5 @@ flowchart TB
 - **命令行**: 使用 `mmdc` (mermaid-cli) 导出 PNG/SVG
   ```bash
   npm install -g @mermaid-js/mermaid-cli
-  mmdc -i docs/ARCHITECTURE_DIAGRAMS.md -o docs/diagrams/
+  mmdc -i docs/architecture/ARCHITECTURE_DIAGRAMS.md -o docs/diagrams/
   ```

@@ -23,7 +23,7 @@ python scripts/init_sqlite_db.py
 make run
 ```
 
-详见 [README](README.md) 与 [Build Guide](docs/build_guide.md)。
+详见 [README](README.md) 与 [Build Guide](docs/development/build_guide.md)。
 
 ---
 
@@ -40,8 +40,10 @@ make run
 ├── config/                 # 路由等配置
 ├── data/                   # 数据目录（不入库）
 └── docs/                   # 文档
-    ├── DEVELOPMENT.md      # 开发指南（召回、路由）
-    ├── TECHNICAL_REPORT.md # 技术报告
+    ├── architecture/       # 技术报告、架构图
+    ├── development/        # 开发与部署指南
+    ├── performance/        # 性能优化与调试
+    ├── presentation/       # 面试材料与演进路线
     └── ...
 ```
 
@@ -73,8 +75,8 @@ make run
 
 | 场景 | 参考文档 |
 |------|----------|
-| 添加新召回通道 | [docs/DEVELOPMENT.md § 一](docs/DEVELOPMENT.md#一如何添加新的召回通道) |
-| 调整路由规则 / 关键词 | [docs/DEVELOPMENT.md § 二](docs/DEVELOPMENT.md#二如何调整路由规则) |
+| 添加新召回通道 | [docs/development/DEVELOPMENT.md § 一](docs/development/DEVELOPMENT.md#一如何添加新的召回通道) |
+| 调整路由规则 / 关键词 | [docs/development/DEVELOPMENT.md § 二](docs/development/DEVELOPMENT.md#二如何调整路由规则) |
 | 修复 Bug | 先复现，再最小改动修复 |
 | 性能优化 | 对比前后指标，在 CHANGELOG 中记录 |
 
@@ -83,7 +85,7 @@ make run
 ## 五、文档与变更
 
 - **CHANGELOG.md**: 用户可见的变更应在此记录
-- **docs/DEVELOPMENT.md**: 开发相关扩展或修改流程时同步更新
+- **docs/development/DEVELOPMENT.md**: 开发相关扩展或修改流程时同步更新
 - **README.md**: 面向使用者的说明，重大功能变更时更新
 
 ---
