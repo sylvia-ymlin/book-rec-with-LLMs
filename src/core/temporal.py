@@ -23,7 +23,7 @@ class TemporalRanker:
             # Handle "2005-01-01" or "1999"
             if len(s) >= 4 and s[:4].isdigit():
                 return int(s[:4])
-        except:
+        except (ValueError, IndexError):
             pass
         return 0
 
@@ -50,7 +50,7 @@ class TemporalRanker:
             elif "ISBN:" in doc.page_content:
                 try:
                     isbn = doc.page_content.split("ISBN:")[1].strip().split()[0]
-                except:
+                except (IndexError, AttributeError):
                     pass
             if not isbn:
                  isbn = doc.page_content.strip().split()[0]

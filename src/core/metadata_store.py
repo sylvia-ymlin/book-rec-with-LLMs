@@ -2,7 +2,9 @@ import sqlite3
 import pandas as pd
 from pathlib import Path
 from typing import Optional, Dict, Any, List
+
 from src.config import DATA_DIR
+from src.core.models import BookMetadata
 from src.utils import setup_logger
 
 logger = setup_logger(__name__)
@@ -14,33 +16,17 @@ def _online_store():
 
 class MetadataStore:
     """
-    Singleton class to manage large book metadata efficiently.
-    
-    ENGINEERING IMPROVEMENT:
-    Transitioned from in-memory Pandas/Dict structures to a zero-RAM SQLite architecture.
-    This allows the application to handle the full 221k book dataset within the 16Gi RAM
-    limit of Hugging Face Spaces by performing on-demand indexed lookups instead of 
-    pre-loading the entire corpus.
-    
+    Manages large book metadata via zero-RAM SQLite architecture.
+    Instances can be created explicitly and passed via DI for testability.
+
     Features:
     - Zero-RAM footprint for idle metadata.
-    - FTS5 Virtual Tables for BM25-based keyword search (replaces rank_bm25).
+    - FTS5 Virtual Tables for BM25-based keyword search.
     """
-    _instance: Optional['MetadataStore'] = None
-    
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(MetadataStore, cls).__new__(cls)
-            cls._instance._initialized = False
-        return cls._instance
 
-    def __init__(self):
-        if self._initialized:
-            return
-            
-        self.db_path = DATA_DIR / "books.db"
-        self._conn = None
-        self._initialized = True
+    def __init__(self, db_path: Path | None = None) -> None:
+        self.db_path = db_path if db_path is not None else DATA_DIR / "books.db"
+        self._conn: Optional[sqlite3.Connection] = None
         logger.info(f"MetadataStore: Initialized (Zero-RAM mode using SQLite)")
 
     @property
@@ -68,7 +54,7 @@ class MetadataStore:
             logger.error(f"MetadataStore Query Error: {e}")
             return None
 
-    def get_book_metadata(self, isbn: str) -> Dict[str, Any]:
+    def get_book_metadata(self, isbn: str) -> BookMetadata | Dict[str, Any]:
         """Fast lookup: main store first, then online staging store (read path stays fast)."""
         isbn = str(isbn).strip().replace(".0", "")
         row = self._query_one("SELECT * FROM books WHERE isbn13 = ? OR isbn10 = ?", (isbn, isbn))
@@ -86,7 +72,7 @@ class MetadataStore:
         row = self._query_one("SELECT average_rating FROM books WHERE isbn13 = ? OR isbn10 = ?", (isbn, isbn))
         try:
             return float(row['average_rating']) if row and row['average_rating'] else default
-        except:
+        except (TypeError, ValueError):
             return default
 
     # Legacy compatibility properties

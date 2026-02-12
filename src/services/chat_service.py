@@ -106,8 +106,9 @@ class ChatService:
         # This is fine.
         try:
             compressed_history = await compressor.compress_history(raw_history)
-        except:
-             compressed_history = raw_history[-10:] # Fallback
+        except Exception as e:
+            logger.warning(f"compress_history failed: {e}; using last 10 messages")
+            compressed_history = raw_history[-10:]
 
         system_prompt = (
             "You are a knowledgeable and helpful intelligent librarian. "

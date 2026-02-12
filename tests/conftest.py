@@ -1,6 +1,27 @@
 import pytest
 import pandas as pd
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, AsyncMock, patch
+
+
+@pytest.fixture(scope="session", autouse=True)
+def mock_main_startup():
+    """Prevent main startup from loading real models (ensure_models_exist, RecommendationOrchestrator).
+    Applied before any test; first request triggers startup which uses mocks."""
+    mock_rec = MagicMock()
+    mock_rec.get_recommendations = AsyncMock(return_value=[])
+    mock_rec.get_categories.return_value = ["All", "Fiction"]
+    mock_rec.get_tones.return_value = ["All", "Happy"]
+    mock_rec.get_similar_books.return_value = []
+    mock_rec.vector_db = MagicMock()
+    mock_svc = MagicMock()
+    mock_svc.get_recommendations.return_value = []
+    mock_svc.get_popular_books.return_value = []
+    mock_svc.load_resources = MagicMock()
+    with patch("src.core.model_loader.ensure_models_exist"), \
+         patch("src.main.RecommendationOrchestrator", return_value=mock_rec), \
+         patch("src.main.RecommendationService", return_value=mock_svc):
+        yield
+
 
 @pytest.fixture
 def mock_books_df():

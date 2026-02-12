@@ -11,6 +11,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added - A/B Testing & RAG Diversity (2026-02-12)
+- **A/B testing framework** (`src/core/ab_experiments.py`): Minimal experiment assignment via `get_variant(user_id, experiment_id)`; `get_experiment_config()` returns control/treatment params. Enable with `AB_EXPERIMENTS_ENABLED=true`.
+- **API params**: `POST /recommend` and `GET /api/recommend/personal` accept `experiment_id`, `ab_variant` ("control"|"treatment"). `diversity_rerank` experiment toggles `enable_diversity_rerank` for online validation.
+- **RAG path diversity**: `RecommendationOrchestrator` now applies `DiversityReranker` (MMR + popularity penalty + category constraint) to RAG search results. Configurable via `ENABLE_RAG_DIVERSITY=true` (default).
+
+### Changed - Architecture Improvements (2026-02-12)
+- **Removed BookRecommender facade**: Direct use of `RecommendationOrchestrator` throughout (main.py, benchmarks, scripts, tests). Eliminates redundant indirection.
+- **BookMetadata domain model**: Added `src/core/models.py` with `BookMetadata` TypedDict for type safety in metadata flow. Updated `metadata_store`, `response_formatter` type hints.
+- **Unified config**: `src/config.py` now uses `pydantic-settings` `Settings` class. Single source of truth; env vars override defaults. Added `get_settings()` for typed access.
+- **MetadataStore instance + DI**: Removed singleton pattern; `MetadataStore(db_path)` is now a normal class. Supports explicit instantiation for tests. Global `metadata_store` retained for backward compat; main.py explicitly passes to `RecommendationOrchestrator`.
+
 ### Fixed - Router heuristic fragility (intent_classifier)
 - **Model-based routing**: Trained `intent_classifier.pkl` (TF-IDF + LogisticRegression) with book title examples; router now uses model when available.
 - **SEED_DATA extended**: Added `War and Peace`, `The Lord of the Rings`, `Harry Potter`, `1984`, etc. (fast) and `books like War and Peace`, `similar to The Lord of the Rings` (deep) so model distinguishes book titles from recommendation-style queries.

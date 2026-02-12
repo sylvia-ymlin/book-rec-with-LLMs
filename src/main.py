@@ -1,14 +1,14 @@
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Path, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 import time
 import prometheus_client
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 
-from src.recommender import BookRecommender
+from src.core.recommendation_orchestrator import RecommendationOrchestrator
 from src.utils import setup_logger
 from src.user.profile_store import (
     add_favorite, list_favorites, remove_favorite,
@@ -18,6 +18,12 @@ from src.user.profile_store import (
 from src.api.chat import router as chat_router # ✨ NEW
 from src.services.chat_service import chat_service # ✨ NEW
 from src.services.recommend_service import RecommendationService # ✨ NEW
+from src.services.personal_recommend_handler import (
+    parse_request_params,
+    resolve_seed_from_intent,
+    get_ab_diversity_config,
+    enrich_personal_results,
+)
 
 logger = setup_logger(__name__)
 
@@ -28,8 +34,19 @@ REQUEST_LATENCY = Histogram("http_request_duration_seconds", "HTTP request laten
 
 app = FastAPI(
     title="Book Recommender API",
-    description="API for Intelligent Book Recommendation System (RAG Capabilities Enabled)",
-    version="2.6.0"
+    description="""Intelligent Book Recommendation System with RAG + Personalized RecSys.
+
+## Overview
+- **RAG Path**: Semantic search (BM25 + Dense) → Router → Rerank for vague queries
+- **RecSys Path**: 7-channel recall → LGBMRanker for personalized recommendations
+- **Chat**: Stream LLM responses with book context (RAG)
+
+## Quick Links
+- Swagger UI: `/docs`
+- ReDoc: `/redoc`
+- OpenAPI JSON: `/openapi.json`
+""",
+    version="2.6.0",
 )
 
 # Include Routers
@@ -61,7 +78,12 @@ async def prometheus_middleware(request: Request, call_next):
         
     return response
 
-@app.get("/metrics")
+@app.get(
+    "/metrics",
+    summary="Prometheus metrics",
+    description="Expose Prometheus metrics (request count, latency histograms). Scrape at `/metrics`.",
+    responses={200: {"description": "Prometheus text format"}},
+)
 async def metrics():
     """Expose Prometheus metrics."""
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
@@ -81,7 +103,8 @@ async def startup_event():
     ensure_models_exist()
     
     logger.info("Initializing Recommender Engine...")
-    recommender = BookRecommender()
+    from src.core.metadata_store import metadata_store
+    recommender = RecommendationOrchestrator(metadata_store_inst=metadata_store)
     
     logger.info("Initializing Personalized Rec Service...")
     rec_service = RecommendationService()
@@ -93,67 +116,110 @@ async def startup_event():
     
     logger.info("Engines Initialized.")
 
-# Pydantic Models
+# Pydantic Models (with OpenAPI examples)
 class RecommendationRequest(BaseModel):
-    query: str
-    category: str = "All"
-    user_id: Optional[str] = "local"
-    use_agentic: Optional[bool] = False  # LangGraph workflow: Router -> Retrieve -> Evaluate -> Web Fallback
-    fast: Optional[bool] = False  # Skip rerank for ~150ms latency
-    async_rerank: Optional[bool] = False  # Return RRF first, rerank in background; next request gets cached
+    """Request body for semantic + RAG-based recommendations."""
+
+    query: str = Field(..., description="Natural language query (e.g. 'a thriller with plot twists')")
+    category: str = Field(default="All", description="Filter by category (e.g. Fiction, Romance)")
+    user_id: Optional[str] = Field(default="local", description="User identifier for personalization")
+    use_agentic: Optional[bool] = Field(
+        default=False,
+        description="Enable LangGraph workflow: Router → Retrieve → Evaluate → Web Fallback",
+    )
+    fast: Optional[bool] = Field(
+        default=False,
+        description="Skip rerank for ~150ms latency (RRF only)",
+    )
+    async_rerank: Optional[bool] = Field(
+        default=False,
+        description="Return RRF first, rerank in background; next request gets cached",
+    )
+    experiment_id: Optional[str] = Field(default=None, description="A/B experiment ID for variant assignment")
+    ab_variant: Optional[str] = Field(default=None, description="Force variant: 'control' | 'treatment'")
+
+    model_config = {"json_schema_extra": {"examples": [{"query": "a romantic comedy set in New York", "category": "Fiction"}]}}
 
 
 class FeatureContribution(BaseModel):
-    feature: str
-    contribution: float
-    direction: str  # "positive" or "negative"
+    """SHAP feature contribution for explainability."""
+
+    feature: str = Field(..., description="Feature name (e.g. 'title_similarity')")
+    contribution: float = Field(..., description="Contribution score")
+    direction: str = Field(..., description="'positive' or 'negative'")
+
 
 class BookResponse(BaseModel):
-    isbn: str
+    """Single book in recommendation response."""
+
+    isbn: str = Field(..., description="ISBN-10 or ISBN-13")
     title: str
     authors: str
     description: str
-    thumbnail: str
-    caption: str
-    tags: List[str] = []
-    average_rating: float = 0.0
-    explanations: List[FeatureContribution] = []  # SHAP explanations (V2.7)
+    thumbnail: str = Field(..., description="Cover image URL or path")
+    caption: str = Field(default="", description="One-line summary")
+    tags: List[str] = Field(default_factory=list)
+    average_rating: float = Field(default=0.0, ge=0, le=5)
+    explanations: List[FeatureContribution] = Field(default_factory=list, description="SHAP explanations")
 
 
 class RecommendationResponse(BaseModel):
-    recommendations: List[BookResponse]
+    """Response with list of recommended books."""
+
+    recommendations: List[BookResponse] = Field(..., description="Ordered list of recommended books")
 
 
 class FavoriteRequest(BaseModel):
-    user_id: Optional[str] = "local"
-    isbn: str
+    """Request for add/remove favorite."""
+
+    user_id: Optional[str] = Field(default="local")
+    isbn: str = Field(..., description="ISBN of the book")
 
 
 class HighlightsRequest(BaseModel):
+    """Request for book highlights."""
+
     isbn: str
-    user_id: Optional[str] = "local"
+    user_id: Optional[str] = Field(default="local")
 
 
 class BookUpdateRequest(BaseModel):
-    user_id: Optional[str] = "local"
+    """Update rating, reading status, or comment for a favorited book."""
+
+    user_id: Optional[str] = Field(default="local")
     isbn: str
-    rating: Optional[float] = None
-    status: Optional[str] = None  # "want_to_read", "reading", "finished"
-    comment: Optional[str] = None
+    rating: Optional[float] = Field(default=None, ge=0, le=5)
+    status: Optional[str] = Field(default=None, description="'want_to_read' | 'reading' | 'finished'")
+    comment: Optional[str] = Field(default=None)
+
+    model_config = {"json_schema_extra": {"examples": [{"isbn": "0140283331", "rating": 4.5, "status": "finished"}]}}
+
 
 class BookAddRequest(BaseModel):
-    isbn: str
+    """Add a new book to the database and vector index."""
+
+    isbn: str = Field(..., description="Unique ISBN (10 or 13 digits)")
     title: str
     author: str
     description: str
-    category: Optional[str] = "General"
-    thumbnail: Optional[str] = None
+    category: Optional[str] = Field(default="General")
+    thumbnail: Optional[str] = Field(default=None, description="Cover image URL")
 
-@app.post("/books/add")
+    model_config = {"json_schema_extra": {"examples": [{"isbn": "9780140283337", "title": "Catcher in the Rye", "author": "J.D. Salinger", "description": "A novel about teenage alienation."}]}}
+
+@app.post(
+    "/books/add",
+    summary="Add book",
+    description="Add a new book to SQLite metadata store and Chroma vector index. ISBN must be unique.",
+    responses={
+        200: {"description": "Book added successfully"},
+        400: {"description": "ISBN already exists or invalid"},
+        500: {"description": "Internal error"},
+        503: {"description": "Service not ready"},
+    },
+)
 async def add_book_endpoint(req: BookAddRequest):
-    """
-    Dynamically add a new book to the database and vector index.
-    """
+    """Dynamically add a new book to the database and vector index."""
     if not recommender:
         raise HTTPException(status_code=503, detail="Service not ready")
     try:
@@ -168,43 +234,82 @@ async def add_book_endpoint(req: BookAddRequest):
         logger.error(f"Error adding book: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/health")
+@app.get(
+    "/health",
+    summary="Health check",
+    description="Verify service is running. Returns `{status: 'healthy'}`.",
+    responses={200: {"description": "Service healthy"}},
+)
 async def health_check():
     """Health check endpoint to verify service status."""
     return {"status": "healthy"}
 
-@app.post("/recommend", response_model=RecommendationResponse)
+@app.post(
+    "/recommend",
+    response_model=RecommendationResponse,
+    summary="Semantic recommendations",
+    description="""Generate book recommendations via RAG pipeline:
+- **Hybrid search**: BM25 + Dense vector, RRF fusion
+- **Rerank**: Cross-Encoder or ONNX (~2x faster)
+- **use_agentic=true**: LangGraph Router → Retrieve → Evaluate → Web Fallback (for vague queries)
+- **fast=true**: Skip rerank (~150ms latency)
+- **async_rerank=true**: Return RRF first, rerank in background; next request gets cached
+- **Response**: `{recommendations: [{isbn, title, authors, description, thumbnail, ...}]}`
+""",
+    responses={
+        200: {"description": "List of recommended books"},
+        500: {"description": "Processing error"},
+        503: {"description": "Service not ready"},
+    },
+)
 async def get_recommendations(request: RecommendationRequest):
-    """
-    Generate book recommendations based on semantic search and emotion/category filtering.
-    Set use_agentic: true for LangGraph workflow (Router -> Retrieve -> Evaluate -> Web Fallback).
-    Async to avoid blocking event loop (web search fallback uses httpx).
-    """
+    """Generate book recommendations based on semantic search and emotion/category filtering."""
     if not recommender:
         raise HTTPException(status_code=503, detail="Service not ready")
 
     try:
+        user_id = request.user_id if hasattr(request, 'user_id') else "local"
+        enable_diversity = True  # default
+        if request.experiment_id:
+            from src.core.ab_experiments import get_experiment_config, log_experiment
+            from src.config import AB_EXPERIMENTS_ENABLED
+            if AB_EXPERIMENTS_ENABLED:
+                cfg = get_experiment_config(user_id, request.experiment_id, request.ab_variant)
+                enable_diversity = cfg.get("enable_diversity_rerank", True)
+                variant = "treatment" if enable_diversity else "control"
+                log_experiment(request.experiment_id, user_id, variant)
         results = await recommender.get_recommendations(
             query=request.query,
             category=request.category,
-            user_id=request.user_id if hasattr(request, 'user_id') else "local",
+            user_id=user_id,
             use_agentic=request.use_agentic or False,
             fast=request.fast or False,
             async_rerank=request.async_rerank or False,
+            enable_diversity_rerank=enable_diversity,
         )
         return {"recommendations": results}
     except Exception as e:
         logger.error(f"Error processing request: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/recommend/similar/{isbn}", response_model=RecommendationResponse)
-def get_similar_books(isbn: str, k: int = 10, category: str = "All"):
-    """
-    Content-based similar books by vector similarity.
-    
-    When user clicks a book, call this to show similar recommendations immediately.
-    No user history required; works for new users and new books in ChromaDB.
-    """
+@app.get(
+    "/api/recommend/similar/{isbn}",
+    response_model=RecommendationResponse,
+    summary="Similar books by ISBN",
+    description="""Content-based similar books by vector similarity.
+- **Use case**: User clicks a book → show similar recommendations immediately
+- **No user history required**: Works for new users and new books in ChromaDB
+- **Params**: `k` (default 10), `category` (default All)
+- **Response**: `{recommendations: [{isbn, title, authors, ...}]}`
+""",
+    responses={200: {"description": "List of similar books"}, 500: {"description": "Error"}, 503: {"description": "Service not ready"}},
+)
+def get_similar_books(
+    isbn: str = Path(..., description="ISBN of the seed book"),
+    k: int = Query(10, ge=1, le=50, description="Number of similar books to return"),
+    category: str = Query("All", description="Filter by category"),
+):
+    """Content-based similar books by vector similarity."""
     if not recommender:
         raise HTTPException(status_code=503, detail="Service not ready")
     try:
@@ -215,7 +320,12 @@ def get_similar_books(isbn: str, k: int = 10, category: str = "All"):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/categories")
+@app.get(
+    "/categories",
+    summary="List categories",
+    description="Return all book categories available for filtering. Response: `{categories: ['Fiction', 'Romance', ...]}`.",
+    responses={200: {"description": "List of category names"}, 503: {"description": "Service not ready"}},
+)
 async def get_categories():
     if not recommender:
          raise HTTPException(status_code=503, detail="Service not ready")
@@ -225,7 +335,12 @@ async def get_categories():
 
 
 # --- Favorites & Persona & Highlights ---
-@app.post("/favorites/add")
+@app.post(
+    "/favorites/add",
+    summary="Add favorite",
+    description="Add a book to user's favorites. Response: `{status: 'ok', favorites_count: N}`.",
+    responses={200: {"description": "Added"}, 500: {"description": "Error"}, 503: {"description": "Service not ready"}},
+)
 async def favorites_add(req: FavoriteRequest):
     if not recommender:
         raise HTTPException(status_code=503, detail="Service not ready")
@@ -237,7 +352,12 @@ async def favorites_add(req: FavoriteRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.delete("/favorites/remove")
+@app.delete(
+    "/favorites/remove",
+    summary="Remove favorite",
+    description="Remove a book from user's favorites. Response: `{status: 'ok', favorites_count: N}`.",
+    responses={200: {"description": "Removed"}, 500: {"description": "Error"}, 503: {"description": "Service not ready"}},
+)
 async def favorites_remove(req: FavoriteRequest):
     """Remove a book from user's favorites."""
     if not recommender:
@@ -250,7 +370,44 @@ async def favorites_remove(req: FavoriteRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/favorites/list/{user_id}")
+@app.put(
+    "/favorites/update",
+    summary="Update favorite",
+    description="""Update rating, reading status, or comment for a favorited book.
+- **rating**: 1–5 (optional)
+- **status**: `want_to_read` | `reading` | `finished` (optional)
+- **comment**: Free text (optional)
+- Response: `{status: 'ok'}`. All fields optional; only provided fields are updated.
+""",
+    responses={200: {"description": "Updated"}, 500: {"description": "Error"}, 503: {"description": "Service not ready"}},
+)
+async def favorites_update(req: BookUpdateRequest):
+    """Update rating, status, or comment for a favorited book."""
+    if not recommender:
+        raise HTTPException(status_code=503, detail="Service not ready")
+    try:
+        uid = req.user_id or "local"
+        if req.rating is not None:
+            update_book_rating(uid, req.isbn, req.rating)
+        if req.status is not None:
+            update_reading_status(uid, req.isbn, req.status)
+        if req.comment is not None:
+            update_book_comment(uid, req.isbn, req.comment)
+        return {"status": "ok"}
+    except Exception as e:
+        logger.error(f"favorites_update error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get(
+    "/favorites/list/{user_id}",
+    summary="List favorites",
+    description="""Return user's favorite books with full details.
+- **Response**: `{favorites: [{isbn, title, author, img, category, rating, status, added_at, comment}]}`
+- **status**: `want_to_read` | `reading` | `finished`
+""",
+    responses={200: {"description": "List of favorites"}, 500: {"description": "Error"}, 503: {"description": "Service not ready"}},
+)
 async def favorites_list(user_id: str):
     """Return user's favorite books with full details."""
     if not recommender:
@@ -292,12 +449,16 @@ async def favorites_list(user_id: str):
 
 # ... (intervening code) ...
 
-@app.get("/benchmark")
+@app.get(
+    "/benchmark",
+    summary="Performance benchmark",
+    description="""Run performance benchmark (5 queries). Returns latency stats for vector search and full recommendation.
+- **Response**: `{vector_search: {mean_ms, median_ms, ...}, full_recommendation: {...}, dataset_size: N}`
+""",
+    responses={200: {"description": "Benchmark results"}, 503: {"description": "Service not ready"}},
+)
 async def run_benchmark():
-    """
-    Run performance benchmark and return latency metrics.
-    Tests vector search and full recommendation pipeline.
-    """
+    """Run performance benchmark and return latency metrics."""
     import time
     import statistics
     
@@ -352,131 +513,79 @@ async def run_benchmark():
 
 # --- Personalized Recommendation API ---
 
-@app.get("/api/recommend/personal", response_model=RecommendationResponse)
+@app.get(
+    "/api/recommend/personal",
+    response_model=RecommendationResponse,
+    summary="Personalized recommendations",
+    description="""Get personalized recommendations from reading history. Uses 6-channel recall (ItemCF/UserCF/Swing/SASRec/YoutubeDNN/Popularity) + LGBMRanker.
+
+| Param | Type | Description |
+|-------|------|--------------|
+| user_id | str | User identifier (default: local) |
+| top_k | int | Number of recommendations (default: 10) |
+| limit | int | Alias for top_k (optional) |
+| recent_isbns | str | Comma-separated ISBNs from current session (e.g. just-viewed). Injected into SASRec for cold-start. |
+| intent_query | str | Zero-shot intent probing when no history. LLM infers categories/keywords → semantic search → seeds SASRec. |
+| experiment_id | str | A/B experiment ID |
+| ab_variant | str | Force variant: control \| treatment |
+
+**Response**: `{recommendations: [{isbn, title, authors, ...}]}`
+""",
+    responses={200: {"description": "Personalized recommendations"}, 500: {"description": "Error"}, 503: {"description": "Service not ready"}},
+)
 def personalized_recommendations(
     user_id: str = "local",
     top_k: int = 10,
     limit: Optional[int] = None,
     recent_isbns: Optional[str] = None,
     intent_query: Optional[str] = None,
+    experiment_id: Optional[str] = None,
+    ab_variant: Optional[str] = None,
 ):
-    """
-    Get personalized recommendations for a user.
-    Uses 6-channel recall (ItemCF/UserCF/Swing/SASRec/YoutubeDNN/Popularity) + LGBMRanker.
-
-    P0: recent_isbns — Comma-separated ISBNs from current session (e.g. just-viewed).
-        Injected into SASRec for cold-start convergence (1+ clicks).
-    P2: intent_query — Zero-shot intent probing when user has no history.
-        Probes LLM for categories/keywords, does semantic search, seeds SASRec.
-    """
-    k = limit if limit is not None else top_k
-    # Demo logic: Map 'local' to a real user for demonstration (skip when intent_query = cold-start)
-    if user_id in ["local", "demo"] and not intent_query:
-        user_id = "A1ZQ1LUQ9R6JHZ"
-
-    # P0: Parse recent_isbns for real-time cold-start
-    real_time_seq = None
-    if recent_isbns:
-        real_time_seq = [x.strip() for x in recent_isbns.split(",") if x.strip()]
+    """Get personalized recommendations for a user."""
+    effective_user_id, k, real_time_seq = parse_request_params(
+        user_id, top_k, limit, recent_isbns, intent_query
+    )
 
     # P2: Zero-shot intent probing — when no recent_isbns, use query to seed
-    if not real_time_seq and intent_query and intent_query.strip():
-        from src.core.intent_prober import probe_intent
-        intent = probe_intent(intent_query.strip())
-        semantic_query = " ".join(
-            intent.get("keywords", []) + intent.get("categories", []) + [intent.get("summary", "")]
-        ).strip()
-        if semantic_query and recommender:
-            try:
-                rag_results = recommender.get_recommendations_sync(
-                    semantic_query, category="All", tone="All", user_id=user_id
-                )
-                seed_isbns = [r.get("isbn") for r in (rag_results or [])[:5] if r.get("isbn")]
-                if seed_isbns:
-                    real_time_seq = seed_isbns
-            except Exception as e:
-                logger.warning(f"Intent-to-seed failed: {e}")
+    if not real_time_seq and recommender:
+        seed = resolve_seed_from_intent(intent_query or "", effective_user_id, recommender)
+        if seed:
+            real_time_seq = seed
 
-    # Check initialization
     if not rec_service:
         raise HTTPException(status_code=503, detail="Service not ready")
 
+    enable_diversity = get_ab_diversity_config(effective_user_id, experiment_id, ab_variant)
+
     try:
         recs = rec_service.get_recommendations(
-            user_id, top_k=k, real_time_sequence=real_time_seq
+            effective_user_id,
+            top_k=k,
+            real_time_sequence=real_time_seq,
+            enable_diversity_rerank=enable_diversity,
         )
-        
-        # Enrich with metadata
-        from src.utils import enrich_book_metadata
-        
-        results = []
-        for isbn, score, explanation in recs:
-            # Recommender matches our singleton 'recommender'
-            meta = recommender.vector_db.get_book_details(isbn) or {}
-            
-            # Enrich with dynamic cover fetching
-            meta = enrich_book_metadata(meta, str(isbn))
-            
-            # Fallback for display
-            title = meta.get("title") or f"ISBN: {isbn}"
-            desc = meta.get("description", "No description available.")
-            thumb = meta.get("thumbnail", "/content/cover-not-found.jpg")
-            authors = meta.get("authors", "Unknown")
-            
-            # More robust rating/metadata mapping
-            rating = 0.0
-            if meta:
-                # Try average_rating or rating
-                rating = float(meta.get("average_rating", meta.get("rating", 0.0)))
-            
-            tags = []
-            if meta and "tags" in meta:
-                tags_raw = meta["tags"]
-                if isinstance(tags_raw, str):
-                    tags = [t.strip() for t in tags_raw.split(";") if t.strip()]
-                elif isinstance(tags_raw, list):
-                    tags = tags_raw
-            
-
-            
-            highlights = []
-            if meta and "review_highlights" in meta:
-                h_raw = meta["review_highlights"]
-                if isinstance(h_raw, str):
-                    highlights = [h.strip() for h in h_raw.split(";") if h.strip()][:3]
-            
-            # Format cover
-            if not thumb:
-                 thumb = "/content/cover-not-found.jpg"
-            
-            results.append({
-                "isbn": isbn,
-                "score": float(score),
-                "title": title,
-                "authors": authors,
-                "description": desc,
-                "thumbnail": thumb,
-                "average_rating": rating,
-                "tags": tags,
-                "review_highlights": highlights,
-                "caption": f"{title} by {authors}",
-                "explanations": explanation,  # SHAP feature contributions (V2.7)
-            })
-            
+        results = enrich_personal_results(
+            recs,
+            recommender.vector_db.get_book_details if recommender else lambda _: {},
+        )
         return {"recommendations": results}
-        
     except Exception as e:
         logger.error(f"Error in personalized rec: {e}")
-        # In production, maybe return fallback popular items instead of error
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/intent/probe")
+@app.get(
+    "/api/intent/probe",
+    summary="Intent probing",
+    description="""Zero-shot intent probing for cold-start users. LLM infers categories, emotions, keywords from user's first query.
+- **Param**: `query` (str) — e.g. "I want something light and funny"
+- **Response**: `{categories: [...], emotions: [...], keywords: [...]}`
+""",
+    responses={200: {"description": "Inferred intent"}, 500: {"description": "Error"}},
+)
 def probe_intent_endpoint(query: str = ""):
-    """
-    P2: Zero-shot intent probing for cold-start users.
-    Returns inferred categories, emotions, keywords from user's first query.
-    """
+    """Zero-shot intent probing for cold-start users."""
     from src.core.intent_prober import probe_intent
     try:
         result = probe_intent(query)
@@ -486,12 +595,17 @@ def probe_intent_endpoint(query: str = ""):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/onboarding/books")
+@app.get(
+    "/api/onboarding/books",
+    summary="Onboarding books",
+    description="""Return popular books for new-user onboarding. User picks 3–5 to seed preferences (cold-start).
+- **Param**: `limit` (int, default 24)
+- **Response**: `{books: [{isbn, title, authors, description, thumbnail, category}]}`
+""",
+    responses={200: {"description": "Popular books"}, 500: {"description": "Error"}, 503: {"description": "Service not ready"}},
+)
 def get_onboarding_books(limit: int = 24):
-    """
-    P2: Return popular books for new-user onboarding.
-    Lets user pick 3–5 to seed preferences (cold-start).
-    """
+    """Return popular books for new-user onboarding."""
     if not rec_service:
         raise HTTPException(status_code=503, detail="Service not ready")
     try:

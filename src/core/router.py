@@ -2,6 +2,7 @@ import re
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
+from src.config import FRESHNESS_THRESHOLD, HYBRID_DEFAULT_ALPHA
 from src.utils import setup_logger
 
 logger = setup_logger(__name__)
@@ -100,23 +101,23 @@ class QueryRouter:
         base_result = {
             "temporal": is_temporal,
             "freshness_fallback": freshness_fallback,
-            "freshness_threshold": 3,  # Trigger web search if < 3 results
+            "freshness_threshold": FRESHNESS_THRESHOLD,
             "target_year": target_year,
         }
         
         if any(w.lower() in ROUTER_DETAIL_KEYWORDS for w in words):
             logger.info("Router (rules): Detail Query -> SMALL_TO_BIG")
-            return {**base_result, "strategy": "small_to_big", "alpha": 0.5, "rerank": False, "k_final": 5}
+            return {**base_result, "strategy": "small_to_big", "alpha": HYBRID_DEFAULT_ALPHA, "rerank": False, "k_final": 5}
         # NL keywords indicate recommendation intent -> DEEP
         if any(w.lower() in ROUTER_NL_KEYWORDS for w in words):
             logger.info("Router (rules): NL keywords -> DEEP (Temporal=%s, Freshness=%s)", is_temporal, freshness_fallback)
-            return {**base_result, "strategy": "deep", "alpha": 0.5, "rerank": True, "k_final": 10}
+            return {**base_result, "strategy": "deep", "alpha": HYBRID_DEFAULT_ALPHA, "rerank": True, "k_final": 10}
         # Short query without NL keywords: book title or keyword -> FAST
         if len(words) <= 6:
             logger.info("Router (rules): Keyword/Title -> FAST (Temporal=%s, Freshness=%s)", is_temporal, freshness_fallback)
-            return {**base_result, "strategy": "fast", "alpha": 0.5, "rerank": False, "k_final": 5}
+            return {**base_result, "strategy": "fast", "alpha": HYBRID_DEFAULT_ALPHA, "rerank": False, "k_final": 5}
         logger.info("Router (rules): Long query -> DEEP (Temporal=%s, Freshness=%s)", is_temporal, freshness_fallback)
-        return {**base_result, "strategy": "deep", "alpha": 0.5, "rerank": True, "k_final": 10}
+        return {**base_result, "strategy": "deep", "alpha": HYBRID_DEFAULT_ALPHA, "rerank": True, "k_final": 10}
 
     def route(self, query: str) -> Dict[str, Any]:
         """
@@ -161,12 +162,12 @@ class QueryRouter:
                 logger.info("Router (model): %s -> %s (Freshness=%s)", intent, intent.upper(), freshness_fallback)
                 return {
                     "strategy": intent,
-                    "alpha": 0.5,
+                    "alpha": HYBRID_DEFAULT_ALPHA,
                     "rerank": intent == "deep",
                     "k_final": 10 if intent == "deep" else 5,
                     "temporal": is_temporal,
                     "freshness_fallback": freshness_fallback,
-                    "freshness_threshold": 3,
+                    "freshness_threshold": FRESHNESS_THRESHOLD,
                     "target_year": target_year,
                 }
             except Exception as e:

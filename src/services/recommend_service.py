@@ -4,6 +4,7 @@ import lightgbm as lgb
 import xgboost as xgb
 import numpy as np
 from pathlib import Path
+from src.config import MMR_LAMBDA_DEFAULT, POPULARITY_GAMMA_DEFAULT, MAX_PER_CATEGORY_DEFAULT
 from src.recall.fusion import RecallFusion
 from src.ranking.features import FeatureEngineer
 from src.ranking.explainer import RankingExplainer
@@ -75,7 +76,8 @@ class RecommendationService:
                         self.xgb_ranker = xgb.Booster()
                         self.xgb_ranker.load_model(str(xgb_path))
                         logger.info("XGBoost ranker loaded as raw Booster.")
-                    except:
+                    except Exception as e:
+                        logger.debug("XGBoost Booster fallback failed: %s", e)
                         self.xgb_ranker = None
 
             # Load stacking meta-model
@@ -98,9 +100,9 @@ class RecommendationService:
         self.diversity_reranker = DiversityReranker(
             metadata_store=metadata_store,
             data_dir=str(self.data_dir),
-            mmr_lambda=0.75,
-            popularity_gamma=0.1,
-            max_per_category=3,
+            mmr_lambda=MMR_LAMBDA_DEFAULT,
+            popularity_gamma=POPULARITY_GAMMA_DEFAULT,
+            max_per_category=MAX_PER_CATEGORY_DEFAULT,
         )
 
     def get_recommendations(

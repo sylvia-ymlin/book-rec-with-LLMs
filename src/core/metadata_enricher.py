@@ -2,9 +2,10 @@
 Metadata enrichment: fetches metadata, enriches, and filters by category.
 Single responsibility: data completion for recommendation results.
 """
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 from src.core.metadata_store import metadata_store
+from src.core.models import BookResponseDict
 from src.core.response_formatter import format_book_response
 from src.utils import enrich_book_metadata
 from src.config import TOP_K_FINAL
@@ -16,7 +17,7 @@ def enrich_and_format(
     max_results: int = TOP_K_FINAL,
     source: str = "local",
     metadata_store_inst=None,
-) -> List[Dict[str, Any]]:
+) -> List[BookResponseDict]:
     """
     Enrich ISBN list with metadata and format into API response dicts.
 
@@ -35,7 +36,7 @@ def enrich_and_format(
         List of formatted book dicts ready for API response
     """
     store = metadata_store_inst if metadata_store_inst is not None else metadata_store
-    results: List[Dict[str, Any]] = []
+    results: List[BookResponseDict] = []
 
     for isbn in isbn_list:
         meta = store.get_book_metadata(str(isbn))

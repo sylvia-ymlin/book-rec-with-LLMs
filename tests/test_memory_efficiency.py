@@ -3,7 +3,7 @@ import psutil
 import pytest
 from src.core.metadata_store import MetadataStore
 from src.recall.itemcf import ItemCF
-from src.recommender import BookRecommender
+from src.core.recommendation_orchestrator import RecommendationOrchestrator
 from src.services.recommend_service import RecommendationService
 
 def get_process_memory():
@@ -15,7 +15,6 @@ def test_memory_usage_loading():
     print(f"\nInitial RAM: {initial_mem:.2f} MB")
     
     # 1. Initialize MetadataStore
-    MetadataStore._instance = None
     store = MetadataStore()
     mem_after_store = get_process_memory()
     print(f"RAM after MetadataStore: {mem_after_store:.2f} MB (Delta: {mem_after_store - initial_mem:.2f} MB)")
@@ -26,8 +25,8 @@ def test_memory_usage_loading():
     mem_after_itemcf = get_process_memory()
     print(f"RAM after ItemCF Load: {mem_after_itemcf:.2f} MB (Delta: {mem_after_itemcf - mem_after_store:.2f} MB)")
     
-    # 3. Initialize Recommender
-    recommender = BookRecommender()
+    # 3. Initialize Recommender (Orchestrator)
+    recommender = RecommendationOrchestrator()
     mem_after_rec = get_process_memory()
     print(f"RAM after Recommender: {mem_after_rec:.2f} MB (Delta: {mem_after_rec - mem_after_itemcf:.2f} MB)")
     

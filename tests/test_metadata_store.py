@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, PropertyMock
 from src.core.metadata_store import MetadataStore
 import sqlite3
 from pathlib import Path
@@ -7,13 +7,7 @@ from pathlib import Path
 class TestMetadataStore:
     @pytest.fixture
     def store(self):
-        # Reset singleton
-        MetadataStore._instance = None
         return MetadataStore()
-
-    def test_singleton(self, store):
-        store2 = MetadataStore()
-        assert store is store2
 
     def test_get_book_metadata(self, store):
         # Mock connection and cursor
@@ -33,7 +27,7 @@ class TestMetadataStore:
             mock_cursor.execute.assert_called()
 
     def test_get_image(self, store):
-         with patch.object(MetadataStore, 'connection', new_callable=PropertyMock) as mock_conn_prop:
+        with patch.object(MetadataStore, 'connection', new_callable=PropertyMock) as mock_conn_prop:
             mock_conn = MagicMock()
             mock_cursor = MagicMock()
             mock_conn_prop.return_value = mock_conn
@@ -41,5 +35,3 @@ class TestMetadataStore:
             
             mock_cursor.fetchone.return_value = {'image': 'test.jpg'}
             assert store.get_image('123') == 'test.jpg'
-
-from unittest.mock import PropertyMock

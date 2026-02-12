@@ -3,9 +3,20 @@ Recommendation orchestrator: coordinates the recommendation flow only.
 Delegates to VectorDB, Router, MetadataEnricher, FallbackProvider, Cache.
 Single responsibility: flow coordination.
 """
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional, Tuple
 
-from src.config import TOP_K_INITIAL, TOP_K_FINAL
+from src.config import (
+    TOP_K_INITIAL,
+    TOP_K_FINAL,
+    ENABLE_RAG_DIVERSITY,
+    DATA_DIR,
+    MMR_LAMBDA_DEFAULT,
+    POPULARITY_GAMMA_DEFAULT,
+    MAX_PER_CATEGORY_DEFAULT,
+    HYBRID_DEFAULT_ALPHA,
+    FRESHNESS_THRESHOLD,
+)
+from src.core.models import BookResponseDict, RouterDecision
 from src.vector_db import VectorDB
 from src.cache import CacheManager
 from src.core.metadata_store import metadata_store
@@ -56,16 +67,20 @@ class RecommendationOrchestrator:
         use_agentic: bool = False,
         fast: bool = False,
         async_rerank: bool = False,
-    ) -> List[Dict[str, Any]]:
+        enable_diversity_rerank: bool = True,
+    ) -> List[BookResponseDict]:
         """
         Generate book recommendations. Async for web search fallback.
         fast: Skip rerank for low latency (~150ms).
         async_rerank: Return RRF immediately, rerank in background; next request gets cached reranked.
+        enable_diversity_rerank: Apply MMR + category diversity to RAG results (when ENABLE_RAG_DIVERSITY).
         """
         if not query or not query.strip():
             return []
 
-        cache_key = self.cache.generate_key("rec", q=query, c=category, t=tone, agentic=use_agentic)
+        cache_key = self.cache.generate_key(
+            "rec", q=query, c=category, t=tone, agentic=use_agentic, div=enable_diversity_rerank
+        )
         cached = self.cache.get(cache_key)
         if cached:
             logger.info(f"Returning cached results for key: {cache_key}")
@@ -78,26 +93,34 @@ class RecommendationOrchestrator:
         if use_agentic:
             results = await self._get_recommendations_agentic(query, category)
         else:
-            results = await self._get_recommendations_classic(query, category, skip_rerank=skip_rerank)
+            results = await self._get_recommendations_classic(
+                query, category, skip_rerank=skip_rerank, enable_diversity_rerank=enable_diversity_rerank
+            )
 
         if results:
             self.cache.set(cache_key, results)
 
         if async_rerank and not use_agentic and skip_rerank:
             import asyncio
-            asyncio.create_task(self._background_rerank_and_cache(query, category, cache_key))
+            asyncio.create_task(
+                self._background_rerank_and_cache(query, category, cache_key, enable_diversity_rerank)
+            )
 
         return results
 
-    async def _background_rerank_and_cache(self, query: str, category: str, cache_key: str) -> None:
+    async def _background_rerank_and_cache(
+        self, query: str, category: str, cache_key: str, enable_diversity_rerank: bool = True
+    ) -> None:
         """Run full pipeline with rerank and cache for async_rerank flow."""
         try:
-            results = await self._get_recommendations_classic(query, category, skip_rerank=False)
+            results = await self._get_recommendations_classic(
+                query, category, skip_rerank=False, enable_diversity_rerank=enable_diversity_rerank
+            )
             if results:
                 self.cache.set(cache_key, results)
                 logger.info(f"Background rerank completed for query '{query[:30]}...'")
         except Exception as e:
-            logger.warning(f"Background rerank failed: {e}")
+            logger.warning(f"Background rerank failed [{type(e).__name__}]: {e}")
 
     def get_recommendations_sync(
         self,
@@ -108,12 +131,17 @@ class RecommendationOrchestrator:
         use_agentic: bool = False,
         fast: bool = False,
         async_rerank: bool = False,
-    ) -> List[Dict[str, Any]]:
+        enable_diversity_rerank: bool = True,
+    ) -> List[BookResponseDict]:
         """Sync wrapper for scripts/CLI."""
         import asyncio
-        return asyncio.run(self.get_recommendations(query, category, tone, user_id, use_agentic, fast, async_rerank))
+        return asyncio.run(
+            self.get_recommendations(
+                query, category, tone, user_id, use_agentic, fast, async_rerank, enable_diversity_rerank
+            )
+        )
 
-    async def _get_recommendations_agentic(self, query: str, category: str) -> List[Dict[str, Any]]:
+    async def _get_recommendations_agentic(self, query: str, category: str) -> List[BookResponseDict]:
         """LangGraph workflow: Router -> Retrieve -> Evaluate -> (optional) Web Fallback."""
         from src.agentic.graph import get_agentic_graph
 
@@ -126,8 +154,29 @@ class RecommendationOrchestrator:
         books_list = final_state.get("isbn_list", [])
         return enrich_and_format(books_list, category, TOP_K_FINAL, "local", metadata_store_inst=self._meta)
 
-    async def _get_recommendations_classic(self, query: str, category: str, skip_rerank: bool = False) -> List[Dict[str, Any]]:
-        """Classic Router -> Hybrid/Small-to-Big -> optional Web Fallback."""
+    def _recs_to_scored_tuples(self, recs: List[Any]) -> List[Tuple[str, float, list]]:
+        """Convert vector search results to (isbn, score, []) for DiversityReranker."""
+        tuples: List[Tuple[str, float, list]] = []
+        for rank, rec in enumerate(recs):
+            isbn_str = extract_isbn(rec)
+            if not isbn_str:
+                continue
+            score = 0.0
+            if hasattr(rec, "metadata") and rec.metadata:
+                score = float(rec.metadata.get("relevance_score", 0))
+            if score <= 0:
+                score = 1.0 / (rank + 1)  # Rank-based when no reranker score
+            tuples.append((isbn_str, score, []))
+        return tuples
+
+    async def _get_recommendations_classic(
+        self,
+        query: str,
+        category: str,
+        skip_rerank: bool = False,
+        enable_diversity_rerank: bool = True,
+    ) -> List[BookResponseDict]:
+        """Classic Router -> Hybrid/Small-to-Big -> optional Diversity Rerank -> Web Fallback."""
         from src.core.router import QueryRouter
 
         router = QueryRouter()
@@ -142,21 +191,32 @@ class RecommendationOrchestrator:
             recs = self.vector_db.hybrid_search(
                 query,
                 k=TOP_K_INITIAL,
-                alpha=decision.get("alpha", 0.5),
+                alpha=decision.get("alpha", HYBRID_DEFAULT_ALPHA),
                 rerank=do_rerank,
                 temporal=decision.get("temporal", False),
             )
 
-        books_list = []
-        for rec in recs:
-            isbn_str = extract_isbn(rec)
-            if isbn_str:
-                books_list.append(isbn_str)
+        scored_tuples = self._recs_to_scored_tuples(recs)
+        books_list = [t[0] for t in scored_tuples]
+
+        # RAG diversity: MMR + category constraint (when enabled)
+        if ENABLE_RAG_DIVERSITY and enable_diversity_rerank and scored_tuples:
+            from src.core.diversity_reranker import DiversityReranker
+            data_dir = str(DATA_DIR / "rec")
+            div_reranker = DiversityReranker(
+                metadata_store=self._meta,
+                data_dir=data_dir,
+                mmr_lambda=MMR_LAMBDA_DEFAULT,
+                popularity_gamma=POPULARITY_GAMMA_DEFAULT,
+                max_per_category=MAX_PER_CATEGORY_DEFAULT,
+            )
+            reranked = div_reranker.rerank(scored_tuples, top_k=TOP_K_FINAL * 2)
+            books_list = [t[0] for t in reranked]
 
         results = enrich_and_format(books_list, category, TOP_K_FINAL, "local", metadata_store_inst=self._meta)
 
         if decision.get("freshness_fallback", False):
-            threshold = decision.get("freshness_threshold", 3)
+            threshold = decision.get("freshness_threshold", FRESHNESS_THRESHOLD)
             if len(results) < threshold:
                 web_results = await self._fallback.fetch_async(
                     query, TOP_K_FINAL - len(results), category
@@ -171,7 +231,7 @@ class RecommendationOrchestrator:
         isbn: str,
         k: int = 10,
         category: str = "All",
-    ) -> List[Dict[str, Any]]:
+    ) -> List[BookResponseDict]:
         """Content-based similar books by vector similarity."""
         isbn_str = str(isbn).strip()
         if not isbn_str:
@@ -220,7 +280,7 @@ class RecommendationOrchestrator:
         category: str = "General",
         thumbnail: Optional[str] = None,
         published_date: Optional[str] = None,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[BookResponseDict]:
         """Delegate to BookIngestion. Kept for agentic/facade compatibility."""
         return self._ingestion.add_book(
             isbn=isbn,

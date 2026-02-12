@@ -1,6 +1,16 @@
 """
 Diversity Reranker: MMR + Popularity penalty + Category constraints.
 
+ALGORITHM (MMR - Carbonell & Goldstein, 1998):
+  score = lambda * relevance - (1-lambda) * max_sim(candidate, selected)
+  Greedy: iteratively pick the candidate with highest MMR score.
+  lambda: relevance weight. Higher = more accuracy, less diversity.
+
+  Popularity penalty: score /= (1 + gamma * log(1 + norm_count)) to reduce
+  over-recommendation of popular items (e.g. Harry Potter).
+
+  Category constraint: max N items per category in top-k to avoid homogeneity.
+
 P0 optimization: Improves Diversity and Serendipity without significantly
 reducing Accuracy. Applied after LGBM/DIN ranking, before returning results.
 """

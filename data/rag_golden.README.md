@@ -28,5 +28,6 @@ python scripts/model/evaluate_rag.py --golden data/rag_golden.csv
 - **Accuracy@K**: Fraction of queries with at least one relevant book in top-K
 - **Recall@K**: Fraction of relevant books (across all queries) found in top-K
 - **MRR@K**: Mean reciprocal rank of first relevant hit
+- **NDCG@K**: Normalized discounted cumulative gain (position-aware ranking quality)
 
-Target: 500+ pairs for production-quality evaluation.
+Target: 500+ pairs for production-quality evaluation. Extend `rag_golden.example.csv` and copy to `rag_golden.csv`.

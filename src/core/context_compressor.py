@@ -58,9 +58,9 @@ class ContextCompressor:
         # Use simple mock if running in test environment/benchmark without keys
         try:
             llm = LLMFactory.create(temperature=0.3)
-        except:
-             # Fallback to mock for stability if env is not set
-             llm = LLMFactory.create(provider="mock")
+        except Exception:
+            # Fallback to mock when env/keys not set (e.g. tests, benchmarks)
+            llm = LLMFactory.create(provider="mock")
 
         response = llm.invoke([HumanMessage(content=prompt)])
         return response.content

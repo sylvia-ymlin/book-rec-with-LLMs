@@ -67,6 +67,8 @@ cd web && npm install && npm run dev   # UI http://localhost:5173
 | Doc | Purpose |
 |:---|:---|
 | [Technical Report](docs/TECHNICAL_REPORT.md) | Architecture, design decisions |
+| [Development Guide](docs/DEVELOPMENT.md) | 添加召回通道、调整路由规则 |
+| [Contributing](CONTRIBUTING.md) | 贡献者指南 |
 | [Experiment Archive](docs/experiments/experiment_archive.md) | Full experiment log (V1.0 → v2.6.0) |
 | [Interview Guide](docs/interview_guide.md) | Q&A, STAR cases |
 | [Build Guide](docs/build_guide.md) | Deployment instructions |

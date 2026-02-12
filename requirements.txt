@@ -1,64 +1,20 @@
-# Web UI
+# =============================================================================
+# Book Recommendation System — Dependencies
+# =============================================================================
+#
+# LAYERED INSTALL:
+#   Production (API + RAG + RecSys):  pip install -r requirements-base.txt
+#   Development (+ tests, ruff):      pip install -r requirements-dev.txt
+#   Fine-tuning (LoRA/SFT scripts):   pip install -r requirements-optional.txt
+#
+# LOCK FILE (reproducible builds via pip-tools):
+#   pip install pip-tools
+#   pip-compile requirements-base.txt -o requirements-base.lock
+#   pip-sync requirements-base.lock
+#
+# LEGACY: Full install (base + dev, no optional):
+#   pip install -r requirements-base.txt -r requirements-dev.txt
+# =============================================================================
 
-
-# API
-fastapi
-uvicorn[standard]
-pydantic
-
-# Data handling
-pandas
-numpy<2
-python-dotenv
-
-# LangChain components
-langchain
-langchain-community
-langgraph>=0.2.0
-langchain-text-splitters
-langchain-chroma
-langchain-huggingface
-langchain-openai
-
-# ML / NLP
-transformers>=4.40.0
-torch
-sentence-transformers
-onnxruntime>=1.16.0  # For CrossEncoder backend=onnx (~2x faster)
-gensim>=4.3.0
-lightgbm
-xgboost>=2.0.0
-shap
-
-# Quality & Testing
-pytest
-ruff
-httpx
-rank-bm25
-
-# Optional (for safety/logging)
-scikit-learn
-scipy
-requests
-
-# Intent classifier backends (optional)
-# fasttext  # Uncomment for FastText backend: pip install fasttext
-
-# Latency: ColBERT reranker (optional, RERANKER_BACKEND=colbert)
-# llama-index-postprocessor-colbert-rerank
-
-# LLM Agent & Fine-tuning
-faiss-cpu
-diffusers
-openai
-datasets
-accelerate
-peft
-trl
-bitsandbytes
-tqdm
-prometheus-client
-
-# Infrastructure
-redis
-huggingface-hub>=0.23.0
+-r requirements-base.txt
+-r requirements-dev.txt

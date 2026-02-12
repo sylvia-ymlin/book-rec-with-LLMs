@@ -5,12 +5,15 @@
 | Document | Purpose |
 |:---|:---|
 | [Technical Report](TECHNICAL_REPORT.md) | Architecture, design decisions, method line |
+| [Architecture Diagrams](ARCHITECTURE_DIAGRAMS.md) | 流程图、时序图、ER 图（Mermaid） |
 | [Experiment Archive](experiments/experiment_archive.md) | Consolidated experiment log (V1.0 → v2.6.0) |
 
 ## Layer 2 — Capability Showcase (Resume, technical Q&A)
 
 | Document | Purpose |
 |:---|:---|
+| [Development Guide](DEVELOPMENT.md) | 添加召回通道、调整路由规则 |
+| [Contributing](../CONTRIBUTING.md) | 贡献者指南 |
 | [Interview Guide](interview_guide.md) | Q&A, STAR cases |
 | [Memory Optimization](memory_optimization.md) | Zero-RAM SQLite, engineering decisions |
 | [Performance Debugging](performance_debugging_report.md) | Root cause analysis |

@@ -1,13 +1,22 @@
 """
 Swing Recall: item-item similarity weighted by user-pair overlap.
 
-For each pair of users (u, v) who both interacted with items i and j:
-    swing(i, j) += 1 / (alpha + |I_u ∩ I_v|)
+ALGORITHM (Zhou et al., 2008-style):
+  For each pair of users (u, v) who both interacted with items i and j:
+      swing(i, j) += 1 / (alpha + |I_u ∩ I_v|)
 
-This penalizes user pairs with large overlap (less distinctive signal).
+  Intuition: Small overlap (|I_u ∩ I_v|) → high weight. Users with very similar
+  taste (large overlap) contribute less distinctive signal, so we down-weight them.
+  This reduces popularity bias compared to raw co-occurrence.
 
-Optimized: iterates users → item pairs (not items → users → pairs),
-which is O(users × items_per_user²) — fast for sparse data.
+COMPLEXITY:
+  Optimized: iterate users → enumerate item pairs per user → O(users × items²)
+  Avoids the naive O(items² × users²) by not iterating over all item pairs first.
+
+PARAMETERS:
+  alpha: Smoothing. Higher = more penalty on overlap (default 1.0).
+  top_k_sim: Keep only top-k similar items per item to reduce memory.
+  max_hist: Cap user history length; very active users have noisy signal.
 """
 
 import pickle
@@ -51,9 +60,9 @@ class Swing:
 
         self.user_hist = {u: items for u, items in user_items.items()}
 
-        # 2. For each item pair, collect the set of users who interacted with both
-        # Key: (item_i, item_j) where item_i < item_j (canonical order)
-        # Value: list of user_ids
+        # 2. For each item pair, collect users who interacted with BOTH items.
+        # Key: (item_i, item_j) canonical order (i < j). Value: list of user_ids.
+        # This enables computing |I_u ∩ I_v| per pair in step 3.
         pair_users = defaultdict(list)
 
         for user_id, items in tqdm(user_items.items(), desc="Collecting item pairs"):
@@ -69,29 +78,29 @@ class Swing:
 
         logger.info(f"Collected {len(pair_users)} item pairs with shared users")
 
-        # 3. Compute Swing score for each item pair
+        # 3. Compute Swing score: sum over user pairs of 1/(alpha + overlap).
         sim = defaultdict(lambda: defaultdict(float))
 
         for (item_i, item_j), users in tqdm(pair_users.items(), desc="Computing Swing"):
             if len(users) < 2:
-                # Single user: simple weight
+                # Single user: no pair, use 1/(alpha + |I_u|) as weight.
                 u = users[0]
                 score = 1.0 / (alpha + len(user_items[u]))
                 sim[item_i][item_j] += score
                 sim[item_j][item_i] += score
                 continue
 
-            # Cap user pairs for very popular item pairs
+            # Cap user pairs for very popular item pairs (avoid O(n²) explosion).
             u_list = users[:100]
 
-            # Compute swing from user pairs
+            # Swing: sum over all (u,v) pairs of 1/(alpha + |I_u ∩ I_v|).
             score = 0.0
             for idx_u in range(len(u_list)):
                 u = u_list[idx_u]
                 items_u = user_items[u]
                 for idx_v in range(idx_u + 1, len(u_list)):
                     v = u_list[idx_v]
-                    overlap = len(items_u & user_items[v])
+                    overlap = len(items_u & user_items[v])  # |I_u ∩ I_v|
                     score += 1.0 / (alpha + overlap)
 
             sim[item_i][item_j] += score

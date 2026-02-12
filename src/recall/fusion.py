@@ -1,7 +1,23 @@
+"""
+Multi-Channel Recall Fusion via Reciprocal Rank Fusion (RRF).
+
+ALGORITHM (RRF - Cormack et al., 2009):
+  When merging ranked lists from multiple recall channels (ItemCF, SASRec, etc.),
+  each channel contributes: score += weight * 1 / (k + rank).
+  rank = 0-based position in that channel's list. k = RRF_K (default 60).
+
+  Intuition: Rank 1 contributes more than rank 10. Larger k = less sensitive to
+  exact rank position (smoother fusion). k=60 is a common default from TREC.
+
+CHANNELS:
+  Controlled by channel_config (enable/disable, weight per channel).
+  Default: itemcf, sasrec, youtube_dnn, popularity. Others (usercf, swing, item2vec) off.
+"""
 import logging
 from collections import defaultdict
 from typing import Optional
 
+from src.config import RRF_K
 from src.recall.itemcf import ItemCF
 from src.recall.usercf import UserCF
 from src.recall.popularity import PopularityRecall
@@ -42,7 +58,7 @@ class RecallFusion:
         data_dir: str = "data/rec",
         model_dir: str = "data/model/recall",
         channel_config: Optional[dict] = None,
-        rrf_k: int = 60,
+        rrf_k: int = RRF_K,
     ):
         self.data_dir = data_dir
         self.model_dir = model_dir
@@ -131,8 +147,8 @@ class RecallFusion:
 
     def _add_to_candidates(self, candidates, recs, weight: float) -> None:
         """
-        Add recommendations to candidate pool using RRF.
-        score += weight * (1 / (rrf_k + rank + 1))
+        RRF: score += weight * 1/(k + rank + 1).
+        rank is 0-based. Items appearing in multiple channels get summed scores.
         """
         if not recs:
             return

@@ -1,7 +1,6 @@
 import pytest
 from unittest.mock import MagicMock
 
-from src.recommender import BookRecommender
 from src.core.recommendation_orchestrator import RecommendationOrchestrator
 
 
@@ -29,19 +28,18 @@ def _mock_metadata_for_isbn(isbn: str, mock_books_df) -> dict:
     }
 
 
-class TestBookRecommender:
+class TestRecommendationOrchestrator:
     @pytest.fixture
     def recommender(self, mock_books_df, mock_vector_db):
-        """Initialize recommender with DI: inject mock_store and mock_vector_db. No patch needed."""
+        """Initialize orchestrator with DI: inject mock_store and mock_vector_db. No patch needed."""
         mock_store = MagicMock()
         mock_store.get_book_metadata.side_effect = lambda isbn: _mock_metadata_for_isbn(isbn, mock_books_df)
         mock_store.get_all_categories.return_value = ["Fiction", "Non-Fiction", "Mystery"]
 
-        orchestrator = RecommendationOrchestrator(
+        return RecommendationOrchestrator(
             metadata_store_inst=mock_store,
             vector_db=mock_vector_db,
         )
-        return BookRecommender(orchestrator=orchestrator)
 
     def test_initialization(self, recommender):
         """Test if recommender initializes correctly (Zero-RAM mode: no in-memory books)."""

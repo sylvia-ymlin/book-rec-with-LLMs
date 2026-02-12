@@ -26,7 +26,7 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.recommender import BookRecommender
+from src.core.recommendation_orchestrator import RecommendationOrchestrator
 from src.vector_db import VectorDB
 
 
@@ -67,7 +67,7 @@ def benchmark_vector_search(vector_db: VectorDB, n_runs: int = 50) -> dict:
     }
 
 
-def benchmark_full_recommendation(recommender: BookRecommender, n_runs: int = 30) -> dict:
+def benchmark_full_recommendation(recommender: RecommendationOrchestrator, n_runs: int = 30) -> dict:
     """Benchmark full recommendation pipeline latency."""
     latencies = []
     
@@ -89,7 +89,7 @@ def benchmark_full_recommendation(recommender: BookRecommender, n_runs: int = 30
     }
 
 
-def benchmark_throughput(recommender: BookRecommender, duration_sec: int = 10) -> dict:
+def benchmark_throughput(recommender: RecommendationOrchestrator, duration_sec: int = 10) -> dict:
     """Measure queries per second over a time window (sequential)."""
     query_count = 0
     start = time.perf_counter()
@@ -114,7 +114,7 @@ def benchmark_throughput(recommender: BookRecommender, duration_sec: int = 10) -
     }
 
 
-def _run_one_query(recommender: BookRecommender, query: str) -> tuple[float, int]:
+def _run_one_query(recommender: RecommendationOrchestrator, query: str) -> tuple[float, int]:
     """Run a single recommendation and return (latency_ms, 1)."""
     start = time.perf_counter()
     recommender.get_recommendations_sync(query, category="All", tone="All")
@@ -122,7 +122,7 @@ def _run_one_query(recommender: BookRecommender, query: str) -> tuple[float, int
 
 
 def benchmark_concurrent(
-    recommender: BookRecommender,
+    recommender: RecommendationOrchestrator,
     n_workers: int = 5,
     total_queries: int = 50,
 ) -> dict:
@@ -227,7 +227,7 @@ def main():
     print("   (This may take a moment to load models and vector database)")
 
     try:
-        recommender = BookRecommender()
+        recommender = RecommendationOrchestrator()
     except Exception as e:
         print(f"❌ Failed to initialize: {e}")
         return

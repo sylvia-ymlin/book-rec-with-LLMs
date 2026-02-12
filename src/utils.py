@@ -64,7 +64,7 @@ def summarize_description(text: str, max_sentences: int = 2, max_chars: int = 24
     return summary
 
 
-def enrich_book_metadata(meta: dict, isbn: str) -> dict:
+def enrich_book_metadata(meta: dict | None, isbn: str) -> dict:
     """
     Enrich book metadata with dynamic cover fetching if missing.
     Mutates and returns the meta dictionary.

@@ -2,10 +2,14 @@
 Response formatting: converts enriched metadata into API-ready recommendation dicts.
 Single responsibility: define the structure of recommendation responses.
 """
-from typing import Any, Dict, List
+from typing import Any, Dict, Union
+
+from src.core.models import BookMetadata, BookResponseDict
 
 
-def format_book_response(meta: Dict[str, Any], isbn: str, source: str = "local") -> Dict[str, Any]:
+def format_book_response(
+    meta: BookMetadata | Dict[str, Any], isbn: str, source: str = "local"
+) -> BookResponseDict:
     """
     Format a single book's metadata into the standard API response structure.
 
@@ -47,7 +51,7 @@ def format_book_response(meta: Dict[str, Any], isbn: str, source: str = "local")
     }
 
 
-def format_web_book_response(book: Dict[str, Any], isbn: str) -> Dict[str, Any]:
+def format_web_book_response(book: BookMetadata | Dict[str, Any], isbn: str) -> BookResponseDict:
     """
     Format a raw web API book dict into the standard response structure.
     Used when books come from Google Books API (no local metadata).

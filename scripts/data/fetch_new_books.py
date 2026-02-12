@@ -35,7 +35,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from src.utils import setup_logger
 from src.core.web_search import search_new_books_by_category, search_google_books
 from src.core.metadata_store import metadata_store
-from src.recommender import BookRecommender
+from src.core.recommendation_orchestrator import RecommendationOrchestrator
 
 logger = setup_logger(__name__)
 
@@ -84,7 +84,7 @@ def fetch_trending_books(
     
     recommender = None
     if not dry_run:
-        recommender = BookRecommender()
+        recommender = RecommendationOrchestrator()
     
     for category in categories:
         logger.info(f"Fetching books for category: {category} (year >= {year})")
@@ -168,7 +168,7 @@ def fetch_by_query(
     
     recommender = None
     if not dry_run:
-        recommender = BookRecommender()
+        recommender = RecommendationOrchestrator()
     
     for query in queries:
         logger.info(f"Searching: {query}")

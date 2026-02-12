@@ -18,11 +18,15 @@ BACKWARD_WEIGHT = 0.7
 
 class ItemCF:
     """
-    Item-based Collaborative Filtering.
+    Item-based Collaborative Filtering with Temporal Direction Weight.
 
-    Co-occurrence similarity with direction weight: when user reads item A then B,
-    sim(A,B) += 1.0 (forward), sim(B,A) += 0.7 (backward). This captures temporal
-    "read-after" patterns.
+    ALGORITHM:
+      Co-occurrence in user history, weighted by temporal order:
+      - User reads A then B: sim(A,B) += FORWARD_WEIGHT (1.0), sim(B,A) += BACKWARD_WEIGHT (0.7)
+      - Captures "read-after" patterns: "users who read A often read B next" stronger than
+        "users who read B often read A next" (A→B is forward preference).
+
+    NORMALIZATION: Cosine-style: score / sqrt(|N_i| * |N_j|) where N_i = users who read i.
 
     Persists to SQLite (recall_models.db) for zero-RAM inference.
     """

@@ -2,7 +2,14 @@ from typing import List, Any
 # Using community version to avoid 'BaseBlobParser' version conflict in langchain-chroma/core
 from langchain_community.vectorstores import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
-from src.config import REVIEW_HIGHLIGHTS_TXT, CHROMA_DB_DIR, EMBEDDING_MODEL, RERANK_CANDIDATES_MAX
+from src.config import (
+    REVIEW_HIGHLIGHTS_TXT,
+    CHROMA_DB_DIR,
+    EMBEDDING_MODEL,
+    RERANK_CANDIDATES_MAX,
+    RRF_K,
+    SMALL_TO_BIG_OVER_RETRIEVE_FACTOR,
+)
 from src.utils import setup_logger
 from src.core.metadata_store import metadata_store
 from src.core.online_books_store import online_books_store
@@ -67,8 +74,8 @@ class VectorDB:
                 self.db = None
                 
         except Exception as e:
-            logger.error(f"Error initializing Vector DB: {str(e)}")
-            self.db = None # Prevent crash if generic error
+            logger.error(f"VectorDB init failed [{type(e).__name__}]: {e}")
+            self.db = None  # Graceful degradation: search() will return []
         
         # 2. Initialize FTS5 (Sparse Retrieval)
         self._init_fts5()
@@ -180,8 +187,7 @@ class VectorDB:
         # 2. Dense Retrieval (Chroma)
         dense_results = self.search(query, k=k*2)
 
-        # 3. Reciprocal Rank Fusion
-        # Score = 1 / (rank + 60)
+        # 3. Reciprocal Rank Fusion: score = 1 / (RRF_K + rank)
         fusion_scores = {}
         
         # Helper to get ID (using ISBN as unique ID)
@@ -203,14 +209,14 @@ class VectorDB:
             doc_id = get_id(doc)
             if doc_id not in fusion_scores:
                 fusion_scores[doc_id] = {"score": 0.0, "doc": doc}
-            fusion_scores[doc_id]["score"] += 1 / (rank + 60)
+            fusion_scores[doc_id]["score"] += 1 / (rank + RRF_K)
 
         # Fusion: Sparse
         for rank, doc in enumerate(sparse_results):
             doc_id = get_id(doc)
             if doc_id not in fusion_scores:
                 fusion_scores[doc_id] = {"score": 0.0, "doc": doc}
-            fusion_scores[doc_id]["score"] += 1 / (rank + 60)
+            fusion_scores[doc_id]["score"] += 1 / (rank + RRF_K)
 
         # Sort by RRF score
         sorted_docs = sorted(fusion_scores.values(), key=lambda x: x["score"], reverse=True)
@@ -249,13 +255,18 @@ class VectorDB:
 
     def small_to_big_search(self, query: str, k: int = 5) -> List[Any]:
         """
-        Small-to-Big Retrieval (Parent-Child Pattern).
-        
-        SOTA Reference: LlamaIndex Recursive Retrieval, RAPTOR (Sarthi et al., 2024)
-        
-        1. Search fine-grained review chunks for high precision matching.
-        2. Map matched chunks back to their parent books.
-        3. Return full book context for LLM.
+        Small-to-Big Retrieval (Parent-Child / Chunk-to-Parent Pattern).
+
+        ALGORITHM:
+          1. Search FINE-GRAINED chunks (e.g. review snippets) for high-precision
+             semantic match. User queries like "twist ending" match chunk content.
+          2. Map matched chunks back to PARENT books via parent_isbn metadata.
+          3. Return full book documents (title, description) for LLM context.
+
+        WHY: Book-level vectors often miss query-specific details (e.g. "unreliable
+        narrator"). Chunk-level search finds those, then we lift to book-level.
+
+        Ref: LlamaIndex Recursive Retrieval, RAPTOR (Sarthi et al., 2024).
         """
         from langchain_community.vectorstores import Chroma
         
@@ -274,8 +285,10 @@ class VectorDB:
                 logger.warning(f"Chunk index not available: {e}. Falling back to hybrid search.")
                 return self.hybrid_search(query, k=k, rerank=True)
         
-        # Step 1: Search chunks (Fine-grained)
-        chunk_results = self.chunk_db.similarity_search(query, k=k * 3)  # Over-retrieve
+        # Step 1: Search chunks (Fine-grained). Over-retrieve to improve recall.
+        chunk_results = self.chunk_db.similarity_search(
+            query, k=k * SMALL_TO_BIG_OVER_RETRIEVE_FACTOR
+        )
         logger.info(f"Small-to-Big: Found {len(chunk_results)} chunk matches")
         
         # Step 2: Extract unique parent ISBNs
@@ -323,7 +336,7 @@ class VectorDB:
         Dynamically add a new book to the ChromaDB vector index.
         
         Note: FTS5 incremental updates are handled separately via
-        metadata_store.insert_book_with_fts() called from BookRecommender.add_new_book().
+        metadata_store.insert_book_with_fts() called from RecommendationOrchestrator.add_new_book().
         This method only handles the dense vector index.
         
         Args:

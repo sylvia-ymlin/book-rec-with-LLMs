@@ -42,6 +42,8 @@ This system addresses these challenges through:
 
 ### 2.1 RAG Pipeline
 
+> 可视图表（流程图、时序图、ER 图）见 [ARCHITECTURE_DIAGRAMS.md](ARCHITECTURE_DIAGRAMS.md)。
+
 ```
 USER QUERY
      |
@@ -268,11 +270,11 @@ Feature importance (v2.6.0 LGBMRanker, representative subset):
 |--------|------------------------|-------------|
 | ISBN Recall | 0% | 100% |
 | Keyword Precision | Low | High (BM25 boost) |
-| Detail Query Recall | 0% | Golden Test Set (Accuracy@K, Recall@K, MRR@K) |
+| Detail Query Recall | 0% | Golden Test Set (Accuracy@K, Recall@K, MRR@K, NDCG@K) |
 | Avg Latency | 100ms | 300-800ms |
 | Chat Context Limit | ~10 turns | Extended via compression (no formal limit) |
 
-**Golden Test Set**: Human-annotated Query-Book pairs (`data/rag_golden.csv`) replace curated examples. Run `python scripts/model/evaluate_rag.py` for Accuracy@K, Recall@K, MRR@K. Extend with ~500+ pairs for production.
+**Golden Test Set**: Human-annotated Query-Book pairs (`data/rag_golden.csv`) for quantitative RAG evaluation. Run `python scripts/model/evaluate_rag.py` for Accuracy@K, Recall@K, MRR@K, NDCG@K. Extend with ~500+ pairs for production.
 
 ### 5.2 Latency Benchmarks
 
