@@ -98,7 +98,37 @@
 
 ## 🔬 深度技术问题 (Advanced Technical Q&A)
 
-### Q5. 负采样 (Negative Sampling)
+### Q5. ChromaDB/SQLite 内存与扩展性：千万级迁移
+
+**问题**：你选择了 ChromaDB (embedded) 和 SQLite。这对于演示很好，但对于千万级 Item 的库（Spotify 级别），这不可行。**如何迁移到 Milvus/Qdrant？如何对 ANN 索引（HNSW）进行分片？**
+
+**考察点**：对向量数据库扩展性、分布式 ANN 的理解。
+
+**建议回答**：
+
+> 当前架构（ChromaDB + SQLite）适合 20 万级数据和演示。千万级规模下存在以下瓶颈：
+>
+> **ChromaDB**：嵌入式、单机、索引加载到内存。10M × 384 维 × 4B ≈ 15GB 向量，HNSW 图结构可能再放大 10–50 倍，单机内存和 CPU 无法支撑。
+>
+> **SQLite**：单文件、单写锁、磁盘 I/O 成为瓶颈。
+>
+> **迁移策略**：
+>
+> 1. **抽象 VectorStore 接口**：在 `vector_db.py` 中抽象 `VectorStoreInterface`，实现 `ChromaVectorStore`、`QdrantVectorStore`、`MilvusVectorStore`，通过配置切换，便于迁移。
+> 2. **选型**：Milvus 适合大数据、分析 + 检索、原生分布式；Qdrant 更轻量、纯向量检索。千万级两者皆可。
+> 3. **迁移步骤**：导出 Chroma 的 (id, embedding, metadata) → 在 Milvus/Qdrant 创建 Collection、配置 HNSW 参数 → 批量 upsert → 配置切换。
+>
+> **HNSW 分片**：
+>
+> - **按 ID 哈希分片**：`hash(id) % N` 分布到 N 个 shard，每 shard 内建 HNSW。查询时并发打 N 个 shard，各取 top_k，再 merge 取最终 top_k。
+> - **按 embedding 聚类分片**：K-Means 聚类，query 先定位所属簇，只查少数 shard（减少查询范围，但需处理冷启动和数据倾斜）。
+> - **利用 Milvus/Qdrant 内置能力**：两者都支持分布式分片，可直接使用其 Sharding 配置，无需自建。
+>
+> **与 Q4 的衔接**：metadata_store 的 SQLite 按 Q4 方案改造（Redis + PostgreSQL/Cassandra）； sparse 检索 FTS5 可迁移到 Elasticsearch/Meilisearch 做 hybrid。
+
+---
+
+### Q6. 负采样 (Negative Sampling)
 
 **问题**：你在 TECHNICAL_REPORT 中使用了 "Hard negative sampling from recall results"。这样做会不会导致 **False Negative** 问题（即把用户其实喜欢但没点击的物品当成了负样本）？在训练 DIN 或 LGBMRanker 时，你是如何平衡 Random Negatives 和 Hard Negatives 的比例的？这对模型收敛有什么影响？
 
@@ -114,7 +144,7 @@
 
 ---
 
-### Q6. 实时性 (Real-time / Near-line)
+### Q7. 实时性 (Real-time / Near-line)
 
 **问题**：SASRec 主要是离线训练的。在 Spotify 场景下，如果用户刚刚连续听了 3 首 "Heavy Metal"，我们希望下一首推荐立刻跟上这个兴趣变化。在目前的架构下，如何将用户的**实时交互序列**（还没落库到 CSV）注入到 SASRec 或 DIN 的推理过程中？需要在 `RecommendationService` 里增加什么逻辑？
 
@@ -135,7 +165,7 @@
 
 ---
 
-### Q7. 评估指标：Diversity 与 Serendipity
+### Q8. 评估指标：Diversity 与 Serendipity
 
 **问题**：目前关注的是 HR@10 和 NDCG。作为内容平台，发现推荐列表里全是热门书（Harry Potter 效应）。如果要求在不显著降低 Accuracy 的前提下，提升推荐结果的 **Diversity（多样性）** 和 **Serendipity（惊喜感）**，你会如何在 Ranking 阶段或 Rerank 阶段修改目标函数或逻辑？
 
@@ -162,7 +192,7 @@
 
 ## 📋 已知限制与改进方向 (Known Limitations & Improvement)
 
-### Q6. "Research" 风格的代码残留
+### Q9. "Research" 风格的代码残留
 
 **现象**：代码库在向 production 演进过程中，仍保留了一些研究原型风格的痕迹。
 

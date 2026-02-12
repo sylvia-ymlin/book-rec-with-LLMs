@@ -20,7 +20,7 @@ DEFAULT_CHANNEL_CONFIG = {
     "usercf": {"enabled": False, "weight": 1.0},
     "swing": {"enabled": False, "weight": 1.0},
     "item2vec": {"enabled": False, "weight": 0.8},
-    "popularity": {"enabled": False, "weight": 0.5},
+    "popularity": {"enabled": True, "weight": 0.5},  # P0: Cold-start fallback
 }
 
 
@@ -123,6 +123,10 @@ class RecallFusion:
             self._add_to_candidates(candidates, recs, cfg["popularity"]["weight"])
 
         sorted_cands = sorted(candidates.items(), key=lambda x: x[1], reverse=True)
+        # P0: Cold-start fallback — when all channels return empty, use popularity
+        if not sorted_cands:
+            pop_recs = self.popularity.recommend(user_id, top_k=k)
+            sorted_cands = [(item, s) for item, s in pop_recs]
         return sorted_cands[:k]
 
     def _add_to_candidates(self, candidates, recs, weight: float) -> None:

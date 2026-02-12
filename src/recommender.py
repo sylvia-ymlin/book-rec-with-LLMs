@@ -39,9 +39,11 @@ class BookRecommender:
         tone: str = "All",
         user_id: str = "local",
         use_agentic: bool = False,
+        fast: bool = False,
+        async_rerank: bool = False,
     ) -> List[Dict[str, Any]]:
         return await self._orchestrator.get_recommendations(
-            query, category, tone, user_id, use_agentic
+            query, category, tone, user_id, use_agentic, fast, async_rerank
         )
 
     def get_recommendations_sync(
@@ -51,9 +53,11 @@ class BookRecommender:
         tone: str = "All",
         user_id: str = "local",
         use_agentic: bool = False,
+        fast: bool = False,
+        async_rerank: bool = False,
     ) -> List[Dict[str, Any]]:
         return self._orchestrator.get_recommendations_sync(
-            query, category, tone, user_id, use_agentic
+            query, category, tone, user_id, use_agentic, fast, async_rerank
         )
 
     def get_similar_books(

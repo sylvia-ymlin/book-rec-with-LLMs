@@ -90,8 +90,12 @@ class QueryRouter:
         freshness_fallback: bool = False,
         target_year: Optional[int] = None
     ) -> Dict[str, Any]:
-        """Fallback: rule-based routing (original logic + freshness)."""
-        from src.config import ROUTER_DETAIL_KEYWORDS
+        """
+        Fallback: rule-based routing when classifier not loaded.
+        Uses NL keywords (like, similar, recommend...) instead of brittle word-count.
+        Book titles (e.g. "War and Peace", "The Lord of the Rings") -> FAST.
+        """
+        from src.config import ROUTER_DETAIL_KEYWORDS, ROUTER_NL_KEYWORDS
 
         base_result = {
             "temporal": is_temporal,
@@ -103,10 +107,15 @@ class QueryRouter:
         if any(w.lower() in ROUTER_DETAIL_KEYWORDS for w in words):
             logger.info("Router (rules): Detail Query -> SMALL_TO_BIG")
             return {**base_result, "strategy": "small_to_big", "alpha": 0.5, "rerank": False, "k_final": 5}
-        if len(words) <= 2:
-            logger.info("Router (rules): Keyword -> FAST (Temporal=%s, Freshness=%s)", is_temporal, freshness_fallback)
+        # NL keywords indicate recommendation intent -> DEEP
+        if any(w.lower() in ROUTER_NL_KEYWORDS for w in words):
+            logger.info("Router (rules): NL keywords -> DEEP (Temporal=%s, Freshness=%s)", is_temporal, freshness_fallback)
+            return {**base_result, "strategy": "deep", "alpha": 0.5, "rerank": True, "k_final": 10}
+        # Short query without NL keywords: book title or keyword -> FAST
+        if len(words) <= 6:
+            logger.info("Router (rules): Keyword/Title -> FAST (Temporal=%s, Freshness=%s)", is_temporal, freshness_fallback)
             return {**base_result, "strategy": "fast", "alpha": 0.5, "rerank": False, "k_final": 5}
-        logger.info("Router (rules): Natural Language -> DEEP (Temporal=%s, Freshness=%s)", is_temporal, freshness_fallback)
+        logger.info("Router (rules): Long query -> DEEP (Temporal=%s, Freshness=%s)", is_temporal, freshness_fallback)
         return {**base_result, "strategy": "deep", "alpha": 0.5, "rerank": True, "k_final": 10}
 
     def route(self, query: str) -> Dict[str, Any]:

@@ -1,104 +1,145 @@
-from typing import List, Tuple, Dict, Any
-from sentence_transformers import CrossEncoder
-import torch
+"""
+Reranker: Cross-Encoder (torch/ONNX) or ColBERT (optional).
+Backend selectable via RERANKER_BACKEND env: cross_encoder | onnx | colbert.
+ONNX ~2x faster than torch; ColBERT requires llama-index-postprocessor-colbert-rerank.
+"""
+from typing import List, Dict, Any
+
+from src.config import RERANKER_BACKEND
 from src.utils import setup_logger
 
 logger = setup_logger(__name__)
 
-# 轻量级重排序模型，速度快且效果不错
 DEFAULT_RERANKER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+
+
+def _load_cross_encoder(backend: str):
+    """Load CrossEncoder with torch or ONNX backend. Falls back to torch if ONNX fails."""
+    from sentence_transformers import CrossEncoder
+    import torch
+
+    device = "mps" if torch.backends.mps.is_available() else "cpu"
+    be = "onnx" if backend == "onnx" else "torch"
+
+    try:
+        logger.info(f"Loading Reranker ({DEFAULT_RERANKER_MODEL}) backend={be} on {device}...")
+        model = CrossEncoder(DEFAULT_RERANKER_MODEL, device=device, backend=be)
+        logger.info("Reranker model loaded.")
+        return model
+    except Exception as e:
+        if be == "onnx":
+            logger.warning(f"ONNX backend failed (pip install onnxruntime?), falling back to torch: {e}")
+            return CrossEncoder(DEFAULT_RERANKER_MODEL, device=device, backend="torch")
+        raise
+
+
+def _load_colbert():
+    """Load ColBERT reranker via llama-index (optional dep)."""
+    try:
+        from llama_index.postprocessor.colbert_rerank import ColbertRerank
+
+        return ColbertRerank(
+            model_name="colbert-ir/colbertv2.0",
+            top_n=10,
+        )
+    except ImportError as e:
+        logger.warning(f"ColBERT not available (pip install llama-index-postprocessor-colbert-rerank): {e}")
+        return None
+
+
+def _get_text(doc: Any) -> str:
+    if hasattr(doc, "page_content"):
+        return doc.page_content
+    return doc.get("description") or doc.get("page_content") or str(doc)
+
+
+def _set_score(doc: Any, score: float) -> None:
+    if hasattr(doc, "metadata"):
+        doc.metadata["relevance_score"] = score
+    else:
+        doc["score"] = score
+
+
+def _get_score(doc: Any) -> float:
+    if hasattr(doc, "metadata"):
+        return doc.metadata.get("relevance_score", 0)
+    return doc.get("score", 0)
+
 
 class RerankerService:
     """
-    Singleton service for re-ranking documents using a Cross-Encoder.
-    This significantly improves RAG precision by scoring the exact relevance
-    of (query, document) pairs.
+    Singleton reranker: Cross-Encoder (torch/ONNX) or ColBERT.
     """
     _instance = None
-    
+
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super(RerankerService, cls).__new__(cls)
             cls._instance.model = None
+            cls._instance._backend = None
         return cls._instance
-    
+
     def __init__(self):
         if self.model is None:
             self._load_model()
-            
-    def _load_model(self):
-        try:
-            device = "mps" if torch.backends.mps.is_available() else "cpu"
-            logger.info(f"Loading Reranker model: {DEFAULT_RERANKER_MODEL} on {device}...")
-            self.model = CrossEncoder(DEFAULT_RERANKER_MODEL, device=device)
-            logger.info("Reranker model loaded.")
-        except Exception as e:
-            logger.error(f"Failed to load Reranker: {e}")
-            self.model = None
 
-    def rerank(self, query: str, docs: List[Dict[str, Any]], top_k: int = 5) -> List[Dict[str, Any]]:
+    def _load_model(self):
+        backend = (RERANKER_BACKEND or "").lower()
+
+        if backend == "colbert":
+            self.model = _load_colbert()
+            self._backend = "colbert" if self.model else "cross_encoder"
+            if self._backend == "cross_encoder":
+                self.model = _load_cross_encoder("torch")
+        else:
+            self._backend = "onnx" if backend == "onnx" else "cross_encoder"
+            self.model = _load_cross_encoder(self._backend)
+
+    def rerank(self, query: str, docs: List[Any], top_k: int = 5) -> List[Any]:
         """
-        Rerank a list of documents based on relevance to the query.
-        
-        Args:
-            query: User question
-            docs: List of dicts, each must have a 'content' field (or 'description')
-            top_k: Number of results to return
-            
-        Returns:
-            Top-K sorted documents with added 'score' field.
+        Rerank documents by relevance to query.
+        docs: List of dicts or LangChain Document with description/page_content.
         """
         if not self.model or not docs:
             return docs[:top_k]
-            
-        # Prepare pairs for Cross-Encoder: [[query, doc1], [query, doc2], ...]
-        # We assume 'description' or 'page_content' holds the text
-        pairs = []
-        valid_docs = []
-        
-        for doc in docs:
-            # Handle LangChain Document object
-            if hasattr(doc, "page_content"):
-                text = doc.page_content
-            # Handle Dict
-            else:
-                text = doc.get("description") or doc.get("page_content") or str(doc)
-            
-            pairs.append([query, text])
-            valid_docs.append(doc)
-            
-        if not pairs:
-            return docs[:top_k]
 
-        # Predict scores
+        if self._backend == "colbert":
+            return self._rerank_colbert(query, docs, top_k)
+        return self._rerank_cross_encoder(query, docs, top_k)
+
+    def _rerank_cross_encoder(self, query: str, docs: List[Any], top_k: int) -> List[Any]:
+        pairs = [[query, _get_text(d)] for d in docs]
         scores = self.model.predict(pairs)
-        
-        # Attach scores and sort
-        scored_results = []
-        for i, doc in enumerate(valid_docs):
-            score = float(scores[i])
-            if hasattr(doc, "metadata"):
-                # Handle Document
-                # Create a shallow copy to avoid mutating original if needed, 
-                # but simplistic approach is fine here
-                doc.metadata["relevance_score"] = score
-                scored_results.append(doc)
+
+        for i, doc in enumerate(docs):
+            _set_score(doc, float(scores[i]))
+
+        docs.sort(key=_get_score, reverse=True)
+        return docs[:top_k]
+
+    def _rerank_colbert(self, query: str, docs: List[Any], top_k: int) -> List[Any]:
+        from llama_index.schema import NodeWithScore, TextNode
+
+        # Keep ref to original doc for metadata (isbn, etc.)
+        nodes = []
+        for d in docs:
+            meta = d.metadata if hasattr(d, "metadata") else (d if isinstance(d, dict) else {})
+            node = TextNode(text=_get_text(d), metadata={"__original": d})
+            nodes.append(NodeWithScore(node=node, score=0.0))
+
+        reranked = self.model.postprocess_nodes(nodes, query_str=query)
+
+        result = []
+        for nws in reranked[:top_k]:
+            orig = getattr(nws.node, "metadata", {}).get("__original")
+            if orig is not None:
+                _set_score(orig, float(nws.score or 0))
+                result.append(orig)
             else:
-                # Handle Dict
-                doc_copy = doc.copy()
-                doc_copy["score"] = score
-                scored_results.append(doc_copy)
-            
-        # Sort descending by score
-        # Sort descending by score
-        def get_score(doc):
-            if hasattr(doc, "metadata"):
-                return doc.metadata.get("relevance_score", 0)
-            return doc.get("score", 0)
+                from langchain_core.documents import Document
+                doc = Document(page_content=nws.node.text, metadata={"relevance_score": float(nws.score or 0)})
+                result.append(doc)
+        return result
 
-        scored_results.sort(key=get_score, reverse=True)
-        
-        return scored_results[:top_k]
 
-# Global instance
 reranker = RerankerService()

@@ -54,9 +54,13 @@ class RecommendationOrchestrator:
         tone: str = "All",
         user_id: str = "local",
         use_agentic: bool = False,
+        fast: bool = False,
+        async_rerank: bool = False,
     ) -> List[Dict[str, Any]]:
         """
         Generate book recommendations. Async for web search fallback.
+        fast: Skip rerank for low latency (~150ms).
+        async_rerank: Return RRF immediately, rerank in background; next request gets cached reranked.
         """
         if not query or not query.strip():
             return []
@@ -67,16 +71,33 @@ class RecommendationOrchestrator:
             logger.info(f"Returning cached results for key: {cache_key}")
             return cached
 
-        logger.info(f"Processing request: query='{query}', category='{category}', use_agentic={use_agentic}")
+        logger.info(f"Processing request: query='{query}', category='{category}', use_agentic={use_agentic}, fast={fast}, async_rerank={async_rerank}")
+
+        skip_rerank = fast or async_rerank
 
         if use_agentic:
             results = await self._get_recommendations_agentic(query, category)
         else:
-            results = await self._get_recommendations_classic(query, category)
+            results = await self._get_recommendations_classic(query, category, skip_rerank=skip_rerank)
 
         if results:
             self.cache.set(cache_key, results)
+
+        if async_rerank and not use_agentic and skip_rerank:
+            import asyncio
+            asyncio.create_task(self._background_rerank_and_cache(query, category, cache_key))
+
         return results
+
+    async def _background_rerank_and_cache(self, query: str, category: str, cache_key: str) -> None:
+        """Run full pipeline with rerank and cache for async_rerank flow."""
+        try:
+            results = await self._get_recommendations_classic(query, category, skip_rerank=False)
+            if results:
+                self.cache.set(cache_key, results)
+                logger.info(f"Background rerank completed for query '{query[:30]}...'")
+        except Exception as e:
+            logger.warning(f"Background rerank failed: {e}")
 
     def get_recommendations_sync(
         self,
@@ -85,10 +106,12 @@ class RecommendationOrchestrator:
         tone: str = "All",
         user_id: str = "local",
         use_agentic: bool = False,
+        fast: bool = False,
+        async_rerank: bool = False,
     ) -> List[Dict[str, Any]]:
         """Sync wrapper for scripts/CLI."""
         import asyncio
-        return asyncio.run(self.get_recommendations(query, category, tone, user_id, use_agentic))
+        return asyncio.run(self.get_recommendations(query, category, tone, user_id, use_agentic, fast, async_rerank))
 
     async def _get_recommendations_agentic(self, query: str, category: str) -> List[Dict[str, Any]]:
         """LangGraph workflow: Router -> Retrieve -> Evaluate -> (optional) Web Fallback."""
@@ -103,13 +126,15 @@ class RecommendationOrchestrator:
         books_list = final_state.get("isbn_list", [])
         return enrich_and_format(books_list, category, TOP_K_FINAL, "local", metadata_store_inst=self._meta)
 
-    async def _get_recommendations_classic(self, query: str, category: str) -> List[Dict[str, Any]]:
+    async def _get_recommendations_classic(self, query: str, category: str, skip_rerank: bool = False) -> List[Dict[str, Any]]:
         """Classic Router -> Hybrid/Small-to-Big -> optional Web Fallback."""
         from src.core.router import QueryRouter
 
         router = QueryRouter()
         decision = router.route(query)
         logger.info(f"Retrieval Strategy: {decision}")
+
+        do_rerank = decision["rerank"] and not skip_rerank
 
         if decision["strategy"] == "small_to_big":
             recs = self.vector_db.small_to_big_search(query, k=TOP_K_INITIAL)
@@ -118,7 +143,7 @@ class RecommendationOrchestrator:
                 query,
                 k=TOP_K_INITIAL,
                 alpha=decision.get("alpha", 0.5),
-                rerank=decision["rerank"],
+                rerank=do_rerank,
                 temporal=decision.get("temporal", False),
             )
 

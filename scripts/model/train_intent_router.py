@@ -67,6 +67,18 @@ SEED_DATA = [
     ("music", "fast"),
     ("art", "fast"),
     ("philosophy", "fast"),
+    # fast: book titles (keyword-like, BM25 works well)
+    ("War and Peace", "fast"),
+    ("The Lord of the Rings", "fast"),
+    ("Harry Potter", "fast"),
+    ("1984", "fast"),
+    ("To Kill a Mockingbird", "fast"),
+    ("The Great Gatsby", "fast"),
+    ("Pride and Prejudice", "fast"),
+    ("Dune", "fast"),
+    ("Sapiens", "fast"),
+    ("Atomic Habits", "fast"),
+    ("Deep Work", "fast"),
     # deep: natural language, complex queries
     ("What are the best books about artificial intelligence for beginners", "deep"),
     ("I'm looking for something similar to Harry Potter", "deep"),
@@ -87,6 +99,12 @@ SEED_DATA = [
     ("Recommend me novels with strong female protagonists", "deep"),
     ("What to read to understand economics", "deep"),
     ("Books on meditation and mindfulness", "deep"),
+    # deep: natural language with book references (need context, not just keyword)
+    ("books like War and Peace", "deep"),
+    ("similar to The Lord of the Rings", "deep"),
+    ("recommend something like Harry Potter", "deep"),
+    ("what to read after 1984", "deep"),
+    ("books similar to Sapiens", "deep"),
 ]
 
 
@@ -144,8 +162,8 @@ def main():
                 pred = result.predict(sample)[0][0].replace("__label__", "")
             elif args.backend == "distilbert":
                 from transformers import pipeline
-            pipe = pipeline("zero-shot-classification", model="distilbert-base-uncased", device=-1)
-            pred = pipe(sample, INTENTS, multi_label=False)["labels"][0]
+                pipe = pipeline("zero-shot-classification", model="distilbert-base-uncased", device=-1)
+                pred = pipe(sample, INTENTS, multi_label=False)["labels"][0]
             else:
                 pred = result.predict([sample])[0]
             ok = "✓" if pred == intent else "✗"

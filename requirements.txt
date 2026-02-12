@@ -24,6 +24,7 @@ langchain-openai
 transformers>=4.40.0
 torch
 sentence-transformers
+onnxruntime>=1.16.0  # For CrossEncoder backend=onnx (~2x faster)
 gensim>=4.3.0
 lightgbm
 xgboost>=2.0.0
@@ -42,6 +43,9 @@ requests
 
 # Intent classifier backends (optional)
 # fasttext  # Uncomment for FastText backend: pip install fasttext
+
+# Latency: ColBERT reranker (optional, RERANKER_BACKEND=colbert)
+# llama-index-postprocessor-colbert-rerank
 
 # LLM Agent & Fine-tuning
 faiss-cpu

@@ -2,7 +2,7 @@ from typing import List, Any
 # Using community version to avoid 'BaseBlobParser' version conflict in langchain-chroma/core
 from langchain_community.vectorstores import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
-from src.config import REVIEW_HIGHLIGHTS_TXT, CHROMA_DB_DIR, EMBEDDING_MODEL
+from src.config import REVIEW_HIGHLIGHTS_TXT, CHROMA_DB_DIR, EMBEDDING_MODEL, RERANK_CANDIDATES_MAX
 from src.utils import setup_logger
 from src.core.metadata_store import metadata_store
 from src.core.online_books_store import online_books_store
@@ -220,8 +220,7 @@ class VectorDB:
         final_results = top_candidates[:k]
         if rerank:
             from src.core.reranker import reranker
-            # Rerank the top 20 (or more) candidates from fusion
-            rerank_candidates = top_candidates[:max(k*4, 20)]
+            rerank_candidates = top_candidates[:min(len(top_candidates), RERANK_CANDIDATES_MAX)]
             logger.info(f"Reranking top {len(rerank_candidates)} candidates...")
             final_results = reranker.rerank(query, rerank_candidates, top_k=k)
 

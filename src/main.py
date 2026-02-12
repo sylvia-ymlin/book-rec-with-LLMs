@@ -99,6 +99,8 @@ class RecommendationRequest(BaseModel):
     category: str = "All"
     user_id: Optional[str] = "local"
     use_agentic: Optional[bool] = False  # LangGraph workflow: Router -> Retrieve -> Evaluate -> Web Fallback
+    fast: Optional[bool] = False  # Skip rerank for ~150ms latency
+    async_rerank: Optional[bool] = False  # Return RRF first, rerank in background; next request gets cached
 
 
 class FeatureContribution(BaseModel):
@@ -187,6 +189,8 @@ async def get_recommendations(request: RecommendationRequest):
             category=request.category,
             user_id=request.user_id if hasattr(request, 'user_id') else "local",
             use_agentic=request.use_agentic or False,
+            fast=request.fast or False,
+            async_rerank=request.async_rerank or False,
         )
         return {"recommendations": results}
     except Exception as e:
@@ -349,22 +353,58 @@ async def run_benchmark():
 # --- Personalized Recommendation API ---
 
 @app.get("/api/recommend/personal", response_model=RecommendationResponse)
-def personalized_recommendations(user_id: str = "local", top_k: int = 10):
+def personalized_recommendations(
+    user_id: str = "local",
+    top_k: int = 10,
+    limit: Optional[int] = None,
+    recent_isbns: Optional[str] = None,
+    intent_query: Optional[str] = None,
+):
     """
     Get personalized recommendations for a user.
     Uses 6-channel recall (ItemCF/UserCF/Swing/SASRec/YoutubeDNN/Popularity) + LGBMRanker.
+
+    P0: recent_isbns — Comma-separated ISBNs from current session (e.g. just-viewed).
+        Injected into SASRec for cold-start convergence (1+ clicks).
+    P2: intent_query — Zero-shot intent probing when user has no history.
+        Probes LLM for categories/keywords, does semantic search, seeds SASRec.
     """
-    # Demo logic: Map 'local' to a real user for demonstration
-    if user_id in ["local", "demo"]:
-        # Pick a demo user ID from active users (A1ZQ1LUQ9R6JHZ is a heavy reader)
-        user_id = "A1ZQ1LUQ9R6JHZ" 
-    
+    k = limit if limit is not None else top_k
+    # Demo logic: Map 'local' to a real user for demonstration (skip when intent_query = cold-start)
+    if user_id in ["local", "demo"] and not intent_query:
+        user_id = "A1ZQ1LUQ9R6JHZ"
+
+    # P0: Parse recent_isbns for real-time cold-start
+    real_time_seq = None
+    if recent_isbns:
+        real_time_seq = [x.strip() for x in recent_isbns.split(",") if x.strip()]
+
+    # P2: Zero-shot intent probing — when no recent_isbns, use query to seed
+    if not real_time_seq and intent_query and intent_query.strip():
+        from src.core.intent_prober import probe_intent
+        intent = probe_intent(intent_query.strip())
+        semantic_query = " ".join(
+            intent.get("keywords", []) + intent.get("categories", []) + [intent.get("summary", "")]
+        ).strip()
+        if semantic_query and recommender:
+            try:
+                rag_results = recommender.get_recommendations_sync(
+                    semantic_query, category="All", tone="All", user_id=user_id
+                )
+                seed_isbns = [r.get("isbn") for r in (rag_results or [])[:5] if r.get("isbn")]
+                if seed_isbns:
+                    real_time_seq = seed_isbns
+            except Exception as e:
+                logger.warning(f"Intent-to-seed failed: {e}")
+
     # Check initialization
     if not rec_service:
         raise HTTPException(status_code=503, detail="Service not ready")
-        
+
     try:
-        recs = rec_service.get_recommendations(user_id, top_k)
+        recs = rec_service.get_recommendations(
+            user_id, top_k=k, real_time_sequence=real_time_seq
+        )
         
         # Enrich with metadata
         from src.utils import enrich_book_metadata
@@ -429,6 +469,51 @@ def personalized_recommendations(user_id: str = "local", top_k: int = 10):
         logger.error(f"Error in personalized rec: {e}")
         # In production, maybe return fallback popular items instead of error
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/intent/probe")
+def probe_intent_endpoint(query: str = ""):
+    """
+    P2: Zero-shot intent probing for cold-start users.
+    Returns inferred categories, emotions, keywords from user's first query.
+    """
+    from src.core.intent_prober import probe_intent
+    try:
+        result = probe_intent(query)
+        return result
+    except Exception as e:
+        logger.error(f"Intent probe failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/onboarding/books")
+def get_onboarding_books(limit: int = 24):
+    """
+    P2: Return popular books for new-user onboarding.
+    Lets user pick 3–5 to seed preferences (cold-start).
+    """
+    if not rec_service:
+        raise HTTPException(status_code=503, detail="Service not ready")
+    try:
+        items = rec_service.get_popular_books(limit)
+        from src.utils import enrich_book_metadata
+        results = []
+        for isbn, meta in items:
+            meta = meta or {}
+            meta = enrich_book_metadata(meta, str(isbn))
+            results.append({
+                "isbn": isbn,
+                "title": meta.get("title") or f"ISBN: {isbn}",
+                "authors": meta.get("authors", "Unknown"),
+                "description": meta.get("description", ""),
+                "thumbnail": meta.get("thumbnail") or "/content/cover-not-found.jpg",
+                "category": meta.get("category", "General"),
+            })
+        return {"books": results}
+    except Exception as e:
+        logger.error(f"Error in onboarding books: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 # Allow local frontend dev origins
 # Added LAST so it wraps the app outermost (first to process request)

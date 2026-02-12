@@ -11,7 +11,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-*No changes — project frozen at v2.6.0*
+### Fixed - Router heuristic fragility (intent_classifier)
+- **Model-based routing**: Trained `intent_classifier.pkl` (TF-IDF + LogisticRegression) with book title examples; router now uses model when available.
+- **SEED_DATA extended**: Added `War and Peace`, `The Lord of the Rings`, `Harry Potter`, `1984`, etc. (fast) and `books like War and Peace`, `similar to The Lord of the Rings` (deep) so model distinguishes book titles from recommendation-style queries.
+- **Fallback rules improved**: Replaced brittle `len(words) <= 2` with NL keyword detection (`ROUTER_NL_KEYWORDS`: like, similar, recommend, want, looking, ...). Short queries (≤6 words) without NL keywords → FAST; queries with NL keywords → DEEP.
+- **Config**: `natural_language_keywords` in router config; `ROUTER_NL_KEYWORDS` in `src/config.py`.
+
+### Added - Latency Optimizations (LATENCY_OPTIMIZATION.md)
+- **1. 裁剪候选集**: `RERANK_CANDIDATES_MAX=20` (env overridable); rerank top 20 instead of 50.
+- **2. ColBERT**: `RERANKER_BACKEND=colbert`; optional `llama-index-postprocessor-colbert-rerank`.
+- **3. Rerank 异步化**: `fast=true` skips rerank (~150ms); `async_rerank=true` returns RRF first, reranks in background, next request gets cached reranked.
+- **4. ONNX 量化**: `RERANKER_BACKEND=onnx` (default); `onnxruntime` for ~2x CrossEncoder speedup.
+- API: `POST /recommend` accepts `fast`, `async_rerank`; `web/src/api.js` updated.
+
+### Added - Cold-Start Optimizations (P0–P2)
+- **P0**: Popularity fallback — enabled Popularity channel by default; `RecallFusion` and `RecommendationService` fallback to popular books when all recall channels return empty.
+- **P0**: `recent_isbns` API param — `/api/recommend/personal` accepts comma-separated ISBNs from current session; injected into SASRec for 1-click cold-start convergence.
+- **P1**: Frontend passes `recent_isbns` — session-level tracking of viewed books; passed to personalized API on Start Discovery.
+- **P2**: Onboarding flow — `OnboardingModal` when new user (no collection); pick 3–5 books from popular list to seed preferences; `GET /api/onboarding/books`.
+- **P2**: Zero-shot intent probing — `src/core/intent_prober.py` uses LLM to infer categories/emotions/keywords from user query; `GET /api/intent/probe`; `intent_query` param on personal API seeds SASRec via semantic search when user has no history.
 
 ### Added - 2026-01-29 (Frontend Refactor: React Router SPA)
 - **React Router SPA**: Refactored monolithic 960-line `App.jsx` into React Router architecture with 3 route pages and 5 reusable components.

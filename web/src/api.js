@@ -1,7 +1,7 @@
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? "" : "http://127.0.0.1:6006");
 
-export async function recommend(query, category = "All", tone = "All", user_id = "local", use_agentic = false) {
-  const body = { query, category, tone, user_id, use_agentic };
+export async function recommend(query, category = "All", tone = "All", user_id = "local", use_agentic = false, fast = false, async_rerank = false) {
+  const body = { query, category, tone, user_id, use_agentic, fast, async_rerank };
   const resp = await fetch(`${API_URL}/recommend`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -12,9 +12,23 @@ export async function recommend(query, category = "All", tone = "All", user_id =
   return data.recommendations || [];
 }
 
-export async function getPersonalizedRecommendations(user_id = "local", limit = 20) {
-  // Use URLSearchParams for query parameters
+export async function getOnboardingBooks(limit = 24) {
+  const resp = await fetch(`${API_URL}/api/onboarding/books?limit=${limit}`);
+  if (!resp.ok) throw new Error(await resp.text());
+  const data = await resp.json();
+  return data.books || [];
+}
+
+export async function getPersonalizedRecommendations(user_id = "local", limit = 20, recent_isbns = null, intent_query = null) {
+  // P1: recent_isbns — session-level ISBNs for cold-start (1+ clicks)
+  // P2: intent_query — zero-shot intent probing when user has no history
   const params = new URLSearchParams({ user_id, limit: limit.toString() });
+  if (recent_isbns && Array.isArray(recent_isbns) && recent_isbns.length > 0) {
+    params.set("recent_isbns", recent_isbns.join(","));
+  }
+  if (intent_query && typeof intent_query === "string" && intent_query.trim()) {
+    params.set("intent_query", intent_query.trim());
+  }
   const resp = await fetch(`${API_URL}/api/recommend/personal?${params.toString()}`);
   if (!resp.ok) throw new Error(await resp.text());
   const data = await resp.json();

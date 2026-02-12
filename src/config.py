@@ -32,6 +32,12 @@ CACHE_TTL = 3600  # 1 hour
 TOP_K_INITIAL = 50
 TOP_K_FINAL = 10
 
+# Latency: Rerank candidate cap (lower = faster, LATENCY_OPTIMIZATION.md)
+RERANK_CANDIDATES_MAX = int(os.getenv("RERANK_CANDIDATES_MAX", "20"))
+
+# Reranker backend: cross_encoder | onnx | colbert (onnx ~2x faster, colbert optional)
+RERANKER_BACKEND = os.getenv("RERANKER_BACKEND", "onnx")
+
 # Debug mode: set DEBUG=1 to enable verbose logging (research prototype style)
 DEBUG = os.getenv("DEBUG", "0") == "1"
 
@@ -47,6 +53,10 @@ def _load_router_config() -> dict:
             "new", "newest", "latest", "recent", "modern", "contemporary", "current",
         ],
         "strong_freshness_keywords": ["newest", "latest"],
+        "natural_language_keywords": [
+            "like", "similar", "recommend", "want", "looking", "books", "something",
+            "suggest", "recommendations", "after", "read", "if", "liked",
+        ],
     }
     path = CONFIG_DIR / "router.json"
     if path.exists():
@@ -81,4 +91,7 @@ ROUTER_FRESHNESS_KEYWORDS: frozenset[str] = frozenset(
 )
 ROUTER_STRONG_FRESHNESS_KEYWORDS: frozenset[str] = frozenset(
     str(k).lower() for k in _ROUTER_CFG.get("strong_freshness_keywords", [])
+)
+ROUTER_NL_KEYWORDS: frozenset[str] = frozenset(
+    str(k).lower() for k in _ROUTER_CFG.get("natural_language_keywords", [])
 )

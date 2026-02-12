@@ -155,6 +155,10 @@ class RecommendationService:
         candidates = self.fusion.get_recall_items(
             user_id, k=200, real_time_seq=real_time_sequence
         )
+        # P1: Cold-start fallback — when recall returns empty, use popularity
+        if not candidates:
+            pop_recs = self.fusion.popularity.recommend(user_id, top_k=200)
+            candidates = list(pop_recs)
         if not candidates:
             return []
 
@@ -266,6 +270,27 @@ class RecommendationService:
                 break
 
         return unique_results
+
+    def get_popular_books(self, limit: int = 24) -> list:
+        """
+        P2: Return popular books for onboarding selection.
+        Used when new user has no history — lets them pick 3–5 to seed preferences.
+        """
+        self.load_resources()
+        recs = self.fusion.popularity.recommend(user_id=None, top_k=limit)
+        results = []
+        seen_titles = set()
+        for isbn, _ in recs:
+            meta = self.metadata_store.get_book_metadata(str(isbn))
+            title = (meta.get("title") or "").lower().strip()
+            if title and title in seen_titles:
+                continue
+            if title:
+                seen_titles.add(title)
+            results.append((isbn, meta or {}))
+            if len(results) >= limit:
+                break
+        return results
 
 if __name__ == "__main__":
     import logging

@@ -19,6 +19,7 @@ import Header from "./components/Header";
 import BookDetailModal from "./components/BookDetailModal";
 import SettingsModal from "./components/SettingsModal";
 import AddBookModal from "./components/AddBookModal";
+import OnboardingModal from "./components/OnboardingModal";
 
 // Pages
 import GalleryPage from "./pages/GalleryPage";
@@ -57,12 +58,27 @@ const App = () => {
     return stored === "mock" || !stored ? "ollama" : stored;
   });
 
+  // --- P1: Session-level recent ISBNs for cold-start ---
+  const [recentIsbns, setRecentIsbns] = useState([]);
+  const MAX_RECENT_ISBNS = 10;
+
+  // --- P2: Onboarding (new user, no collection) ---
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
   // --- Add Book Modal State ---
   const [showAddBook, setShowAddBook] = useState(false);
   const [googleQuery, setGoogleQuery] = useState("");
   const [googleResults, setGoogleResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [addingBookId, setAddingBookId] = useState(null);
+
+  // --- P2: Show onboarding when new user (no collection, not completed) ---
+  useEffect(() => {
+    const completed = localStorage.getItem("onboarding_complete") === "true";
+    if (!completed && userId === "local") {
+      setShowOnboarding(true);
+    }
+  }, [userId]);
 
   // --- Load favorites and stats on startup or user change ---
   useEffect(() => {
@@ -78,11 +94,13 @@ const App = () => {
         reading: 0,
         finished: 0,
       })),
-      getPersonalizedRecommendations(userId).catch(() => []),
+      getPersonalizedRecommendations(userId, 20, recentIsbns).catch(() => []),
     ]).then(([favs, stats, personalRecs]) => {
       setMyCollection(favs);
       setReadingStats(stats);
-
+      if (favs.length > 0) {
+        localStorage.setItem("onboarding_complete", "true");
+      }
       const mappedRecs = personalRecs.map((r, idx) => ({
         id: r.isbn,
         title: r.title,
@@ -283,6 +301,13 @@ const App = () => {
   };
 
   const openBook = (book) => {
+    // P1: Track session-level recent views for cold-start
+    if (book?.isbn) {
+      setRecentIsbns((prev) => {
+        const next = [book.isbn, ...prev.filter((i) => i !== book.isbn)].slice(0, MAX_RECENT_ISBNS);
+        return next;
+      });
+    }
     setSelectedBook({
       ...book,
       aiHighlight: "\u2728 ...",
@@ -319,8 +344,15 @@ const App = () => {
     setBooks([]);
     try {
       let recs;
-      if (!searchQuery) {
-        recs = await getPersonalizedRecommendations(userId);
+      // P2: Cold-start with intent — when no collection and user typed a mood, use intent-seeded personal recs
+      const useIntentSeed = myCollection.length === 0 && searchQuery.trim();
+      if (!searchQuery || useIntentSeed) {
+        recs = await getPersonalizedRecommendations(
+          userId,
+          20,
+          recentIsbns,
+          useIntentSeed ? searchQuery : null
+        );
       } else {
         recs = await recommend(searchQuery, searchCategory, searchMood, userId);
       }
@@ -381,6 +413,44 @@ const App = () => {
             llmProvider={llmProvider}
             onProviderChange={setLlmProvider}
             onSave={saveSettings}
+          />
+        )}
+
+        {showOnboarding && (
+          <OnboardingModal
+            onComplete={async () => {
+              setShowOnboarding(false);
+              const [favs, stats, personalRecs] = await Promise.all([
+                getFavorites(userId).catch(() => []),
+                getUserStats(userId).catch(() => ({ total: 0, want_to_read: 0, reading: 0, finished: 0 })),
+                getPersonalizedRecommendations(userId, 20, recentIsbns).catch(() => []),
+              ]);
+              setMyCollection(favs);
+              setReadingStats(stats);
+              const mapped = (personalRecs || []).map((r, idx) => ({
+                id: r.isbn,
+                title: r.title,
+                author: r.authors,
+                category: r.category || "General",
+                mood: r.emotions && Object.keys(r.emotions).length > 0
+                  ? Object.entries(r.emotions).reduce((a, b) => (a[1] > b[1] ? a : b))[0]
+                  : "Literary",
+                rank: idx + 1,
+                rating: r.average_rating || 0,
+                tags: r.tags || [],
+                review_highlights: r.review_highlights || [],
+                desc: r.description,
+                img: r.thumbnail,
+                isbn: r.isbn,
+                emotions: r.emotions || {},
+                explanations: r.explanations || [],
+                aiHighlight: "\u2014",
+                suggestedQuestions: ["Why was this recommended?", "Similar to what I've read?", "What's the core highlight?"],
+              }));
+              setBooks(mapped);
+            }}
+            onAddFavorite={(isbn) => addFavorite(isbn, userId)}
+            onSkip={() => setShowOnboarding(false)}
           />
         )}
 
