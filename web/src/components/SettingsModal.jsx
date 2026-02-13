@@ -15,7 +15,7 @@ const SettingsModal = ({ onClose, apiKey, onApiKeyChange, llmProvider, onProvide
             <select
               value={llmProvider}
               onChange={(e) => onProviderChange(e.target.value)}
-              className="w-full border border-[#88C0D0] p-2 text-sm outline-none focus:border-[#5E81AC] bg-white"
+              className="w-full border border-info2 p-2 text-sm bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-md"
             >
               <option value="openai">OpenAI (GPT-3.5/4)</option>
               <option value="groq">Groq (Llama3 - Free/Fast)</option>
@@ -27,7 +27,7 @@ const SettingsModal = ({ onClose, apiKey, onApiKeyChange, llmProvider, onProvide
             <label className="block text-xs font-bold text-[#4C566A] mb-1">API Key (OpenAI / Groq / DeepSeek)</label>
             <input
               type="password"
-              className="w-full border border-[#88C0D0] p-2 text-sm outline-none focus:border-[#5E81AC]"
+              className="w-full border border-info2 p-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-md"
               placeholder="sk-..."
               value={apiKey}
               onChange={(e) => onApiKeyChange(e.target.value)}

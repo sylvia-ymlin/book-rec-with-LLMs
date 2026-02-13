@@ -27,7 +27,7 @@ const AddBookModal = ({
             <Search className="absolute left-2 top-2.5 w-4 h-4 text-[#81A1C1]" />
             <input
               autoFocus
-              className="w-full border border-[#88C0D0] p-2 pl-8 text-sm outline-none focus:border-[#5E81AC]"
+              className="w-full border border-info2 p-2 pl-8 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-md"
               placeholder="Search title, author, or ISBN..."
               value={googleQuery}
               onChange={(e) => onQueryChange(e.target.value)}

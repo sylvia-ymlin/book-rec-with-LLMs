@@ -12,7 +12,7 @@ const Header = ({ userId, onUserIdChange, onAddBookClick, onSettingsClick }) => 
   ];
 
   return (
-    <header className="max-w-5xl mx-auto pt-10 px-4 flex justify-between items-end mb-12">
+    <header className="max-w-5xl mx-auto pt-10 px-4 flex flex-col md:flex-row md:justify-between md:items-end gap-4 mb-12">
       <div>
         <Link to="/">
           <div className="border border-[#d0dcc2] px-5 py-2 bg-surface inline-block mb-2 transition-shadow rounded-full shadow-soft">
@@ -21,12 +21,12 @@ const Header = ({ userId, onUserIdChange, onAddBookClick, onSettingsClick }) => 
         </Link>
         <p className="text-[11px] text-text-secondary font-medium tracking-wide">Discover books that resonate with your soul</p>
       </div>
-      <div className="flex gap-2 items-center bg-surface border border-[#d0dcc2] rounded-full px-3 py-2 shadow-soft">
+      <div className="flex flex-wrap md:flex-nowrap gap-2 items-center bg-surface border border-[#d0dcc2] rounded-full px-3 py-2 shadow-soft">
         {/* User Switcher */}
         <div className="flex items-center gap-2 border border-[#d8e4cd] bg-surface px-3 py-2 rounded-full" title="Switch User">
           <User className="w-3 h-3 text-text-secondary" />
           <input
-            className="w-20 text-[11px] outline-none text-text-primary font-medium bg-transparent placeholder-text-secondary"
+            className="w-20 text-[11px] text-text-primary font-medium bg-transparent placeholder-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-md px-1"
             value={userId}
             onChange={(e) => onUserIdChange(e.target.value)}
             placeholder="User ID"

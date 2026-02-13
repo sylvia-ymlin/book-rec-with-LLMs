@@ -25,7 +25,7 @@ const GalleryPage = ({
           <div className="md:col-span-6 flex items-center bg-[#F7F9F2] border border-[#d9e4cf] p-3 rounded-full">
             <Search className="w-4 h-4 mr-3 text-[#81A1C1] ml-2" />
             <input
-              className="w-full outline-none text-sm text-text-primary placeholder-text-secondary bg-transparent font-sans"
+              className="w-full text-sm text-text-primary placeholder-text-secondary bg-transparent font-sans focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-md px-1"
               placeholder="Search for a topic, mood, or dream..."
               value={searchQuery}
               onChange={(e) => onSearchQueryChange(e.target.value)}
@@ -34,7 +34,7 @@ const GalleryPage = ({
           <div className="md:col-span-3 flex items-center bg-[#F7F9F2] border border-[#d9e4cf] p-3 rounded-full">
             <Layers className="w-4 h-4 mr-3 text-[#81A1C1] ml-2" />
             <select
-              className="w-full outline-none text-sm bg-transparent text-text-primary font-sans"
+              className="w-full text-sm bg-transparent text-text-primary font-sans focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-md px-1"
               value={searchCategory}
               onChange={(e) => onSearchCategoryChange(e.target.value)}
             >
@@ -46,7 +46,7 @@ const GalleryPage = ({
           <div className="md:col-span-3 flex items-center bg-[#F7F9F2] border border-[#d9e4cf] p-3 rounded-full">
             <Smile className="w-4 h-4 mr-3 text-[#81A1C1] ml-2" />
             <select
-              className="w-full outline-none text-sm bg-transparent text-text-primary font-sans"
+              className="w-full text-sm bg-transparent text-text-primary font-sans focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-md px-1"
               value={searchMood}
               onChange={(e) => onSearchMoodChange(e.target.value)}
             >
@@ -70,7 +70,22 @@ const GalleryPage = ({
 
       {/* Book Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
-        {books.length > 0 ? (
+        {loading ? (
+          Array.from({ length: 10 }).map((_, i) => (
+            <div
+              key={i}
+              className="animate-pulse transform transition-all duration-200"
+            >
+              <div className="bg-surface border border-line p-1.5 shadow-soft overflow-hidden rounded-2xl">
+                <div className="w-full aspect-[3/4] rounded-xl bg-line/40" />
+                <div className="mt-3 space-y-2 px-1 pb-2">
+                  <div className="h-3 w-3/4 bg-line/40 rounded" />
+                  <div className="h-2.5 w-1/2 bg-line/30 rounded" />
+                </div>
+              </div>
+            </div>
+          ))
+        ) : books.length > 0 ? (
           books.map((book, idx) => (
             <BookCard
               key={book.isbn || idx}
@@ -81,11 +96,9 @@ const GalleryPage = ({
             />
           ))
         ) : (
-          !loading && (
-            <div className="col-span-full py-20 text-center text-gray-400 text-xs italic">
-              No books here yet. Start discovering to build your collection.
-            </div>
-          )
+          <div className="col-span-full py-20 text-center text-gray-400 text-xs italic">
+            No books here yet. Start discovering to build your collection.
+          </div>
         )}
       </div>
     </>

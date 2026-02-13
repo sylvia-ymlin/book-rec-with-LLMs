@@ -52,6 +52,11 @@ const BookDetailModal = ({
   const displayRating =
     userBook?.rating && userBook.rating > 0 ? userBook.rating : book.rating || 0;
   const isUserRating = userBook?.rating && userBook.rating > 0;
+  const explanations = Array.isArray(book.explanations) ? book.explanations : [];
+  const explanationMaxAbs = Math.max(
+    1e-9,
+    ...explanations.map((e) => Math.abs(Number(e?.contribution ?? 0)))
+  );
 
   return (
     <div
@@ -96,11 +101,11 @@ const BookDetailModal = ({
             </p>
 
             {/* AI Highlight */}
-            <div className="bg-[#F0FDF4] border border-[#d3dec7] p-4 w-full rounded-xl relative mb-4">
+            <div className="bg-tag border border-line p-4 w-full rounded-xl relative mb-4">
               <Sparkles className="w-3 h-3 text-accent absolute -top-1.5 -left-1.5 fill-current" />
               <div className="flex items-center justify-between mb-2">
                 <div className="flex flex-col">
-                  <span className="text-[11px] font-semibold text-text-primary">
+                  <span className="text-[12px] font-semibold text-text-primary">
                     {displayRating > 0 ? displayRating.toFixed(1) : "0.0"}
                     <span className="text-text-secondary font-normal ml-1">
                       {isUserRating ? "(Your Rating)" : "(Average)"}
@@ -108,42 +113,63 @@ const BookDetailModal = ({
                   </span>
                   <div className="flex gap-0.5 mt-0.5">
                     {[1, 2, 3, 4, 5].map((i) => (
-                      <Star key={i} className={`w-3 h-3 ${i <= displayRating ? "text-accent fill-current" : "text-[#d3dec7]"}`} />
+                      <Star
+                        key={i}
+                        className={`w-3 h-3 ${
+                          i <= displayRating ? "text-accent fill-current" : "text-line"
+                        }`}
+                      />
                     ))}
                   </div>
                 </div>
               </div>
-              <p className="text-[11px] text-text-secondary italic leading-relaxed">
+              <p className="text-[12px] text-text-secondary italic leading-relaxed">
                 {book.aiHighlight}
               </p>
             </div>
 
             {/* SHAP Explanations */}
-            {book.explanations && book.explanations.length > 0 && (
-              <div className="bg-[#F0FDF4] border border-[#d3dec7] p-4 w-full rounded-xl relative mb-4">
-                <Info className="w-3 h-3 text-[#5E81AC] absolute -top-1.5 -left-1.5" />
+            {explanations.length > 0 && (
+              <div className="bg-tag border border-line p-4 w-full rounded-xl relative mb-4">
+                <Info className="w-3 h-3 text-info absolute -top-1.5 -left-1.5" />
                 <p className="text-[10px] font-semibold text-text-primary uppercase tracking-wider mb-3">
                   Why This Recommendation
                 </p>
                 <div className="space-y-2">
-                  {book.explanations.map((exp, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      <span
-                        className={`text-[9px] font-bold w-4 text-center ${exp.direction === "positive" ? "text-[#5E81AC]" : "text-[#BF616A]"}`}
+                  {explanations.map((exp, idx) => {
+                    const contribution = Number(exp?.contribution ?? 0);
+                    const widthPct = Math.min(
+                      100,
+                      (Math.abs(contribution) / explanationMaxAbs) * 100
+                    );
+                    const isPositive = exp?.direction === "positive";
+                    return (
+                      <div
+                        key={idx}
+                        className="flex items-center gap-2"
+                        title={`${exp.feature}: ${contribution.toFixed(4)}`}
                       >
-                        {exp.direction === "positive" ? "+" : "\u2212"}
+                      <span
+                        className={`text-[10px] font-bold w-4 text-center ${
+                          isPositive ? "text-info" : "text-danger"
+                        }`}
+                      >
+                        {isPositive ? "+" : "\u2212"}
                       </span>
-                      <div className="flex-1 bg-[#d3dec7]/40 h-2 rounded-full overflow-hidden">
+                      <div className="flex-1 bg-line/40 h-2 rounded-full overflow-hidden">
                         <div
-                          className={`h-full rounded-full transition-all duration-500 ${exp.direction === "positive" ? "bg-[#5E81AC]" : "bg-[#BF616A]/40"}`}
-                          style={{ width: `${Math.min(Math.abs(exp.contribution) * 150, 100)}%` }}
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            isPositive ? "bg-info" : "bg-danger/50"
+                          }`}
+                          style={{ width: `${widthPct}%` }}
                         />
                       </div>
-                      <span className="text-[10px] text-text-secondary font-medium min-w-[100px]">
+                      <span className="text-[11px] text-text-secondary font-medium min-w-[120px]">
                         {exp.feature}
                       </span>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -155,7 +181,7 @@ const BookDetailModal = ({
                   const isCompleteSentence = /^[A-Z]/.test(highlight.trim());
                   const prefix = isCompleteSentence ? "" : "...";
                   return (
-                    <p key={idx} className="text-[10px] text-text-secondary leading-relaxed italic pl-3 border-l-2 border-[#d3dec7]">
+                    <p key={idx} className="text-[11px] text-text-secondary leading-relaxed italic pl-3 border-l-2 border-line">
                       {prefix}{highlight}
                     </p>
                   );
@@ -171,7 +197,7 @@ const BookDetailModal = ({
               <h4 className="flex items-center gap-2 text-[10px] font-semibold uppercase text-text-secondary tracking-wider">
                 <Info className="w-3.5 h-3.5" /> Description
               </h4>
-              <div className="p-4 bg-[#F0FDF4] border border-[#d3dec7] text-[12px] leading-relaxed text-text-primary rounded-xl border-l-[3px] border-l-[#5E81AC]">
+              <div className="p-4 bg-tag border border-line text-[13px] leading-relaxed text-text-primary rounded-xl border-l-[3px] border-l-info">
                 <div style={{ maxHeight: "180px", overflowY: "auto", whiteSpace: "pre-line" }}>
                   {book.desc}
                 </div>
@@ -191,7 +217,7 @@ const BookDetailModal = ({
                     <button
                       key={sb.isbn}
                       onClick={() => onOpenBook && onOpenBook(sb)}
-                      className="flex-shrink-0 w-16 text-left group focus:outline-none"
+                      className="flex-shrink-0 w-16 text-left group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-lg"
                     >
                       <div className="bg-white p-0.5 rounded-lg shadow-soft group-hover:shadow-md transition-shadow">
                         <img
@@ -201,7 +227,7 @@ const BookDetailModal = ({
                           onError={(e) => { e.target.onerror = null; e.target.src = PLACEHOLDER_IMG; }}
                         />
                       </div>
-                      <p className="text-[9px] text-text-secondary mt-1.5 truncate group-hover:text-text-primary transition-colors" title={sb.title}>
+                      <p className="text-[10px] text-text-secondary mt-1.5 truncate group-hover:text-text-primary transition-colors" title={sb.title}>
                         {sb.title}
                       </p>
                     </button>
@@ -247,7 +273,7 @@ const BookDetailModal = ({
                     <button
                       key={idx}
                       onClick={() => onSend(q)}
-                      className="text-[9px] px-3 py-1.5 bg-[#F0FDF4] border border-[#d3dec7] text-text-secondary hover:text-text-primary hover:border-[#5E81AC]/40 transition-colors rounded-full"
+                      className="text-[10px] px-3 py-1.5 bg-tag border border-line text-text-secondary hover:text-text-primary hover:border-info/40 transition-colors rounded-full"
                     >
                       {q}
                     </button>
@@ -258,7 +284,7 @@ const BookDetailModal = ({
                     value={input}
                     onChange={(e) => onInputChange(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && onSend(input)}
-                    className="flex-grow border border-[#d3dec7] p-2.5 text-[11px] outline-none focus:border-[#5E81AC] bg-white rounded-full px-4 text-text-primary placeholder:text-text-secondary"
+                    className="flex-grow border border-line p-2.5 text-[12px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background bg-white rounded-full px-4 text-text-primary placeholder:text-text-secondary"
                     placeholder="Ask a question..."
                   />
                   <button
@@ -285,13 +311,13 @@ const BookDetailModal = ({
                         <button
                           key={star}
                           onClick={() => onRatingChange(book.isbn, star)}
-                          className="focus:outline-none transform hover:scale-110 transition-transform"
+                          className="transform hover:scale-110 transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-md"
                         >
                           <Star
                             className={`w-4 h-4 transition-colors ${
                               star <= (userBook?.rating || 0)
                                 ? "text-accent fill-current"
-                                : "text-[#d3dec7] hover:text-accent"
+                                : "text-line hover:text-accent"
                             }`}
                           />
                         </button>
@@ -305,7 +331,7 @@ const BookDetailModal = ({
                     <select
                       value={userBook?.status || "want_to_read"}
                       onChange={(e) => onStatusChange(book.isbn, e.target.value)}
-                      className="bg-white border border-[#d3dec7] text-[10px] text-text-primary p-1.5 outline-none focus:border-[#5E81AC] rounded-lg cursor-pointer w-28"
+                      className="bg-white border border-line text-[11px] text-text-primary p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-lg cursor-pointer w-28"
                     >
                       <option value="want_to_read">Want to Read</option>
                       <option value="reading">Reading</option>
@@ -330,15 +356,15 @@ const BookDetailModal = ({
 
               {/* Notes */}
               {isInCollection && (
-                <div className="pt-3 border-t border-[#d3dec7]">
-                  <label className="text-[10px] font-semibold text-[#5E81AC] uppercase tracking-wider mb-2 block flex items-center gap-2">
+                <div className="pt-3 border-t border-line">
+                  <label className="text-[10px] font-semibold text-info uppercase tracking-wider mb-2 block flex items-center gap-2">
                     <MessageCircle className="w-3 h-3" /> My Private Notes
                   </label>
                   <textarea
                     value={userBook?.comment || ""}
                     onChange={(e) => onUpdateComment(book.isbn, e.target.value, false)}
                     onBlur={(e) => onUpdateComment(book.isbn, e.target.value, true)}
-                    className="w-full text-[11px] p-3 border border-[#d3dec7] focus:border-[#5E81AC] outline-none h-24 resize-none bg-white text-text-primary placeholder:text-text-secondary rounded-xl"
+                    className="w-full text-[12px] p-3 border border-line focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background h-24 resize-none bg-white text-text-primary placeholder:text-text-secondary rounded-xl"
                     placeholder="Write your thoughts, review, or memorable quotes here..."
                   />
                 </div>

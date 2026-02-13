@@ -71,7 +71,7 @@ const BookshelfPage = ({
             <select
               value={shelfSort}
               onChange={(e) => setShelfSort(e.target.value)}
-              className="text-[10px] bg-transparent border-b border-[#d3dfc8] outline-none font-semibold text-text-primary py-1"
+              className="text-[10px] bg-transparent border-b border-[#d3dfc8] font-semibold text-text-primary py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-info/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-md px-1"
             >
               <option value="recent">Recently Added</option>
               <option value="rating_high">Rating (High to Low)</option>
