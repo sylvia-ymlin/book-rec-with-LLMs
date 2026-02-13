@@ -19,7 +19,7 @@ We are upgrading from a **Metadata Search Engine** to a **Generative AI Platform
 ## 2. Technical Roadmap
 
 ### Milestone 1: Environment Stabilization (The Foundation)
-*   **Objective**: Get `src/main.py` running locally without crashing.
+*   **Objective**: Get `src/app/main.py` running locally without crashing.
 *   **Action**: 
     - Create clean `conda` env with pinned `torch`, `sentence-transformers`, `fastapi`, and `langchain`.
     - Fix M1 Mutex Lock: Pin `tokenizers` and `transformers` versions, exclude `tensorflow`.
@@ -34,7 +34,7 @@ We are upgrading from a **Metadata Search Engine** to a **Generative AI Platform
 
 ### Milestone 3: Connecting the Dots (The Integration)
 *   **Objective**: Wire the Agent to the API and Frontend.
-*   **Backend**: Update `src/main.py` to route chat requests to `src/agent/service.py`.
+*   **Backend**: Update `src/app/main.py` to route chat requests to `src/agent/service.py`.
 *   **Frontend**: Update `DetailModal.jsx` to call the new chat endpoint instead of just showing static text.
 
 ---

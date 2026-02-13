@@ -135,7 +135,7 @@
    - Create ChromaDB collection `review_chunks` with the sentence-level data.
    - Keep existing `books` collection for parent lookup.
 
-3. **Retrieval Logic Update** (`src/vector_db.py`):
+3. **Retrieval Logic Update** (`src/rag/vector_db.py`):
    - New method: `small_to_big_search(query, k=5)`.
    - Step 1: Query `review_chunks` collection → Get top-k chunk matches.
    - Step 2: Extract unique `parent_isbn` from matches.
@@ -177,11 +177,11 @@ def hyde_search(query: str) -> List[Document]:
 
 | Priority | Feature | File | Status |
 |----------|---------|------|--------|
-| 1 | SFT Data Generator | `src/data_factory/generator.py` | TODO |
-| 2 | LLM Judge | `src/data_factory/judge.py` | TODO |
+| 1 | SFT Data Generator | `src/support/data_factory/generator.py` | TODO |
+| 2 | LLM Judge | `src/support/data_factory/judge.py` | TODO |
 | 3 | Review Chunker | `scripts/chunk_reviews.py` | TODO |
 | 4 | Small-to-Big Index | `scripts/init_dual_index.py` | TODO |
-| 5 | Small-to-Big Search | `src/vector_db.py` | TODO |
+| 5 | Small-to-Big Search | `src/rag/vector_db.py` | TODO |
 | 6 | HyDE | `src/core/hyde.py` | Deferred |
 
 ---

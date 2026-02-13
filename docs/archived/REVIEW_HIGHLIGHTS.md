@@ -36,7 +36,7 @@ python scripts/extract_review_sentences.py \
 
 **Files Modified**:
 - `src/recommender.py`: Parse `review_highlights` from CSV, split by semicolon
-- `src/main.py`: Add `review_highlights: List[str]` to `BookResponse` model
+- `src/app/main.py`: Add `review_highlights: List[str]` to `BookResponse` model
 
 **Code**:
 ```python

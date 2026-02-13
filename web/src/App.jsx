@@ -6,13 +6,15 @@ import {
   getHighlights,
   streamChat,
   getFavorites,
-  updateBook,
-  removeFromFavorites,
   getUserStats,
   addBook,
   searchGoogleBooks,
   getPersonalizedRecommendations,
 } from "./api";
+import { mapRecommendationsToCards } from "./utils/recommendationMapper";
+import { useSessionRecents } from "./hooks/useSessionRecents";
+import { useLlmSettings } from "./hooks/useLlmSettings";
+import { useCollectionActions } from "./hooks/useCollectionActions";
 
 // Components
 import Header from "./components/Header";
@@ -28,7 +30,7 @@ import ProfilePage from "./pages/ProfilePage";
 
 const App = () => {
   // --- Core State ---
-  const [userId, setUserId] = useState("local");
+  const [userId, setUserId] = useState("Coconut");
   const [myCollection, setMyCollection] = useState([]);
   const [readingStats, setReadingStats] = useState({
     total: 0,
@@ -52,15 +54,11 @@ const App = () => {
 
   // --- Settings State ---
   const [showSettings, setShowSettings] = useState(false);
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem("openai_key") || "");
-  const [llmProvider, setLlmProvider] = useState(() => {
-    const stored = localStorage.getItem("llm_provider");
-    return stored === "mock" || !stored ? "ollama" : stored;
-  });
+  const { apiKey, setApiKey, llmProvider, setLlmProvider, saveSettings } =
+    useLlmSettings();
 
   // --- P1: Session-level recent ISBNs for cold-start ---
-  const [recentIsbns, setRecentIsbns] = useState([]);
-  const MAX_RECENT_ISBNS = 10;
+  const { recentIsbns, trackRecentIsbn } = useSessionRecents();
 
   // --- P2: Onboarding (new user, no collection) ---
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -72,10 +70,24 @@ const App = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [addingBookId, setAddingBookId] = useState(null);
 
+  const {
+    refreshCollection,
+    toggleCollect,
+    handleRatingChange,
+    handleStatusChange,
+    handleRemoveBook,
+    handleUpdateComment,
+  } = useCollectionActions({
+    userId,
+    myCollection,
+    setMyCollection,
+    setReadingStats,
+  });
+
   // --- P2: Show onboarding when new user (no collection, not completed) ---
   useEffect(() => {
     const completed = localStorage.getItem("onboarding_complete") === "true";
-    if (!completed && userId === "local") {
+    if (!completed && userId === "Coconut") {
       setShowOnboarding(true);
     }
   }, [userId]);
@@ -101,43 +113,14 @@ const App = () => {
       if (favs.length > 0) {
         localStorage.setItem("onboarding_complete", "true");
       }
-      const mappedRecs = personalRecs.map((r, idx) => ({
-        id: r.isbn,
-        title: r.title,
-        author: r.authors,
-        category: r.category || "General",
-        mood:
-          r.emotions && Object.keys(r.emotions).length > 0
-            ? Object.entries(r.emotions).reduce((a, b) =>
-                a[1] > b[1] ? a : b
-              )[0]
-            : "Literary",
-        rank: idx + 1,
-        rating: r.average_rating || 0,
-        tags: r.tags || [],
-        review_highlights: r.review_highlights || [],
-        desc: r.description,
-        img: r.thumbnail,
-        isbn: r.isbn,
-        emotions: r.emotions || {},
-        explanations: r.explanations || [],
-        aiHighlight: "\u2014",
-        suggestedQuestions: [
-          "Why was this recommended?",
-          "Similar to what I've read?",
-          "What's the core highlight?",
-        ],
-      }));
-
-      setBooks(mappedRecs);
+      setBooks(mapRecommendationsToCards(personalRecs));
       setLoading(false);
     });
   }, [userId]);
 
   // --- Handlers ---
-  const saveSettings = () => {
-    localStorage.setItem("openai_key", apiKey);
-    localStorage.setItem("llm_provider", llmProvider);
+  const handleSaveSettings = () => {
+    saveSettings();
     setShowSettings(false);
   };
 
@@ -154,6 +137,7 @@ const App = () => {
     await streamChat({
       isbn: selectedBook.isbn,
       query: text,
+      userId,
       apiKey: apiKey,
       provider: llmProvider,
       onChunk: (chunk) => {
@@ -219,13 +203,7 @@ const App = () => {
       setShowAddBook(false);
       setGoogleResults([]);
       setGoogleQuery("");
-
-      const [favs, stats] = await Promise.all([
-        getFavorites(userId),
-        getUserStats(userId),
-      ]);
-      setMyCollection(favs);
-      setReadingStats(stats);
+      await refreshCollection();
     } catch (err) {
       alert("Import failed: " + err.message);
     } finally {
@@ -233,80 +211,10 @@ const App = () => {
     }
   };
 
-  const toggleCollect = async (book) => {
-    try {
-      if (myCollection.some((b) => b.isbn === book.isbn)) {
-        await removeFromFavorites(book.isbn, userId);
-      } else {
-        await addFavorite(book.isbn, userId);
-      }
-      const [favs, stats] = await Promise.all([
-        getFavorites(userId),
-        getUserStats(userId),
-      ]);
-      setMyCollection(favs);
-      setReadingStats(stats);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handleRatingChange = async (isbn, rating) => {
-    try {
-      await updateBook(isbn, { rating }, userId);
-      setMyCollection((prev) =>
-        prev.map((book) => (book.isbn === isbn ? { ...book, rating } : book))
-      );
-      getUserStats(userId)
-        .then((stats) => setReadingStats(stats))
-        .catch(console.error);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handleStatusChange = async (isbn, status) => {
-    try {
-      await updateBook(isbn, { status }, userId);
-      setMyCollection((prev) =>
-        prev.map((book) => (book.isbn === isbn ? { ...book, status } : book))
-      );
-      getUserStats(userId)
-        .then((stats) => setReadingStats(stats))
-        .catch(console.error);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handleRemoveBook = async (isbn) => {
-    try {
-      await removeFromFavorites(isbn, userId);
-      setMyCollection((prev) => prev.filter((book) => book.isbn !== isbn));
-      getUserStats(userId)
-        .then((stats) => setReadingStats(stats))
-        .catch(console.error);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handleUpdateComment = (isbn, value, persist) => {
-    setMyCollection((prev) =>
-      prev.map((b) => (b.isbn === isbn ? { ...b, comment: value } : b))
-    );
-    if (persist) {
-      updateBook(isbn, { comment: value }, userId).catch(console.error);
-    }
-  };
-
   const openBook = (book) => {
     // P1: Track session-level recent views for cold-start
     if (book?.isbn) {
-      setRecentIsbns((prev) => {
-        const next = [book.isbn, ...prev.filter((i) => i !== book.isbn)].slice(0, MAX_RECENT_ISBNS);
-        return next;
-      });
+      trackRecentIsbn(book.isbn);
     }
     setSelectedBook({
       ...book,
@@ -356,36 +264,17 @@ const App = () => {
       } else {
         recs = await recommend(searchQuery, searchCategory, searchMood, userId);
       }
-      const mapped = (recs || []).map((r, idx) => ({
-        id: r.isbn,
-        title: r.title,
-        author: r.authors,
-        category: searchCategory,
-        mood:
-          searchMood !== "All"
-            ? searchMood
-            : r.emotions && Object.keys(r.emotions).length > 0
-            ? Object.entries(r.emotions).reduce((a, b) =>
-                a[1] > b[1] ? a : b
-              )[0]
-            : "Literary",
-        rank: idx + 1,
-        rating: r.average_rating || 0,
-        tags: r.tags || [],
-        review_highlights: r.review_highlights || [],
-        desc: r.description,
-        img: r.thumbnail,
-        isbn: r.isbn,
-        emotions: r.emotions || {},
-        explanations: r.explanations || [],
-        aiHighlight: "\u2014",
-        suggestedQuestions: [
-          "Matches my current mood?",
-          "Any similar recommendations?",
-          "What's the core highlight?",
-        ],
-      }));
-      setBooks(mapped);
+      setBooks(
+        mapRecommendationsToCards(recs, {
+          category: searchCategory,
+          mood: searchMood,
+          suggestedQuestions: [
+            "Matches my current mood?",
+            "Any similar recommendations?",
+            "What's the core highlight?",
+          ],
+        })
+      );
     } catch (err) {
       setError(err.message || "Failed to get recommendations");
     } finally {
@@ -395,14 +284,15 @@ const App = () => {
 
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-[#faf9f6] text-[#444] font-serif tracking-tight">
-        {/* Shared Header */}
-        <Header
-          userId={userId}
-          onUserIdChange={setUserId}
-          onAddBookClick={() => setShowAddBook(true)}
-          onSettingsClick={() => setShowSettings(true)}
-        />
+      <div className="min-h-screen text-text-primary font-sans tracking-tight bg-background">
+        <div>
+          {/* Shared Header */}
+          <Header
+            userId={userId}
+            onUserIdChange={setUserId}
+            onAddBookClick={() => setShowAddBook(true)}
+            onSettingsClick={() => setShowSettings(true)}
+          />
 
         {/* Global Modals */}
         {showSettings && (
@@ -412,7 +302,7 @@ const App = () => {
             onApiKeyChange={setApiKey}
             llmProvider={llmProvider}
             onProviderChange={setLlmProvider}
-            onSave={saveSettings}
+            onSave={handleSaveSettings}
           />
         )}
 
@@ -427,27 +317,7 @@ const App = () => {
               ]);
               setMyCollection(favs);
               setReadingStats(stats);
-              const mapped = (personalRecs || []).map((r, idx) => ({
-                id: r.isbn,
-                title: r.title,
-                author: r.authors,
-                category: r.category || "General",
-                mood: r.emotions && Object.keys(r.emotions).length > 0
-                  ? Object.entries(r.emotions).reduce((a, b) => (a[1] > b[1] ? a : b))[0]
-                  : "Literary",
-                rank: idx + 1,
-                rating: r.average_rating || 0,
-                tags: r.tags || [],
-                review_highlights: r.review_highlights || [],
-                desc: r.description,
-                img: r.thumbnail,
-                isbn: r.isbn,
-                emotions: r.emotions || {},
-                explanations: r.explanations || [],
-                aiHighlight: "\u2014",
-                suggestedQuestions: ["Why was this recommended?", "Similar to what I've read?", "What's the core highlight?"],
-              }));
-              setBooks(mapped);
+              setBooks(mapRecommendationsToCards(personalRecs));
             }}
             onAddFavorite={(isbn) => addFavorite(isbn, userId)}
             onSkip={() => setShowOnboarding(false)}
@@ -532,9 +402,10 @@ const App = () => {
           </Routes>
         </main>
 
-        <footer className="mt-16 text-center text-[9px] font-medium text-gray-300 uppercase tracking-widest pb-10 border-t border-[#eee] pt-10">
-          Paper Shelf // 2026 Your Personal Library
-        </footer>
+          <footer className="mt-16 text-center text-[9px] font-medium text-[#81A1C1] uppercase tracking-widest pb-10 border-t border-[#88C0D0]/80 pt-10">
+            Book Shelf // 2026 Your Personal Library
+          </footer>
+        </div>
       </div>
     </BrowserRouter>
   );

@@ -120,7 +120,7 @@ USER REQUEST (No Query)
 
 ### 3.1 Agentic Query Router
 
-Location: `src/core/router.py`
+Location: `src/rag/router.py`
 
 Rule-based intent classifier using RegEx and keyword detection:
 
@@ -135,7 +135,7 @@ Trade-off: Rule-based routing was chosen over LLM-based routing to avoid 500ms+ 
 
 ### 3.2 Hybrid Search with RRF
 
-Location: `src/vector_db.py`
+Location: `src/rag/vector_db.py`
 
 Combines sparse retrieval (BM25) and dense retrieval (ChromaDB/MiniLM) using Reciprocal Rank Fusion:
 
@@ -147,7 +147,7 @@ Result: 100% recall on ISBNs (previously 0% with pure vector search).
 
 ### 3.3 Cross-Encoder Reranking
 
-Location: `src/core/reranker.py`
+Location: `src/rag/reranker.py`
 
 Two-stage retrieval:
 1. Stage 1: Retrieve top-50 candidates via RRF (~100ms)
@@ -157,7 +157,7 @@ Trade-off: Only rerank top-50 (not all 200K) to balance precision vs latency.
 
 ### 3.4 Small-to-Big Retrieval
 
-Location: `src/vector_db.py::small_to_big_search`
+Location: `src/rag/vector_db.py::small_to_big_search`
 
 Implementation (based on LlamaIndex Parent-Child, RAPTOR):
 1. Chunking: 788,174 review sentences indexed at sentence-level
@@ -168,7 +168,7 @@ Result: Can answer queries like "books with unreliable narrator twist" that are 
 
 ### 3.5 Temporal Dynamics
 
-Location: `src/core/temporal.py`
+Location: `src/rag/temporal.py`
 
 Log-linear decay function to boost newer documents:
 
@@ -180,7 +180,7 @@ Triggered by keywords: "new", "latest", "2024".
 
 ### 3.6 Context Compression
 
-Location: `src/core/context_compressor.py`
+Location: `src/rag/context_compressor.py`
 
 - Retains last 2 turns (4 messages) raw
 - Summarizes older turns using lightweight LLM call
@@ -359,31 +359,31 @@ See [Experiment Archive](experiments/experiment_archive.md) for full implementat
 
 ```
 src/
-├── core/
+├── app/
+│   ├── main.py                # FastAPI entrypoint
+│   └── api/chat.py            # Chat router
+├── rag/
 │   ├── router.py              # Agentic Query Router
+│   ├── vector_db.py           # Hybrid Search + Small-to-Big
 │   ├── reranker.py            # Cross-Encoder Reranking
 │   ├── temporal.py            # Recency Boosting
-│   ├── context_compressor.py  # Chat History Compression
+│   └── context_compressor.py  # Chat History Compression
+├── recsys/
+│   ├── recall/                # 7-channel recall
+│   └── ranking/               # Ranking modules
+├── data/
+│   ├── repository.py          # Unified data access
+│   └── stores/                # metadata / profile / online books
+├── core/
 │   ├── diversity_reranker.py  # P0: MMR + popularity penalty + category constraint
-│   ├── diversity_metrics.py  # P3: Category Coverage, ILSD
-│   └── online_books_store.py  # Staging store for freshness_fallback (separate DB)
-├── recall/
-│   ├── itemcf.py              # ItemCF Recall (direction-weighted)
-│   ├── usercf.py              # UserCF Recall
-│   ├── swing.py               # Swing Recall (user-pair overlap)
-│   ├── sasrec_recall.py       # SASRec Embedding Recall
-│   ├── popularity.py          # Popularity Recall
-│   ├── youtube_dnn.py         # Two-Tower Model
-│   ├── item2vec.py            # Item2Vec Recall (Word2Vec)
-│   └── fusion.py              # RRF Fusion (7 channels)
-├── ranking/
-│   └── features.py            # 17 Ranking Features
-├── data_factory/
-│   └── generator.py           # SFT Data Synthesis + LLM Judge
+│   └── diversity_metrics.py   # P3: Category Coverage, ILSD
+├── support/
+│   ├── data_factory/          # SFT Data Synthesis + LLM Judge
+│   └── marketing/             # Persona/highlights
 ├── services/
 │   ├── chat_service.py        # RAG Chat Pipeline
 │   └── recommend_service.py   # Personalized Recommendation
-└── vector_db.py               # Hybrid Search + Small-to-Big
+└── model/sasrec.py            # SASRec model definition
 ```
 
 ---

@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import patch, MagicMock
-from src.core.rag.vector_db import VectorDB
+from src.rag.vector_db import VectorDB
 
 
 class TestVectorDB:
@@ -9,9 +9,9 @@ class TestVectorDB:
     @pytest.fixture
     def mock_initialization(self):
         """Mock HuggingFaceEmbeddings and Chroma to avoid loading real models."""
-        with patch("src.core.rag.vector_db.HuggingFaceEmbeddings") as mock_emb, \
-             patch("src.core.rag.vector_db.Chroma") as mock_chroma, \
-             patch("src.core.rag.vector_db.CHROMA_DB_DIR") as mock_dir:
+        with patch("src.rag.vector_db.HuggingFaceEmbeddings") as mock_emb, \
+             patch("src.rag.vector_db.Chroma") as mock_chroma, \
+             patch("src.rag.vector_db.CHROMA_DB_DIR") as mock_dir:
             mock_dir.exists.return_value = False
             mock_dir.iterdir.return_value = []
             yield {"embeddings": mock_emb, "chroma": mock_chroma, "dir": mock_dir}
@@ -59,8 +59,8 @@ class TestVectorDB:
             "simple_categories": "Cat",
         }
         mock_cursor.fetchall.return_value = [row]
-        with patch("src.vector_db.metadata_store") as mock_store, \
-             patch("src.vector_db.online_books_store") as mock_online:
+        with patch("src.rag.vector_db.metadata_store") as mock_store, \
+             patch("src.rag.vector_db.online_books_store") as mock_online:
             mock_store.connection = mock_conn
             mock_online.fts_search.return_value = []
             db.fts_enabled = True

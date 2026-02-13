@@ -6,7 +6,7 @@ Cleans and normalizes text data in the books dataset.
 Handles: HTML entities, HTML tags, encoding issues, whitespace, special characters.
 
 Usage:
-    python scripts/data/clean_data.py [--input FILE] [--output FILE] [--dry-run]
+    python data/scripts/clean_data.py [--input FILE] [--output FILE] [--dry-run]
 
 This script should be run BEFORE other processing scripts.
 """

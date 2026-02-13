@@ -48,4 +48,4 @@ ENV PATH=$HOME/.local/bin:$PATH
 EXPOSE 8000
 
 # Default command: Run FastAPI backend
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "src.app.main:app", "--host", "0.0.0.0", "--port", "8000"]

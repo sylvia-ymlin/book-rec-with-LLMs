@@ -21,7 +21,7 @@ import logging
 from pathlib import Path
 from typing import Callable, List, Optional, Tuple
 
-from src.utils import setup_logger
+from src.infra.utils import setup_logger
 
 logger = setup_logger(__name__)
 

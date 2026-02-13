@@ -6,7 +6,7 @@ Validates data quality at each stage of the pipeline.
 Run after data processing to ensure correctness.
 
 Usage:
-    python scripts/data/validate_data.py [--stage all|raw|processed|rec|index]
+    python data/scripts/validate_data.py [--stage all|raw|processed|rec|index]
 """
 
 import argparse

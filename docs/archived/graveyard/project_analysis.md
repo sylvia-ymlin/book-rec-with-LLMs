@@ -59,8 +59,8 @@ A structured analysis of the Book Recommendation System using a three-layer fram
   - **ChromaDB**: Embedded vector store. Good for <100k docs.
   - **File System**: Used for User Profiles and Images (no SQL DB used yet).
 - **Performance**:
-  - **Caching**: Redis is mentioned in docs but optional in code (`src/config.py` has fallback).
-  - **Indexer**: `init_db.py` handles the heavy lifting of ETL (2.8GB CSV -> Vectors).
+  - **Caching**: Redis is mentioned in docs but optional in code (`src/infra/config.py` has fallback).
+  - **Indexer**: `data/scripts/init_db.py` handles the heavy lifting of ETL (2.8GB CSV -> Vectors).
 
 ### 3.2 Key Complexity & Pain Points
 1.  **Environment Dependency Hell**: 

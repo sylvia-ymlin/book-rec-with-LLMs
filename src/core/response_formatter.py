@@ -30,7 +30,7 @@ def format_book_response(
         "title": meta.get("title", ""),
         "authors": meta.get("authors", "Unknown"),
         "description": meta.get("description", ""),
-        "thumbnail": meta.get("thumbnail"),
+        "thumbnail": meta.get("thumbnail") or meta.get("image") or "/content/cover-not-found.jpg",
         "caption": f"{meta.get('title', '')} by {meta.get('authors', 'Unknown')}",
         "tags": tags,
         "emotions": {

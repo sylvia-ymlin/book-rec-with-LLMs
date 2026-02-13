@@ -14,7 +14,7 @@ import os
 import logging
 from pathlib import Path
 from huggingface_hub import snapshot_download
-from src.config import DATA_DIR
+from src.infra.config import DATA_DIR
 
 logger = logging.getLogger(__name__)
 

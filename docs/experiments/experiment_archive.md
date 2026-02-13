@@ -174,7 +174,7 @@ After the performance debugging in Section 7, the system sat at HR@10=0.1380 / M
 | **ItemCF direction weight** | `loc_alpha = 1.0 if loc1 < loc2 else 0.7` — biases `sim[earlier][later] > sim[later][earlier]` |
 | **Forced retrain** | Removed `if itemcf.load(): skip` so the direction weight change actually applies |
 | **Swing (optimized)** | Rewrote algorithm: iterate `users → item_pairs` instead of `items → users → pairs`. Complexity drops from O(items × users²) to O(users × items_per_user²). Added `max_hist=50` cap per user. |
-| **SASRec recall channel** | New `src/recall/sasrec_recall.py` — loads pre-computed `user_seq_emb.pkl` + `item_emb.weight` from model checkpoint, does dot-product retrieval |
+| **SASRec recall channel** | New `src/recsys/recall/sasrec_recall.py` — loads pre-computed `user_seq_emb.pkl` + `item_emb.weight` from model checkpoint, does dot-product retrieval |
 
 Recall channel weights after V2.5:
 
@@ -316,7 +316,7 @@ V2.5 achieved HR@10=0.2205 / MRR@5=0.1584 (n=2000). Two P2 backlog items remaine
 | **Fusion weight** | 0.8 (between Popularity 0.5 and CF channels 1.0) |
 | **Training time** | ~48 seconds (index build 15s + Word2Vec 7s + similarity matrix 22s) |
 
-Implementation: `src/recall/item2vec.py` — follows Swing/ItemCF interface pattern exactly (`__init__`, `fit`, `recommend`, `save`, `load`).
+Implementation: `src/recsys/recall/item2vec.py` — follows Swing/ItemCF interface pattern exactly (`__init__`, `fit`, `recommend`, `save`, `load`).
 
 #### Ranking Model: Model Stacking
 
@@ -404,8 +404,8 @@ The dramatic improvement (+106% HR@10) is likely attributable to:
 
 | File | Action |
 |:---|:---|
-| `src/recall/item2vec.py` | **New** — Item2Vec recall model |
-| `src/recall/fusion.py` | Modified — added 7th recall channel |
+| `src/recsys/recall/item2vec.py` | **New** — Item2Vec recall model |
+| `src/recsys/recall/fusion.py` | Modified — added 7th recall channel |
 | `scripts/model/build_recall_models.py` | Modified — added Item2Vec training |
 | `scripts/model/train_ranker.py` | Modified — added `train_stacking()` + CLI |
 | `src/services/recommend_service.py` | Modified — stacking inference with backward compatibility |

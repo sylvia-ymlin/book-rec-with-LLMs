@@ -11,8 +11,8 @@ import sys
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(PROJECT_ROOT))
 
-from src.config import DATA_DIR
-from src.utils import setup_logger
+from src.infra.config import DATA_DIR
+from src.infra.utils import setup_logger
 
 logger = setup_logger("fix_covers")
 

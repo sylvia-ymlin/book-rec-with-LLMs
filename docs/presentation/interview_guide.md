@@ -201,9 +201,9 @@
 | 位置 | 问题 | 建议 |
 |------|------|------|
 | `scripts/model/evaluate.py:38-40` | 注释掉的 `service.ranker_loaded = False` 和 debug logger | 删除或移至 `if DEBUG` 分支 |
-| `src/ranking/features.py:470` | `if __name__` 中的 `print(df_feats.head())` | 改为 `logger.debug` 或删除 |
+| `src/recsys/ranking/features.py:470` | `if __name__` 中的 `print(df_feats.head())` | 改为 `logger.debug` 或删除 |
 | `src/services/recommend_service.py:282-286` | `if __name__` 中的硬编码 print | 保留（仅主程序入口），可改为 `logger.info` |
-| `src/recall/fusion.py`, `itemcf.py`, `usercf.py`, `item2vec.py` | 各模块 `if __name__` 中的 test print | 统一改为 `logger.info` 或移入测试脚本 |
+| `src/recsys/recall/fusion.py`, `itemcf.py`, `usercf.py`, `item2vec.py` | 各模块 `if __name__` 中的 test print | 统一改为 `logger.info` 或移入测试脚本 |
 
 **原则**：调试输出应受 `DEBUG` 控制，或仅在 `__main__` 下使用 `logger`，避免裸 `print`。
 

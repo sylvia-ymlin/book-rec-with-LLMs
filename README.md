@@ -106,7 +106,7 @@ cd book-rec-with-LLMs
 conda env create -f environment.yml && conda activate book-rec
 
 # First run (or use make data-pipeline for full build)
-python src/init_db.py              # Chroma vector DB
+python data/scripts/init_db.py     # Chroma vector DB
 python scripts/init_sqlite_db.py    # SQLite metadata (local build)
 
 make run                       # API http://localhost:6006

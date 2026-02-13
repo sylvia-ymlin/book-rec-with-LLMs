@@ -3,7 +3,38 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>纸间留白 · 私人书斋</title>
+    <title>Book Shelf · Your Personal Library</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script>
+      tailwind = {
+        config: {
+          theme: {
+            extend: {
+              colors: {
+                background: "#E5EBCF",
+                surface: "#FFFFFF",
+                "text-primary": "#1A3C40",
+                "text-secondary": "#5C7370",
+                accent: "#D97706",
+                tag: "#F0FDF4",
+              },
+              fontFamily: {
+                sans: ["Inter", "DM Sans", "system-ui", "sans-serif"],
+                serif: ["Playfair Display", "Merriweather", "serif"],
+              },
+              boxShadow: {
+                soft: "0 8px 24px rgba(26, 60, 64, 0.08)",
+              },
+            },
+          },
+        },
+      };
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
   </head>
   <body>

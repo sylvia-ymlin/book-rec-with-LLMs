@@ -1,36 +1,48 @@
-# 纸间留白 · 私人书斋（前端）
+# Book Shelf Frontend (`web/`)
 
-React + Vite 前端，使用 Tailwind CDN 与 lucide-react 图标，连接现有 FastAPI 后端。
+React + Vite frontend for the book recommendation system.
 
-## 开发
-
-1. 安装依赖：
+## Quick Start
 
 ```bash
 cd web
 npm install
-```
-
-2. 本地开发：
-
-```bash
 npm run dev
 ```
 
-默认端口 `5173`。后端需运行在 `http://localhost:6006`。
+Default dev URL: `http://localhost:5173`  
+Expected backend URL: `http://localhost:6006`
 
-如需修改后端地址，创建 `.env` 并设置：
+To override backend URL, create `web/.env`:
 
-```
+```bash
 VITE_API_URL=http://localhost:6006
 ```
 
-## 后端接口
-- `POST /recommend` { query, category, tone } → 书籍列表
-- `POST /favorites/add` { isbn, user_id } → 收藏计数
-- `GET /user/{user_id}/persona` → 用户画像
-- `POST /marketing/highlights` { isbn, user_id } → 个性化卖点
+## Structure
 
-## 注意
-- 已在后端添加 CORS 允许 `http://localhost:5173`。
-- 初版将中文分类/心境映射到后端 `category/tone`，可根据数据进一步细化。
+- `src/main.jsx`: React entrypoint
+- `src/App.jsx`: app shell, routes, cross-page state, global modals
+- `src/api.js`: all frontend API calls
+- `src/constants.js`: shared UI constants (placeholder image, search options)
+- `src/pages/`: page-level views (`GalleryPage`, `BookshelfPage`, `ProfilePage`)
+- `src/components/`: reusable UI components and modals
+
+## Main API Endpoints Used
+
+- `POST /recommend`
+- `GET /api/recommend/personal`
+- `POST /favorites/add`
+- `DELETE /favorites/remove`
+- `PUT /favorites/update`
+- `GET /favorites/list/{user_id}`
+- `GET /user/{user_id}/persona`
+- `GET /user/{user_id}/stats`
+- `POST /marketing/highlights`
+- `POST /chat/completions`
+- `POST /books/add`
+
+## Notes
+
+- Backend CORS should allow `http://localhost:5173` in local development.
+- This frontend was developed in an AI-assisted workflow: AI helped with parts of UI draft/code, while final architecture decisions, API integration, debugging, and validation were completed by the author.

@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 from typing import Optional
 
 from src.services.chat_service import chat_service
-from src.utils import setup_logger
+from src.infra.utils import setup_logger
 
 logger = setup_logger(__name__)
 
@@ -17,7 +17,10 @@ class ChatRequest(BaseModel):
     isbn: str = Field(..., description="ISBN of the book to chat about")
     query: str = Field(..., description="User question (e.g. 'What is the main theme?')")
     user_id: Optional[str] = Field(default="local", description="User identifier")
-    provider: Optional[str] = Field(default="ollama", description="LLM provider: 'ollama' | 'openai'")
+    provider: Optional[str] = Field(
+        default="ollama",
+        description="LLM provider: 'ollama' | 'openai' | 'groq' | 'deepseek'",
+    )
 
     model_config = {"json_schema_extra": {"examples": [{"isbn": "0140283331", "query": "What is the main theme of this book?"}]}}
 
@@ -33,8 +36,8 @@ async def get_llm_key(x_llm_key: Optional[str] = Header(None, alias="X-LLM-Key")
     description="""Stream chat response for a book using RAG + LLM.
 - **RAG**: Retrieves relevant passages from the book, injects into context
 - **Streaming**: Returns `text/plain` chunks (Server-Sent Events style)
-- **Headers**: `X-LLM-Key` required for OpenAI provider (optional for Ollama)
-- **Provider**: `ollama` (default, local) | `openai` (requires API key)
+- **Headers**: `X-LLM-Key` required for cloud providers (`openai` / `groq` / `deepseek`)
+- **Provider**: `ollama` (default, local) | `openai` | `groq` | `deepseek`
 """,
     responses={
         200: {"description": "Stream of text chunks"},

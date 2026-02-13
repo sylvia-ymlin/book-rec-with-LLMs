@@ -6,20 +6,20 @@ Fetches recently published books from Google Books API and adds them to the loca
 Can be run manually or scheduled via cron for periodic updates.
 
 Usage:
-    python scripts/data/fetch_new_books.py [--categories CATEGORIES] [--year YEAR] [--max MAX]
+    python data/scripts/fetch_new_books.py [--categories CATEGORIES] [--year YEAR] [--max MAX]
 
 Examples:
     # Fetch new books from current year (default behavior)
-    python scripts/data/fetch_new_books.py --categories "fiction" --max 50
+    python data/scripts/fetch_new_books.py --categories "fiction" --max 50
     
     # Fetch new books across multiple categories
-    python scripts/data/fetch_new_books.py --categories "fiction,mystery,science fiction"
+    python data/scripts/fetch_new_books.py --categories "fiction,mystery,science fiction"
     
     # Explicitly specify year filter
-    python scripts/data/fetch_new_books.py --year 2026 --categories "thriller"
+    python data/scripts/fetch_new_books.py --year 2026 --categories "thriller"
     
     # Dry run (show what would be added without actually adding)
-    python scripts/data/fetch_new_books.py --dry-run --categories "thriller"
+    python data/scripts/fetch_new_books.py --dry-run --categories "thriller"
 """
 import argparse
 import sys
@@ -32,8 +32,8 @@ from typing import Optional
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.utils import setup_logger
-from src.core.rag.web_search import search_new_books_by_category, search_google_books
+from src.infra.utils import setup_logger
+from src.rag.web_search import search_new_books_by_category, search_google_books
 from src.data.stores.metadata_store import metadata_store
 from src.core.recommendation_orchestrator import RecommendationOrchestrator
 

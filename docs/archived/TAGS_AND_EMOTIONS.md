@@ -115,7 +115,7 @@ emotions = {
 }
 ```
 
-**File**: `src/main.py`
+**File**: `src/app/main.py`
 
 Updated Pydantic model:
 ```python

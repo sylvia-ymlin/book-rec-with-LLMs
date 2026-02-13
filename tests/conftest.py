@@ -18,8 +18,8 @@ def mock_main_startup():
     mock_svc.get_popular_books.return_value = []
     mock_svc.load_resources = MagicMock()
     with patch("src.core.model_loader.ensure_models_exist"), \
-         patch("src.main.RecommendationOrchestrator", return_value=mock_rec), \
-         patch("src.main.RecommendationService", return_value=mock_svc):
+         patch("src.app.main.RecommendationOrchestrator", return_value=mock_rec), \
+         patch("src.app.main.RecommendationService", return_value=mock_svc):
         yield
 
 

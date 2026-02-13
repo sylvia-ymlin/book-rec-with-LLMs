@@ -1,14 +1,14 @@
 """
 Integration tests for FastAPI endpoints.
 
-Mocks src.main.recommender and rec_service so endpoints use fakes without loading models.
+Mocks src.app.main.recommender and rec_service so endpoints use fakes without loading models.
 """
 from unittest.mock import patch, MagicMock, AsyncMock
 
 import pytest
 from fastapi.testclient import TestClient
 
-from src.main import app
+from src.app.main import app
 
 
 def _make_mock_recommender():
@@ -51,7 +51,7 @@ def test_recommend_mocked():
     """POST /recommend returns recommendations when recommender is mocked."""
     mock_rec = _make_mock_recommender()
     mock_svc = _make_mock_rec_service()
-    with patch("src.main.recommender", mock_rec), patch("src.main.rec_service", mock_svc):
+    with patch("src.app.main.recommender", mock_rec), patch("src.app.main.rec_service", mock_svc):
         client = TestClient(app)
         response = client.post(
             "/recommend",
@@ -68,7 +68,7 @@ def test_categories_mocked():
     """GET /categories returns category list."""
     mock_rec = _make_mock_recommender()
     mock_svc = _make_mock_rec_service()
-    with patch("src.main.recommender", mock_rec), patch("src.main.rec_service", mock_svc):
+    with patch("src.app.main.recommender", mock_rec), patch("src.app.main.rec_service", mock_svc):
         client = TestClient(app)
         response = client.get("/categories")
         assert response.status_code == 200
@@ -81,7 +81,7 @@ def test_recommend_empty_query():
     mock_rec = _make_mock_recommender()
     mock_rec.get_recommendations = AsyncMock(return_value=[])
     mock_svc = _make_mock_rec_service()
-    with patch("src.main.recommender", mock_rec), patch("src.main.rec_service", mock_svc):
+    with patch("src.app.main.recommender", mock_rec), patch("src.app.main.rec_service", mock_svc):
         client = TestClient(app)
         response = client.post(
             "/recommend",
@@ -98,7 +98,7 @@ def test_similar_books_mocked():
         {"isbn": "456", "title": "Similar Book", "authors": "Author B", "description": "", "thumbnail": ""}
     ]
     mock_svc = _make_mock_rec_service()
-    with patch("src.main.recommender", mock_rec), patch("src.main.rec_service", mock_svc):
+    with patch("src.app.main.recommender", mock_rec), patch("src.app.main.rec_service", mock_svc):
         client = TestClient(app)
         response = client.get("/api/recommend/similar/123?k=5")
         assert response.status_code == 200

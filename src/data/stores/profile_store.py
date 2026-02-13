@@ -9,8 +9,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
-from src.config import USER_DATA_DIR
-from src.utils import setup_logger
+from src.infra.config import USER_DATA_DIR
+from src.infra.utils import setup_logger
 
 
 logger = setup_logger(__name__)

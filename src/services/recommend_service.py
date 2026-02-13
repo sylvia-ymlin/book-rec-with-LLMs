@@ -4,13 +4,13 @@ import lightgbm as lgb
 import xgboost as xgb
 import numpy as np
 from pathlib import Path
-from src.config import MMR_LAMBDA_DEFAULT, POPULARITY_GAMMA_DEFAULT, MAX_PER_CATEGORY_DEFAULT
+from src.infra.config import MMR_LAMBDA_DEFAULT, POPULARITY_GAMMA_DEFAULT, MAX_PER_CATEGORY_DEFAULT
 from src.recsys.recall.fusion import RecallFusion
 from src.recsys.ranking.features import FeatureEngineer
 from src.recsys.ranking.explainer import RankingExplainer
 from src.recsys.ranking.din import DINRanker
 from src.core.diversity_reranker import DiversityReranker
-from src.utils import setup_logger
+from src.infra.utils import setup_logger
 
 logger = setup_logger(__name__)
 

@@ -46,6 +46,26 @@
         "rating": 5.0,
         "status": "finished",
         "finished_at": "2026-01-29T23:15:50.399149"
+      },
+      "0141804459": {
+        "added_at": "2026-02-12T23:35:58.345940",
+        "rating": null,
+        "status": "want_to_read"
+      },
+      "B000I1VJLA": {
+        "added_at": "2026-02-12T23:35:58.350375",
+        "rating": null,
+        "status": "want_to_read"
+      },
+      "B000GQK706": {
+        "added_at": "2026-02-12T23:35:58.352139",
+        "rating": null,
+        "status": "want_to_read"
+      },
+      "B000GQG5MA": {
+        "added_at": "2026-02-12T23:35:58.353607",
+        "rating": null,
+        "status": "want_to_read"
       }
     },
     "cached_highlights": {

@@ -7,8 +7,8 @@ from typing import List, Optional
 from src.data.stores.metadata_store import metadata_store
 from src.core.models import BookResponseDict
 from src.core.response_formatter import format_book_response
-from src.utils import enrich_book_metadata
-from src.config import TOP_K_FINAL
+from src.infra.utils import enrich_book_metadata
+from src.infra.config import TOP_K_FINAL
 
 
 def enrich_and_format(

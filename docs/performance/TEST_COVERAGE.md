@@ -19,7 +19,7 @@
 ## 已完成改进
 
 1. **test_api.py**  
-   - 修复 mock 方式，使用 `patch("src.main.recommender")` 直接 mock  
+   - 修复 mock 方式，使用 `patch("src.app.main.recommender")` 直接 mock  
    - 新增 `test_recommend_mocked`, `test_categories_mocked`, `test_similar_books_mocked`, `test_metrics_endpoint`  
    - conftest 增加 `mock_main_startup` 避免 startup 加载真实模型  
 
@@ -50,7 +50,7 @@
 
 ```bash
 # 先启动 API
-uv run uvicorn src.main:app --host 0.0.0.0 --port 8000
+uv run uvicorn src.app.main:app --host 0.0.0.0 --port 8000
 
 # 另开终端
 pip install locust

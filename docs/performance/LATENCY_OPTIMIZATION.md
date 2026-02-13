@@ -17,11 +17,11 @@ Approximate warm-query breakdown (from `benchmarks/benchmark.py` + `docs/experim
 
 | Stage | Location | Latency | Notes |
 |-------|----------|---------|-------|
-| Router | `src/core/router.py` | ~1ms | Rule-based, fast |
+| Router | `src/rag/router.py` | ~1ms | Rule-based, fast |
 | Sparse (FTS5) | `vector_db._sparse_fts_search` | ~20–50ms | SQLite MATCH |
 | Dense (Chroma) | `vector_db.search` | ~50–100ms | HNSW + MiniLM |
 | RRF Fusion | `vector_db.hybrid_search` | ~5ms | In-memory |
-| **Cross-Encoder Rerank** | `src/core/reranker.py` | **~400–900ms** | **主要瓶颈** |
+| **Cross-Encoder Rerank** | `src/rag/reranker.py` | **~400–900ms** | **主要瓶颈** |
 | Metadata Enrichment | `enrich_and_format` | ~50–100ms | SQLite lookups |
 
 **Rerank 详情**:

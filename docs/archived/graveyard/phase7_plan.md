@@ -316,7 +316,7 @@ RAG系统 (221K书籍索引)
 - [x] 用户特征提取 (Count/Mean/Std)
 - [x] 书籍特征提取
 - [x] 交叉特征构建 (ItemCF/UserCF Score)
-- [x] 特征生成器: `src/ranking/features.py`
+- [x] 特征生成器: `src/recsys/ranking/features.py`
 
 ### Phase 7.5: 精排模型 (Day 3-4) ✅ COMPLETED
 - [x] 构建训练样本 (Val set + Negatives)

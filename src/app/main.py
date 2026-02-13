@@ -11,7 +11,7 @@ import prometheus_client
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 
 from src.core.recommendation_orchestrator import RecommendationOrchestrator
-from src.utils import setup_logger
+from src.infra.utils import setup_logger
 from src.data.stores.profile_store import (
     add_favorite,
     list_favorites,
@@ -326,7 +326,7 @@ async def get_recommendations(request: RecommendationRequest):
         enable_diversity = True  # default
         if request.experiment_id:
             from src.core.ab_experiments import get_experiment_config, log_experiment
-            from src.config import AB_EXPERIMENTS_ENABLED
+            from src.infra.config import AB_EXPERIMENTS_ENABLED
 
             if AB_EXPERIMENTS_ENABLED:
                 cfg = get_experiment_config(
@@ -492,7 +492,7 @@ async def favorites_list(user_id: str):
         favorites_meta = get_favorites_with_metadata(user_id)
         # ENGINEERING IMPROVEMENT: Zero-RAM Lookup
         from src.data.stores.metadata_store import metadata_store
-        from src.utils import enrich_book_metadata
+        from src.infra.utils import enrich_book_metadata
 
         results = []
         for isbn, meta in favorites_meta.items():
@@ -672,7 +672,7 @@ def personalized_recommendations(
 )
 def probe_intent_endpoint(query: str = ""):
     """Zero-shot intent probing for cold-start users."""
-    from src.core.intent_prober import probe_intent
+    from src.rag.intent_prober import probe_intent
 
     try:
         result = probe_intent(query)
@@ -701,7 +701,7 @@ def get_onboarding_books(limit: int = 24):
         raise HTTPException(status_code=503, detail="Service not ready")
     try:
         items = rec_service.get_popular_books(limit)
-        from src.utils import enrich_book_metadata
+        from src.infra.utils import enrich_book_metadata
 
         results = []
         for isbn, meta in items:
@@ -721,6 +721,38 @@ def get_onboarding_books(limit: int = 24):
         return {"books": results}
     except Exception as e:
         logger.error(f"Error in onboarding books: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- Marketing Highlights ---
+@app.post(
+    "/marketing/highlights",
+    summary="Generate book highlights",
+    description="Generate a personalized AI highlight for a book using the user's reading persona.",
+    responses={
+        200: {"description": "Generated highlights"},
+        500: {"description": "Generation failed"},
+    },
+)
+async def marketing_highlights(req: HighlightsRequest):
+    """Generate personalized book highlights via LLM."""
+    from src.support.marketing.highlights import generate_highlights
+    from src.support.marketing.persona import build_persona
+
+    try:
+        user_id = req.user_id or "local"
+        isbn = req.isbn
+
+        # Build persona from user's favorites
+        favs = list_favorites(user_id)
+        fav_isbns = [f["isbn"] for f in favs] if favs else []
+        persona = build_persona(fav_isbns)
+
+        # Read LLM settings from request headers (BYOK)
+        result = generate_highlights(isbn, persona)
+        return result
+    except Exception as e:
+        logger.error(f"highlights error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

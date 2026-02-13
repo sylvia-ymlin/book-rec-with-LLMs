@@ -4,7 +4,7 @@ Separates concerns: request parsing, intent probing, A/B config, result enrichme
 """
 
 from typing import Optional, List, Tuple, Any, Dict
-from src.utils import enrich_book_metadata, setup_logger
+from src.infra.utils import enrich_book_metadata, setup_logger
 
 logger = setup_logger(__name__)
 
@@ -50,7 +50,7 @@ def resolve_seed_from_intent(
     if not intent_query or not intent_query.strip():
         return None
 
-    from src.core.intent_prober import probe_intent
+    from src.rag.intent_prober import probe_intent
 
     intent = probe_intent(intent_query.strip())
     semantic_query = " ".join(
@@ -83,7 +83,7 @@ def get_ab_diversity_config(
     enable_diversity = True
     if experiment_id:
         from src.core.ab_experiments import get_experiment_config, log_experiment
-        from src.config import AB_EXPERIMENTS_ENABLED
+        from src.infra.config import AB_EXPERIMENTS_ENABLED
 
         if AB_EXPERIMENTS_ENABLED:
             cfg = get_experiment_config(user_id, experiment_id, ab_variant)

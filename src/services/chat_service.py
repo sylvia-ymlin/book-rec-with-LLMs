@@ -1,11 +1,11 @@
 from typing import Generator, Optional, Dict, Any, List
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, BaseMessage
 
-from src.core.rag.llm import LLMFactory
+from src.rag.llm import LLMFactory
 from src.data.repository import data_repository
-from src.marketing.persona import build_persona
+from src.support.marketing.persona import build_persona
 from src.data.stores.profile_store import list_favorites
-from src.utils import setup_logger
+from src.infra.utils import setup_logger
 
 logger = setup_logger(__name__)
 
@@ -95,7 +95,7 @@ class ChatService:
         user_persona = persona_data.get("summary", "General Reader")
 
         # 3. Construct Prompt with History
-        from src.core.context_compressor import compressor
+        from src.rag.context_compressor import compressor
         
         # Compress History (if needed)
         key = self._get_history_key(user_id, isbn)

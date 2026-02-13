@@ -138,7 +138,7 @@ Technically, the system is built as a containerized microservice using **FastAPI
 *   **Action**: I conducted a root cause analysis and discovered two issues:
     1.  The script lacked a main execution block (`if __name__ == "__main__":`), meaning the functions were defined but never called.
     2.  After fixing the entry point, a data type mismatch occurred where a Pandas Series was being treated as a DataFrame.
-    I refactored the aggregation logic and, crucially, added **tqdm progress bars** to the `src/vector_db.py` loop.
+    I refactored the aggregation logic and, crucially, added **tqdm progress bars** to the `src/rag/vector_db.py` loop.
 *   **Result**: The fix allowed the 2.7GB dataset to be processed correctly. The addition of progress bars provided immediate visual feedback on the system's state, preventing future "silent" wait times and improving developer experience.
 
 ### Story 2: Managing Technical Debt during Integration

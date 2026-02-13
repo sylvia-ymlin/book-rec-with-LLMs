@@ -5,7 +5,7 @@ Single responsibility: flow coordination.
 """
 from typing import Any, List, Optional, Tuple
 
-from src.config import (
+from src.infra.config import (
     TOP_K_INITIAL,
     TOP_K_FINAL,
     ENABLE_RAG_DIVERSITY,
@@ -17,14 +17,14 @@ from src.config import (
     FRESHNESS_THRESHOLD,
 )
 from src.core.models import BookResponseDict, RouterDecision
-from src.core.rag.vector_db import VectorDB
-from src.cache import CacheManager
+from src.rag.vector_db import VectorDB
+from src.infra.cache import CacheManager
 from src.data.stores.metadata_store import metadata_store
-from src.core.rag.isbn_extractor import extract_isbn
+from src.rag.isbn_extractor import extract_isbn
 from src.core.metadata_enricher import enrich_and_format
-from src.core.rag.fallback_provider import FallbackProvider
+from src.rag.fallback_provider import FallbackProvider
 from src.core.book_ingestion import BookIngestion
-from src.utils import setup_logger
+from src.infra.utils import setup_logger
 
 logger = setup_logger(__name__)
 
@@ -143,7 +143,7 @@ class RecommendationOrchestrator:
 
     async def _get_recommendations_agentic(self, query: str, category: str) -> List[BookResponseDict]:
         """LangGraph workflow: Router -> Retrieve -> Evaluate -> (optional) Web Fallback."""
-        from src.agentic.graph import get_agentic_graph
+        from src.support.agentic.graph import get_agentic_graph
 
         graph = get_agentic_graph()
         config = {"configurable": {"recommender": self}}
@@ -177,7 +177,7 @@ class RecommendationOrchestrator:
         enable_diversity_rerank: bool = True,
     ) -> List[BookResponseDict]:
         """Classic Router -> Hybrid/Small-to-Big -> optional Diversity Rerank -> Web Fallback."""
-        from src.core.rag.router import QueryRouter as _QueryRouter
+        from src.rag.router import QueryRouter as _QueryRouter
 
         router = _QueryRouter()
         decision = router.route(query)

@@ -66,12 +66,12 @@ conda env create -f environment.yml
 conda activate book-rec
 
 # 3. Initialize databases (first-time setup)
-python src/init_db.py                  # Vector DB (ChromaDB)
+python data/scripts/init_db.py         # Vector DB (ChromaDB)
 python scripts/init_sqlite_db.py       # Metadata DB (SQLite)
 
 # 4. Start API server
 make run
-# or: uvicorn src.main:app --reload --port 6006
+# or: uvicorn src.app.main:app --reload --port 6006
 ```
 
 ### Quick Verification
@@ -86,7 +86,7 @@ make test
 # or: pytest tests/
 
 # Test 3: Check vector DB
-python -c "from src.vector_db import VectorDB; db = VectorDB(); print('VectorDB OK')"
+python -c "from src.rag.vector_db import VectorDB; db = VectorDB(); print('VectorDB OK')"
 ```
 
 **Frontend** (Optional):
@@ -107,15 +107,14 @@ npm run dev
 ```
 book-rec-with-LLMs/
 ├── src/                    # Core application code
-│   ├── main.py            # FastAPI app (START HERE)
-│   ├── api/               # Chat API
-│   ├── agentic/           # RAG agent (router, retrieve, evaluate)
+│   ├── app/               # FastAPI app entry + routers
 │   ├── services/          # Business logic (chat, recommendations)
-│   ├── core/              # RAG components (router, reranker, etc.)
-│   ├── recall/            # 7 recall channels (ItemCF, SASRec, etc.)
-│   ├── ranking/           # Feature engineering, LGBMRanker
-│   ├── marketing/         # Highlights, personas, guardrails
-│   └── vector_db.py       # Hybrid search (BM25 + ChromaDB)
+│   ├── rag/               # RAG components (router, reranker, vector db)
+│   ├── recsys/            # Recall + ranking modules
+│   ├── data/              # Repository and stores
+│   ├── core/              # Shared utilities
+│   ├── support/           # Agentic / marketing / data_factory / zero_shot
+│   └── model/             # Model definitions
 │
 ├── data/                   # Generated at runtime (not in git)
 │   ├── books.db           # SQLite metadata (init_sqlite_db.py)
@@ -140,12 +139,12 @@ book-rec-with-LLMs/
 
 | File                                  | What It Does                  | When to Read It               |
 | ------------------------------------- | ----------------------------- | ----------------------------- |
-| `src/main.py`                       | FastAPI app, API endpoints    | Understanding API structure   |
+| `src/app/main.py`                   | FastAPI app, API endpoints    | Understanding API structure   |
 | `src/services/chat_service.py`      | RAG pipeline orchestration    | Adding RAG features           |
 | `src/services/recommend_service.py` | RecSys pipeline orchestration | Adding RecSys features        |
-| `src/core/router.py`                | Query intent classification   | Modifying RAG routing logic   |
-| `src/recall/fusion.py`              | Multi-channel recall fusion   | Understanding recall strategy |
-| `src/vector_db.py`                  | Hybrid search implementation  | Debugging search issues       |
+| `src/rag/router.py`                 | Query intent classification   | Modifying RAG routing logic   |
+| `src/recsys/recall/fusion.py`       | Multi-channel recall fusion   | Understanding recall strategy |
+| `src/rag/vector_db.py`              | Hybrid search implementation  | Debugging search issues       |
 
 ### Data Flow Diagrams
 
@@ -200,8 +199,8 @@ curl -X POST http://localhost:6006/api/recommend \
 **Interactive Testing** (Python):
 
 ```python
-from src.vector_db import VectorDB
-from src.core.router import QueryRouter
+from src.rag.vector_db import VectorDB
+from src.rag.router import QueryRouter
 
 # Initialize
 db = VectorDB()
@@ -235,7 +234,7 @@ for doc in results:
 make data-pipeline
 
 # Rebuild just RecSys data
-python scripts/data/split_rec_data.py
+python data/scripts/split_rec_data.py
 
 # Train recall models (ItemCF, SASRec, etc.)
 python scripts/model/build_recall_models.py
@@ -270,10 +269,10 @@ make clean
 
 ```bash
 # Benchmark hybrid search latency
-python scripts/benchmark/benchmark_hybrid.py
+python benchmarks/scripts/benchmark_hybrid.py
 
 # Benchmark router performance
-python scripts/benchmark/benchmark_router.py
+python benchmarks/scripts/benchmark_router.py
 
 # Load test API
 locust -f benchmarks/locustfile.py

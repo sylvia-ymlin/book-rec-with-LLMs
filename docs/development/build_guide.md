@@ -126,9 +126,9 @@ Place in `data/raw/`:
 python scripts/run_pipeline.py --stage books
 
 # Or manually
-python scripts/data/clean_data.py --backup
-python scripts/data/split_rec_data.py
-python scripts/data/build_sequences.py
+python data/scripts/clean_data.py --backup
+python data/scripts/split_rec_data.py
+python data/scripts/build_sequences.py
 ```
 
 **Script conventions**: Use `config.data_config` for paths; `scripts.utils.setup_script_logger()` for logging.
@@ -140,7 +140,7 @@ python scripts/data/build_sequences.py
 ### 3.1 Vector Database (ChromaDB)
 
 ```bash
-python scripts/data/init_dual_index.py
+python data/scripts/init_dual_index.py
 ```
 
 **Output**: `data/chroma_db/` (222K book vectors)
@@ -148,7 +148,7 @@ python scripts/data/init_dual_index.py
 ### 3.2 Review Chunks Index (Small-to-Big)
 
 ```bash
-python scripts/data/extract_review_sentences.py
+python data/scripts/extract_review_sentences.py
 ```
 
 **Output**: `data/chroma_chunks/` (788K sentence vectors)
@@ -216,7 +216,7 @@ python scripts/model/train_ranker.py
 ```bash
 make run
 # or
-uvicorn src.main:app --reload --port 6006
+uvicorn src.app.main:app --reload --port 6006
 ```
 
 **Startup Log**:

@@ -62,7 +62,7 @@ export HF_ENDPOINT=https://hf-mirror.com
 export HF_HUB_DOWNLOAD_TIMEOUT=120
 
 # Run Initialization (Downloads model + Builds Index)
-python src/init_db.py
+python data/scripts/init_db.py
 ```
 
 ## 5. Running the Application
@@ -70,7 +70,7 @@ python src/init_db.py
 **Server**:
 ```bash
 # Listen on 0.0.0.0 (required for external access)
-uvicorn src.main:app --host 0.0.0.0 --port 6006
+uvicorn src.app.main:app --host 0.0.0.0 --port 6006
 ```
 
 **Local Machine (Access)**:

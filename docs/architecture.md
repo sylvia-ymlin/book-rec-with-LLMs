@@ -62,9 +62,8 @@ flowchart TB
 ### Layer 1: Entry Points (API)
 
 ```
-src/main.py (FastAPI app)
-    ├── src/api/chat.py     # Chat API (single router)
-    └── main.py             # All other endpoints defined inline
+src/app/main.py (FastAPI app)
+    └── src/app/api/chat.py     # Chat API router
 ```
 
 ### Layer 2: Service Orchestration
@@ -86,26 +85,26 @@ Service Layer
 ```
 Layer 3: Core Logic (RAG Path)
 RAG Pipeline
-├── src/core/router.py (QueryRouter)
+├── src/rag/router.py (QueryRouter)
 │   ├── Classifies query intent (EXACT/FAST/DEEP)
 │   └── Routes to appropriate retrieval strategy
 │
-├── src/vector_db.py (VectorDB - Singleton)
+├── src/rag/vector_db.py (VectorDB - Singleton)
 │   ├── ChromaDB for dense retrieval
 │   ├── SQLite FTS5 for sparse retrieval
 │   ├── Hybrid Search (RRF fusion)
 │   └── Small-to-Big retrieval (sentence → book)
 │
-├── src/core/reranker.py (Reranker)
+├── src/rag/reranker.py (Reranker)
 │   └── Cross-encoder (ms-marco-MiniLM) for top-K precision
 │
-├── src/core/temporal.py (TemporalRanker)
+├── src/rag/temporal.py (TemporalRanker)
 │   └── Recency boosting for "latest/new" queries
 │
 ├── src/core/diversity_reranker.py (optional)
 │   └── MMR + category constraint when ENABLE_RAG_DIVERSITY
 │
-└── src/core/llm.py (LLMFactory)
+└── src/rag/llm.py (LLMFactory)
     └── OpenAI / Ollama / Groq integration for generation
 ```
 
@@ -113,24 +112,24 @@ RAG Pipeline
 
 ```
 RecSys Pipeline
-├── src/recall/fusion.py (RecallFusion)
+├── src/recsys/recall/fusion.py (RecallFusion)
 │   ├── Coordinates 7 recall channels via RRF
 │   └── Channels:
-│       ├── src/recall/itemcf.py (ItemCF - direction-weighted)
-│       ├── src/recall/usercf.py (UserCF - user-user co-occurrence)
-│       ├── src/recall/swing.py (Swing - user-pair overlap)
-│       ├── src/recall/sasrec_recall.py (SASRec - Transformer)
-│       ├── src/recall/item2vec.py (Item2Vec - Word2Vec)
-│       ├── src/recall/embedding.py (YoutubeDNN - Two-tower)
-│       └── src/recall/popularity.py (Popularity - cold-start)
+│       ├── src/recsys/recall/itemcf.py (ItemCF - direction-weighted)
+│       ├── src/recsys/recall/usercf.py (UserCF - user-user co-occurrence)
+│       ├── src/recsys/recall/swing.py (Swing - user-pair overlap)
+│       ├── src/recsys/recall/sasrec_recall.py (SASRec - Transformer)
+│       ├── src/recsys/recall/item2vec.py (Item2Vec - Word2Vec)
+│       ├── src/recsys/recall/embedding.py (YoutubeDNN - Two-tower)
+│       └── src/recsys/recall/popularity.py (Popularity - cold-start)
 │
-├── src/ranking/features.py (FeatureEngineer)
+├── src/recsys/ranking/features.py (FeatureEngineer)
 │   └── 17 ranking features (user stats, CF scores, SASRec scores)
 │
 ├── LGBMRanker (lgbm_ranker.txt, loaded in recommend_service.py)
 │   └── LambdaRank optimization for NDCG
 │
-├── src/ranking/din.py (DINRanker - optional)
+├── src/recsys/ranking/din.py (DINRanker - optional)
 │   └── Deep Interest Network for sequence modeling
 │
 └── src/core/diversity_reranker.py (DiversityReranker)
@@ -141,14 +140,14 @@ RecSys Pipeline
 
 ```
 Data Layer
-├── src/core/metadata_store.py (MetadataStore)
+├── src/data/stores/metadata_store.py (MetadataStore)
 │   ├── SQLite (books.db) for book metadata (Zero-RAM mode)
 │   └── FTS5 (books_fts) for full-text search
 │
-├── src/core/online_books_store.py (OnlineBooksStore - Singleton)
+├── src/data/stores/online_books_store.py (OnlineBooksStore - Singleton)
 │   └── SQLite (online_books.db) for web-discovered books (freshness_fallback)
 │
-├── src/user/profile_store.py (module)
+├── src/data/stores/profile_store.py (module)
 │   └── JSON (user_profiles.json) for user favorites and reading history
 │
 └── src/data/repository.py (DataRepository - Singleton)
@@ -159,19 +158,19 @@ Data Layer
 
 ```
 Utilities & Extensions
-├── src/core/context_compressor.py
+├── src/rag/context_compressor.py
 │   └── Chat history compression (LLM summarization)
 │
-├── src/core/freshness_monitor.py
+├── src/rag/freshness_monitor.py
 │   └── Detects when local data is stale (used to trigger web search)
 │
-├── src/core/web_search.py
+├── src/rag/web_search.py
 │   └── Google Books API fallback for missing/fresh books
 │
-├── src/marketing/persona.py
+├── src/support/marketing/persona.py
 │   └── User persona generation for chat context
 │
-└── src/config.py
+└── src/infra/config.py
     └── Global configuration (pydantic-settings, paths, hyperparameters)
 ```
 
@@ -179,7 +178,7 @@ Utilities & Extensions
 
 ## Core Components
 
-### 1. QueryRouter (`src/core/router.py`)
+### 1. QueryRouter (`src/rag/router.py`)
 
 **Responsibility**: Intent classification for RAG queries.
 
@@ -207,7 +206,7 @@ else:
 
 ---
 
-### 2. VectorDB (`src/vector_db.py`)
+### 2. VectorDB (`src/rag/vector_db.py`)
 
 **Responsibility**: Hybrid retrieval (BM25 + Dense embeddings).
 
@@ -235,7 +234,7 @@ def hybrid_search(query, k=10, alpha=0.5):
 
 ---
 
-### 3. RecallFusion (`src/recall/fusion.py`)
+### 3. RecallFusion (`src/recsys/recall/fusion.py`)
 
 **Responsibility**: Multi-channel recall aggregation.
 
@@ -257,11 +256,11 @@ for rank, (item, score) in enumerate(channel_results):
 - Swing (weight=1.0) — user-pair overlap weighting
 - Popularity (weight=0.5) — cold-start fallback
 
-**Dependencies**: All recall modules in `src/recall/`
+**Dependencies**: All recall modules in `src/recsys/recall/`
 
 ---
 
-### 4. FeatureEngineer (`src/ranking/features.py`)
+### 4. FeatureEngineer (`src/recsys/ranking/features.py`)
 
 **Responsibility**: Generate 17 ranking features from recall candidates.
 
@@ -281,7 +280,7 @@ for rank, (item, score) in enumerate(channel_results):
 
 ---
 
-### 5. MetadataStore (`src/core/metadata_store.py`)
+### 5. MetadataStore (`src/data/stores/metadata_store.py`)
 
 **Responsibility**: Zero-RAM book metadata lookup.
 
@@ -363,54 +362,69 @@ def get_books_batch(isbns: List[str]) -> List[dict]
 
 ```
 src/
-├── main.py                    # FastAPI app entry point (669 lines)
-├── config.py                  # Global configuration
-├── utils.py                   # Logging, helpers
+├── app/                      # FastAPI app & API routers
+│   ├── main.py               # FastAPI app entry point
+│   └── api/
+│       └── chat.py           # Chat endpoints
 │
-├── api/                       # REST API endpoints
-│   └── chat.py
+├── config.py                 # Global configuration
+├── utils.py                  # Logging, helpers
 │
-├── services/                  # Business logic orchestration
-│   ├── chat_service.py        # RAG pipeline (157 lines)
-│   └── recommend_service.py   # RecSys pipeline (313 lines)
+├── services/                 # Business logic orchestration
+│   ├── chat_service.py       # RAG pipeline orchestration
+│   └── recommend_service.py  # RecSys pipeline orchestration
 │
-├── core/                      # Domain logic
-│   ├── router.py              # Query intent classification (177 lines)
-│   ├── reranker.py            # Cross-encoder reranking
-│   ├── temporal.py            # Recency boosting
-│   ├── llm.py                 # LLM factory (OpenAI/Ollama)
-│   ├── metadata_store.py      # SQLite metadata access (288 lines)
-│   ├── diversity_reranker.py  # MMR diversity (204 lines)
-│   ├── context_compressor.py  # Chat history compression
-│   ├── freshness_monitor.py   # Staleness detection (231 lines)
-│   ├── web_search.py          # Google Books API (427 lines)
-│   └── online_books_store.py  # Staging DB (220 lines)
+├── rag/                      # RAG core logic
+│   ├── router.py             # QueryRouter (intent classification)
+│   ├── vector_db.py          # Hybrid search (Chroma + SQLite FTS5)
+│   ├── reranker.py           # Cross-encoder reranking
+│   ├── temporal.py           # Recency boosting
+│   ├── llm.py                # LLMFactory (OpenAI/Ollama/others)
+│   ├── context_compressor.py # Chat history compression
+│   ├── freshness_monitor.py  # Staleness detection
+│   ├── web_search.py         # Google Books API fallback
+│   ├── intent_prober.py      # Intent probing utilities
+│   ├── isbn_extractor.py     # ISBN extraction from text
+│   └── fallback_provider.py  # Web fallback + ingestion
 │
-├── vector_db.py               # Hybrid search (368 lines)
+├── recsys/                   # RecSys core logic
+│   ├── recall/               # Multi-channel recall
+│   │   ├── fusion.py         # RRF fusion
+│   │   ├── itemcf.py         # Item CF
+│   │   ├── usercf.py         # User CF
+│   │   ├── swing.py          # Swing
+│   │   ├── sasrec_recall.py  # SASRec recall
+│   │   ├── item2vec.py       # Item2Vec
+│   │   ├── embedding.py      # YoutubeDNN recall
+│   │   └── popularity.py     # Popularity recall
+│   └── ranking/              # Ranking stage
+│       ├── features.py       # Feature engineering
+│       ├── din.py            # DIN ranker
+│       └── explainer.py      # SHAP explainability
 │
-├── recall/                    # Recall channels
-│   ├── fusion.py              # RRF fusion (173 lines)
-│   ├── itemcf.py              # Item CF (221 lines)
-│   ├── usercf.py              # User CF (150 lines)
-│   ├── swing.py               # Swing (163 lines)
-│   ├── sasrec_recall.py       # SASRec (337 lines)
-│   ├── item2vec.py            # Item2Vec (122 lines)
-│   ├── embedding.py           # YoutubeDNN (333 lines)
-│   └── popularity.py          # Popularity (59 lines)
+├── data/                     # Data access layer
+│   ├── repository.py         # DataRepository (unified interface)
+│   └── stores/               # Concrete stores
+│       ├── metadata_store.py # SQLite metadata access
+│       ├── online_books_store.py
+│       └── profile_store.py  # User profiles / favorites
 │
-├── ranking/                   # Ranking stage
-│   ├── features.py            # Feature engineering (470 lines)
-│   ├── din.py                 # DIN ranker (220 lines)
-│   └── explainer.py           # SHAP explainability
+├── core/                     # Shared core utilities
+│   ├── diversity_reranker.py # MMR diversity reranker
+│   ├── diversity_metrics.py  # Diversity metrics for evaluation
+│   ├── metadata_enricher.py  # Enrich + format book metadata
+│   ├── exceptions.py
+│   ├── models.py
+│   └── response_formatter.py
 │
-├── data/                      # Data access layer
-│   └── repository.py          # Unified data interface
+├── support/                  # Supporting/offline modules
+│   ├── agentic/              # Agentic RAG workflow (LangGraph)
+│   ├── marketing/            # Marketing & highlight generation
+│   ├── data_factory/         # SFT dataset generation helpers
+│   └── zero_shot/            # Zero-shot / training utilities
 │
-├── user/                      # User management
-│   └── profile_store.py       # User profiles (246 lines)
-│
-└── model/                     # Model training
-    └── sasrec.py              # SASRec PyTorch model
+└── model/                    # Model definitions
+    └── sasrec.py             # SASRec PyTorch model
 ```
 
 ---
@@ -486,7 +500,7 @@ class QueryRouter:
 
 ### 4. Factory Pattern
 
-**Where**: `LLMFactory` (`src/core/llm.py`)
+**Where**: `LLMFactory` (`src/rag/llm.py`)
 
 **Why**:
 
@@ -533,7 +547,7 @@ class RecallFusion:
 
 | File               | Purpose                                                               |
 | ------------------ | --------------------------------------------------------------------- |
-| src/config.py      | App config (pydantic-settings, paths, hyperparameters, env overrides) |
+| src/infra/config.py | App config (pydantic-settings, paths, hyperparameters, env overrides) |
 | config/router.json | Router keywords (detail, freshness, natural-language queries)         |
 | requirements.txt   | Pip dependencies (single source of truth)                             |
 | environment.yml    | Conda env (installs from requirements.txt)                            |
@@ -548,7 +562,7 @@ class RecallFusion:
 
 ```bash
 make run
-# or: uvicorn src.main:app --reload --port 6006
+# or: uvicorn src.app.main:app --reload --port 6006
 ```
 
 **Run Tests**:

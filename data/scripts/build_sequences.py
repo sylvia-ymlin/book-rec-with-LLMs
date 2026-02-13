@@ -10,7 +10,7 @@ This prevents leakage when Ranking uses SASRec embeddings as features:
 - Recall models (SASRec, YoutubeDNN) overwrite these with their own train-only output.
 
 Usage:
-    python scripts/data/build_sequences.py
+    python data/scripts/build_sequences.py
 
 Input:
     - data/rec/train.csv (val.csv, test.csv exist but are NOT used for sequences)

@@ -8,7 +8,7 @@ import logging
 from collections import defaultdict
 from typing import Optional
 
-from src.config import RRF_K
+from src.infra.config import RRF_K
 from src.recsys.recall.itemcf import ItemCF
 from src.recsys.recall.usercf import UserCF
 from src.recsys.recall.popularity import PopularityRecall

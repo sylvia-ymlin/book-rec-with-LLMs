@@ -2,6 +2,7 @@
 
 **Purpose**: Measure and optimize system performance (latency, throughput, resource usage).
 **Last Updated**: 2026-02-12
+**Canonical benchmark entrypoint**: `benchmarks/` (component scripts are in `benchmarks/scripts/`).
 
 ---
 
@@ -26,17 +27,17 @@ pip install locust  # For load testing
 
 # Ensure API is running
 make run
-# or: uvicorn src.main:app --reload --port 6006
+# or: uvicorn src.app.main:app --reload --port 6006
 ```
 
 ### Run All Benchmarks (5 minutes)
 
 ```bash
 # 1. Component-level benchmarks (vector search, router, etc.)
-python scripts/benchmark/benchmark_retrieval.py
-python scripts/benchmark/benchmark_router.py
-python scripts/benchmark/benchmark_hybrid.py
-python scripts/benchmark/benchmark_rerank.py
+python benchmarks/scripts/benchmark_retrieval.py
+python benchmarks/scripts/benchmark_router.py
+python benchmarks/scripts/benchmark_hybrid.py
+python benchmarks/scripts/benchmark_rerank.py
 
 # 2. End-to-end benchmark (sequential throughput)
 python benchmarks/benchmark.py
@@ -50,7 +51,7 @@ locust -f benchmarks/locustfile.py --host=http://localhost:6006
 
 ## Benchmark Types
 
-### 1. Component Benchmarks (scripts/benchmark/)
+### 1. Component Benchmarks (`benchmarks/scripts/`)
 
 **Purpose**: Measure individual components in isolation.
 
@@ -192,8 +193,8 @@ graph LR
 
 ```bash
 # Component benchmarks
-python scripts/benchmark/benchmark_hybrid.py > baseline_hybrid.txt
-python scripts/benchmark/benchmark_rerank.py > baseline_rerank.txt
+python benchmarks/scripts/benchmark_hybrid.py > baseline_hybrid.txt
+python benchmarks/scripts/benchmark_rerank.py > baseline_rerank.txt
 
 # End-to-end
 python benchmarks/benchmark.py > baseline_e2e.txt
@@ -208,7 +209,7 @@ Save these files for comparison.
 Example: Switching from `all-MiniLM-L6-v2` (384-dim) to `all-mpnet-base-v2` (768-dim).
 
 ```python
-# src/config.py
+# src/infra/config.py
 - EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 + EMBEDDING_MODEL = "sentence-transformers/all-mpnet-base-v2"
 ```
@@ -219,8 +220,8 @@ Example: Switching from `all-MiniLM-L6-v2` (384-dim) to `all-mpnet-base-v2` (768
 
 ```bash
 # Same benchmarks as baseline
-python scripts/benchmark/benchmark_hybrid.py > new_hybrid.txt
-python scripts/benchmark/benchmark_rerank.py > new_rerank.txt
+python benchmarks/scripts/benchmark_hybrid.py > new_hybrid.txt
+python benchmarks/scripts/benchmark_rerank.py > new_rerank.txt
 python benchmarks/benchmark.py > new_e2e.txt
 ```
 
@@ -295,7 +296,7 @@ htop  # or: top
 
 # Python-specific profiling
 pip install py-spy
-py-spy top --pid $(pgrep -f "uvicorn src.main:app")
+py-spy top --pid $(pgrep -f "uvicorn src.app.main:app")
 ```
 
 **Acceptable Limits**:
@@ -407,12 +408,12 @@ jobs:
 |------|-------------|
 | `benchmarks/benchmark.py` | End-to-end pipeline benchmark |
 | `benchmarks/locustfile.py` | Load testing (Locust) |
-| `scripts/benchmark/benchmark_retrieval.py` | VectorDB search latency |
-| `scripts/benchmark/benchmark_router.py` | Router performance |
-| `scripts/benchmark/benchmark_hybrid.py` | Hybrid search (BM25 + Dense) |
-| `scripts/benchmark/benchmark_rerank.py` | Cross-encoder reranking |
-| `scripts/benchmark/benchmark_temporal.py` | Temporal boosting |
-| `scripts/benchmark/api_latency.py` | HTTP API latency (curl-based) |
+| `benchmarks/scripts/benchmark_retrieval.py` | VectorDB search latency |
+| `benchmarks/scripts/benchmark_router.py` | Router performance |
+| `benchmarks/scripts/benchmark_hybrid.py` | Hybrid search (BM25 + Dense) |
+| `benchmarks/scripts/benchmark_rerank.py` | Cross-encoder reranking |
+| `benchmarks/scripts/benchmark_temporal.py` | Temporal boosting |
+| `benchmarks/scripts/api_latency.py` | HTTP API latency (curl-based) |
 
 ---
 

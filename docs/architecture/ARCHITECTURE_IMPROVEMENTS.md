@@ -10,7 +10,7 @@
 
 - `BookRecommender` 是纯委托 Facade，所有方法仅转发给 `RecommendationOrchestrator`
 - 注释写「为了向后兼容」，但造成两层间接调用
-- 调用链：`main.py/benchmark/scripts` → `BookRecommender` → `RecommendationOrchestrator`
+- 调用链：`app/main.py/benchmark/scripts` → `BookRecommender` → `RecommendationOrchestrator`
 
 ### 影响
 
@@ -27,15 +27,15 @@
 3. 删除 `src/recommender.py` 中的 `BookRecommender` 类
 
 **影响范围（需修改的引用）**：
-- `src/main.py`：`recommender = RecommendationOrchestrator()`
+- `src/app/main.py`：`recommender = RecommendationOrchestrator()`
 - `benchmarks/benchmark.py`
 - `scripts/model/evaluate_rag.py`
-- `scripts/data/fetch_new_books.py`
+- `data/scripts/fetch_new_books.py`
 - `tests/test_recommender.py`, `test_memory_efficiency.py`, `test_api.py`
 
 **方案 B：若必须保留 Facade**
 
-- 仅在 `main.py` 等入口处保留一层薄 Facade，作为「对外 API 门面」
+- 仅在 `app/main.py` 等入口处保留一层薄 Facade，作为「对外 API 门面」
 - 内部脚本、benchmark、测试一律直接使用 `RecommendationOrchestrator`
 - 明确文档：`BookRecommender` 仅用于 HTTP API 边界，内部逻辑用 Orchestrator
 
@@ -66,11 +66,11 @@ metadata_store = MetadataStore()  # 全局单例
 
 1. **短期**：保持 `metadata_store` 全局，但为 `MetadataStore` 增加「可实例化」支持
    - 去掉 `__new__` 单例，改为普通类
-   - 在应用入口（如 `main.py` startup）创建 `metadata_store = MetadataStore(DATA_DIR / "books.db")`
+- 在应用入口（如 `app/main.py` startup）创建 `metadata_store = MetadataStore(DATA_DIR / "books.db")`
    - 通过依赖注入传递：`RecommendationOrchestrator(metadata_store_inst=metadata_store)`
 
 2. **中期**：引入简单的 DI 容器或工厂
-   - 在 `main.py` 或 `services/recommend_service.py` 中统一创建并注入
+- 在 `app/main.py` 或 `services/recommend_service.py` 中统一创建并注入
    - 各组件通过构造函数接收 `MetadataStore`，不再 `import metadata_store`
 
 3. **长期**：多线程/高并发时
@@ -79,7 +79,7 @@ metadata_store = MetadataStore()  # 全局单例
 
 **注入路径示例**：
 ```
-main.py startup
+app/main.py startup
   → metadata_store = MetadataStore(db_path)
   → orchestrator = RecommendationOrchestrator(metadata_store_inst=metadata_store)
   → BookIngestion(metadata_store_inst=metadata_store)
@@ -91,7 +91,7 @@ main.py startup
 - `vector_db.py`：需从 Orchestrator 或构造函数传入
 - `services/recommend_service.py`：已在用，可改为从上层注入
 - `ranking/features.py`：延迟加载，需改为注入
-- `scripts/data/fetch_new_books.py`, `scripts/model/evaluate.py`：脚本入口创建实例传入
+- `data/scripts/fetch_new_books.py`, `scripts/model/evaluate.py`：脚本入口创建实例传入
 
 ---
 
@@ -101,7 +101,7 @@ main.py startup
 
 | 来源 | 内容 | 示例 |
 |------|------|------|
-| `src/config.py` | 路径、模型、TOP_K、RERANKER_BACKEND、DEBUG | `DATA_DIR`, `TOP_K_FINAL`, `RERANKER_BACKEND` |
+| `src/infra/config.py` | 路径、模型、TOP_K、RERANKER_BACKEND、DEBUG | `DATA_DIR`, `TOP_K_FINAL`, `RERANKER_BACKEND` |
 | `config/router.json` | Router 关键词 | `detail_keywords`, `freshness_keywords` |
 | `config/data_config.py` | 数据管道路径、训练参数 | `RAW_BOOKS`, `YOUTUBE_DNN_EPOCHS` |
 | 环境变量 | 覆盖/扩展 | `USER_DATA_PATH`, `ROUTER_CONFIG_PATH`, `RERANK_CANDIDATES_MAX` |
@@ -116,19 +116,19 @@ main.py startup
 
 **方案 A：最小改动 — 统一入口**
 
-1. 新建 `src/config/settings.py`（或扩展现有 `config.py`）：
+1. 新建 `src/infra/settings.py`（或扩展现有 `src/infra/config.py`）：
    - 聚合 `config.py`、`data_config.py` 中的配置
    - 统一从环境变量读取 override（如 `pydantic-settings` 或简单 `os.getenv`）
    - 导出单一 `Settings` 对象或命名空间
 
-2. 保留 `router.json` 作为「可热更新」的 router 配置，但通过 `config.py` 的 `_load_router_config()` 加载，不新增入口
+2. 保留 `router.json` 作为「可热更新」的 router 配置，但通过 `src/infra/config.py` 的 `_load_router_config()` 加载，不新增入口
 
-3. 废弃 `config/data_config.py` 中与 `src/config.py` 重复的项，改为从 `src.config` 导入
+3. 废弃 `config/data_config.py` 中与 `src/infra/config.py` 重复的项，改为从 `src.infra.config` 导入
 
 **方案 B：使用 pydantic-settings（推荐）**
 
 ```python
-# src/config/settings.py
+# src/infra/settings.py
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):

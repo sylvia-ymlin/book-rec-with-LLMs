@@ -47,13 +47,13 @@ graph TD
 ### 3.1. Hybrid Search (The Foundation)
 Combines **Sparse Retrieval (BM25)** and **Dense Retrieval (ChromaDB/All-MiniLM)** using **Reciprocal Rank Fusion (RRF)**.
 - **Why?**: Dense vectors fail at exact keyword matching (e.g., "Harry Potter"). BM25 fails at semantic understanding. Together, they cover 100% of use cases.
-- **Implementation**: `src/vector_db.py`
+- **Implementation**: `src/rag/vector_db.py`
 
 ### 3.2. Cross-Encoder Reranking (The Refiner)
 A second-stage pass using `cross-encoder/ms-marco-MiniLM-L-6-v2`.
 - **Why?**: Bi-Encoders (Vectors) are fast but approximate. Cross-Encoders are slow but highly accurate. We only rerank the top 20-50 results.
 - **Impact**: Improved precision for complex queries (e.g., distinguishing "Philosophy of Harry Potter" from "Harry Potter and the Sorcerer's Stone").
-- **Implementation**: `src/core/reranker.py`
+- **Implementation**: `src/rag/reranker.py`
 
 ### 3.3. Agentic Router (The Brain)
 Classifies input using Regex and Keyword analysis to short-circuit expensive steps.
@@ -61,18 +61,18 @@ Classifies input using Regex and Keyword analysis to short-circuit expensive ste
     - **EXACT**: `alpha=1.0` (BM25 Only). Solves the "Exact Match" regression.
     - **FAST**: `rerank=False`. < 500ms latency for simple lookups.
     - **DEEP**: `rerank=True`. Full power for reasoning tasks.
-- **Implementation**: `src/core/router.py`
+- **Implementation**: `src/rag/router.py`
 
 ### 3.4. Temporal Dynamics (The Bias)
 Applies a log-linear decay function to boost newer documents.
 - **Formula**: $Score_{new} = Score_{old} + \frac{2.0}{\ln(Age + 2.718)}$
 - **Trigger**: Activated by words like "new", "latest", "2024".
-- **Implementation**: `src/core/temporal.py`
+- **Implementation**: `src/rag/temporal.py`
 
 ### 3.5. Context Compression (The Memory)
 Summarizes conversation history when it exceeds token limits.
 - **Logic**: Retains the last 2 turns (4 messages) raw; summarizes everything older using a lightweight LLM call.
-- **Implementation**: `src/core/context_compressor.py`
+- **Implementation**: `src/rag/context_compressor.py`
 
 ## 4. Performance Benchmarks
 | Metric | Baseline (Dense) | Advanced (hybrid+Rerank) |

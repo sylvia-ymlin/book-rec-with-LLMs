@@ -9,7 +9,7 @@ from unittest.mock import patch, MagicMock, AsyncMock
 import pytest
 from fastapi.testclient import TestClient
 
-from src.main import app
+from src.app.main import app
 
 
 def _mock_recommender():
@@ -34,7 +34,7 @@ def test_e2e_recommend_flow():
     """Full flow: POST /recommend -> 200 -> recommendations in response."""
     mock_rec = _mock_recommender()
     mock_svc = _mock_rec_service()
-    with patch("src.main.recommender", mock_rec), patch("src.main.rec_service", mock_svc):
+    with patch("src.app.main.recommender", mock_rec), patch("src.app.main.rec_service", mock_svc):
         client = TestClient(app)
         response = client.post(
             "/recommend",
@@ -59,7 +59,7 @@ def test_e2e_personal_recommend_flow():
     mock_rec.vector_db.get_book_details.return_value = {
         "title": "Test", "authors": "Auth", "description": "", "thumbnail": "",
     }
-    with patch("src.main.recommender", mock_rec), patch("src.main.rec_service", mock_svc):
+    with patch("src.app.main.recommender", mock_rec), patch("src.app.main.rec_service", mock_svc):
         client = TestClient(app)
         response = client.get("/api/recommend/personal?user_id=test&top_k=5")
         assert response.status_code == 200

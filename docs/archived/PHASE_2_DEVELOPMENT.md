@@ -32,7 +32,7 @@ The system learns from your reading preferences and surfaces books that match bo
 ### 1. **Backend Personalization Layer** (`src/`)
 
 #### A. User Favorites Storage
-- **File:** `src/user/profile_store.py`
+- **File:** `src/data/stores/profile_store.py`
 - **Mechanism:** JSON-based persistence (`data/user_profiles.json`)
 - **Features:**
   - `add_favorite(user_id, isbn)` → idempotent add + deduplicate
@@ -40,7 +40,7 @@ The system learns from your reading preferences and surfaces books that match bo
   - Works with any user_id (default: "local" for single-user dev)
 
 #### B. User Persona Aggregation
-- **File:** `src/marketing/persona.py`
+- **File:** `src/support/marketing/persona.py`
 - **Input:** List of favorite ISBNs + book metadata DataFrame
 - **Output:** `{ summary, top_authors[], top_categories[] }`
 - **Algorithm:**
@@ -51,7 +51,7 @@ The system learns from your reading preferences and surfaces books that match bo
   - Example: *"您钟爱悬疑与科幻，偏好国际视野的作品。"* (You love mystery & sci-fi, prefer international perspectives)
 
 #### C. Personalized Highlights Generator
-- **File:** `src/marketing/highlights.py`
+- **File:** `src/support/marketing/highlights.py`
 - **Input:** ISBN + user persona + book metadata
 - **Output:** `{ title, authors, category, highlights[], persona_summary }`
 - **Generation Strategy:**
@@ -65,7 +65,7 @@ The system learns from your reading preferences and surfaces books that match bo
     - 情节紧凑，适合您快节奏阅读的偏好
     ```
 
-### 2. **FastAPI Backend Integration** (`src/main.py`)
+### 2. **FastAPI Backend Integration** (`src/app/main.py`)
 
 **Three New Endpoints:**
 
@@ -238,7 +238,7 @@ persona = getPersona(userId)
                         ↓
 ┌──────────────────────────────────────────────────────┐
 │                  BACKEND (FastAPI)                    │
-│  src/main.py → uvicorn (localhost:6006)              │
+│  src/app/main.py → uvicorn (localhost:6006)          │
 │  ┌────────────────────────────────────────────────┐  │
 │  │ GET /health                                    │  │
 │  │ POST /recommend (query, category, tone)        │  │
@@ -444,13 +444,13 @@ The shift from "marketplace" → "recommendation + personalization" was right be
 ```
 book-rec-with-LLMs/
 ├── src/
-│   ├── main.py                 # FastAPI app + 3 new endpoints
+│   ├── app/main.py             # FastAPI app + 3 new endpoints
 │   ├── recommender.py          # Semantic search core
 │   ├── vector_db.py            # ChromaDB wrapper
 │   ├── cache.py                # Image caching
-│   ├── user/
+│   ├── data/stores/
 │   │   └── profile_store.py    # ✨ NEW: Favorites JSON storage
-│   └── marketing/
+│   └── support/marketing/
 │       ├── persona.py          # ✨ NEW: Persona aggregation
 │       ├── highlights.py       # ✨ NEW: Highlight generation
 │       └── guardrails.py       # Safety checks (stub)
@@ -481,9 +481,9 @@ feat: add React UI and backend personalization features
   * Vite dev server on port 5173
 
 - Implement user personalization:
-  * src/user/profile_store.py: JSON favorites
-  * src/marketing/persona.py: User taste aggregation
-  * src/marketing/highlights.py: Persona-aware selling points
+  * src/data/stores/profile_store.py: JSON favorites
+  * src/support/marketing/persona.py: User taste aggregation
+  * src/support/marketing/highlights.py: Persona-aware selling points
   * 3 new API endpoints in FastAPI
 
 - Maintain Gradio UI as optional fallback
@@ -501,9 +501,9 @@ feat: add React UI and backend personalization features
 4. Search for a book → click results → "加入藏书馆" → see persona highlights
 
 ### If you want to refine:
-- Adjust persona algorithm in `src/marketing/persona.py`
+- Adjust persona algorithm in `src/support/marketing/persona.py`
 - Tweak UI colors/layout in `web/src/App.jsx`
-- Add more rules to highlights in `src/marketing/highlights.py`
+- Add more rules to highlights in `src/support/marketing/highlights.py`
 
 ### If you want to scale:
 - Migrate to PostgreSQL (users table + favorites relationship)

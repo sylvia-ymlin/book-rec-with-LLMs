@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { UserCircle, BookOpen, Star, Target, TrendingUp, Clock, Award, BarChart3 } from "lucide-react";
+import { BookOpen, Star, Target, TrendingUp, Clock, Award, BarChart3 } from "lucide-react";
 import { getPersona } from "../api";
-
-const PLACEHOLDER_IMG = "/content/cover-not-found.jpg";
+import { PLACEHOLDER_IMG } from "../constants";
 
 const ProfilePage = ({ userId, myCollection, readingStats }) => {
   const [persona, setPersona] = useState(null);
@@ -45,26 +44,30 @@ const ProfilePage = ({ userId, myCollection, readingStats }) => {
   return (
     <div className="space-y-8">
       {/* Profile Header Card */}
-      <div className="bg-white border border-[#eee] p-8 shadow-sm">
+      <div className="bg-white border border-[#d0dcc2] p-8 rounded-[32px] shadow-soft">
         <div className="flex items-start gap-6">
-          <div className="w-20 h-20 bg-gradient-to-br from-[#b392ac] to-[#735d78] rounded-full flex items-center justify-center shadow-md">
-            <UserCircle className="w-10 h-10 text-white" />
+          <div className="w-20 h-20 rounded-full overflow-hidden border border-[#dbe6d2] shadow-soft bg-white">
+            <img
+              src="/content/avatar-cat.png"
+              alt="User avatar"
+              className="w-full h-full object-cover"
+            />
           </div>
           <div className="flex-1">
-            <h2 className="text-2xl font-bold text-[#333] mb-1">Reader Profile</h2>
-            <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mb-4">
+            <h2 className="text-3xl font-serif font-semibold text-text-primary mb-1">Reader Profile</h2>
+            <p className="text-xs text-text-secondary font-semibold uppercase tracking-widest mb-4">
               User: {userId}
             </p>
             {/* Persona Summary */}
             {loadingPersona ? (
               <div className="text-xs text-gray-400 italic">Analyzing your reading profile...</div>
             ) : persona?.summary ? (
-              <div className="bg-[#faf9f6] border-l-4 border-[#b392ac] p-4">
-                <p className="text-sm text-[#555] leading-relaxed italic">{persona.summary}</p>
+              <div className="bg-[#F0FDF4] border-l-4 border-[#5E81AC] p-4 rounded-r-2xl">
+                <p className="text-sm text-text-primary leading-relaxed italic">{persona.summary}</p>
               </div>
             ) : (
-              <div className="bg-[#faf9f6] border-l-4 border-gray-200 p-4">
-                <p className="text-xs text-gray-400 italic">
+              <div className="bg-[#F0FDF4] border-l-4 border-[#88C0D0] p-4 rounded-r-2xl">
+                <p className="text-xs text-text-secondary italic">
                   Add more books to your collection to generate a reading persona.
                 </p>
               </div>
@@ -75,32 +78,32 @@ const ProfilePage = ({ userId, myCollection, readingStats }) => {
 
       {/* Stats Overview */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white border border-[#eee] p-5 text-center group hover:border-[#b392ac] transition-colors">
-          <BookOpen className="w-5 h-5 text-[#b392ac] mx-auto mb-2" />
-          <div className="text-3xl font-bold text-[#b392ac]">{readingStats.total}</div>
-          <div className="text-[10px] text-gray-400 uppercase tracking-wider mt-1">Total Books</div>
+        <div className="bg-white border border-[#d3dfc8] p-5 text-center group hover:border-[#5E81AC] transition-colors rounded-3xl shadow-soft">
+          <BookOpen className="w-5 h-5 text-[#5E81AC] mx-auto mb-2" />
+          <div className="text-3xl font-bold text-[#5E81AC]">{readingStats.total}</div>
+          <div className="text-[10px] text-[#81A1C1] uppercase tracking-wider mt-1">Total Books</div>
         </div>
-        <div className="bg-white border border-[#eee] p-5 text-center group hover:border-[#f4acb7] transition-colors">
-          <Target className="w-5 h-5 text-[#f4acb7] mx-auto mb-2" />
-          <div className="text-3xl font-bold text-[#f4acb7]">{completionRate}%</div>
-          <div className="text-[10px] text-gray-400 uppercase tracking-wider mt-1">Completion Rate</div>
+        <div className="bg-white border border-[#E5C49D] p-5 text-center group hover:border-[#D08770] transition-colors rounded-3xl shadow-soft">
+          <Target className="w-5 h-5 text-[#D08770] mx-auto mb-2" />
+          <div className="text-3xl font-bold text-[#D08770]">{completionRate}%</div>
+          <div className="text-[10px] text-[#81A1C1] uppercase tracking-wider mt-1">Completion Rate</div>
         </div>
-        <div className="bg-white border border-[#eee] p-5 text-center group hover:border-[#9d7799] transition-colors">
-          <Star className="w-5 h-5 text-[#9d7799] mx-auto mb-2" />
-          <div className="text-3xl font-bold text-[#9d7799]">{avgRating}</div>
-          <div className="text-[10px] text-gray-400 uppercase tracking-wider mt-1">Avg Rating</div>
+        <div className="bg-white border border-[#c8d9d4] p-5 text-center group hover:border-[#81A1C1] transition-colors rounded-3xl shadow-soft">
+          <Star className="w-5 h-5 text-[#81A1C1] mx-auto mb-2" />
+          <div className="text-3xl font-bold text-[#81A1C1]">{avgRating}</div>
+          <div className="text-[10px] text-[#81A1C1] uppercase tracking-wider mt-1">Avg Rating</div>
         </div>
-        <div className="bg-white border border-[#eee] p-5 text-center group hover:border-[#735d78] transition-colors">
-          <TrendingUp className="w-5 h-5 text-[#735d78] mx-auto mb-2" />
-          <div className="text-3xl font-bold text-[#735d78]">{readingStats.reading}</div>
-          <div className="text-[10px] text-gray-400 uppercase tracking-wider mt-1">Currently Reading</div>
+        <div className="bg-white border border-[#d3dfc8] p-5 text-center group hover:border-[#4C566A] transition-colors rounded-3xl shadow-soft">
+          <TrendingUp className="w-5 h-5 text-[#4C566A] mx-auto mb-2" />
+          <div className="text-3xl font-bold text-[#4C566A]">{readingStats.reading}</div>
+          <div className="text-[10px] text-[#81A1C1] uppercase tracking-wider mt-1">Currently Reading</div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Favorite Authors & Genres */}
-        <div className="bg-white border border-[#eee] p-6 shadow-sm">
-          <h3 className="text-xs font-bold uppercase tracking-widest text-[#b392ac] mb-4 flex items-center gap-2">
+        <div className="bg-white border border-[#d3dfc8] p-6 rounded-[32px] shadow-soft">
+          <h3 className="text-xs font-bold uppercase tracking-widest text-[#5E81AC] mb-4 flex items-center gap-2">
             <Award className="w-4 h-4" /> Favorite Authors
           </h3>
           {persona?.top_authors && persona.top_authors.length > 0 ? (
@@ -108,10 +111,10 @@ const ProfilePage = ({ userId, myCollection, readingStats }) => {
               {persona.top_authors.slice(0, 5).map((author, idx) => (
                 <div
                   key={idx}
-                  className="flex items-center gap-3 p-2 border border-[#f5f5f5] hover:bg-[#faf9f6] transition-colors"
+                  className="flex items-center gap-3 p-2 border border-[#dbe6d2] rounded-2xl hover:bg-[#F0FDF4] transition-colors"
                 >
-                  <span className="text-[10px] font-bold text-[#b392ac] w-5">#{idx + 1}</span>
-                  <span className="text-sm text-[#555]">{author}</span>
+                  <span className="text-[10px] font-bold text-[#5E81AC] w-5">#{idx + 1}</span>
+                  <span className="text-sm text-[#4C566A]">{author}</span>
                 </div>
               ))}
             </div>
@@ -122,8 +125,8 @@ const ProfilePage = ({ userId, myCollection, readingStats }) => {
           )}
         </div>
 
-        <div className="bg-white border border-[#eee] p-6 shadow-sm">
-          <h3 className="text-xs font-bold uppercase tracking-widest text-[#b392ac] mb-4 flex items-center gap-2">
+        <div className="bg-white border border-[#d3dfc8] p-6 rounded-[32px] shadow-soft">
+          <h3 className="text-xs font-bold uppercase tracking-widest text-[#5E81AC] mb-4 flex items-center gap-2">
             <BarChart3 className="w-4 h-4" /> Top Categories
           </h3>
           {persona?.top_categories && persona.top_categories.length > 0 ? (
@@ -131,10 +134,10 @@ const ProfilePage = ({ userId, myCollection, readingStats }) => {
               {persona.top_categories.slice(0, 5).map((cat, idx) => (
                 <div
                   key={idx}
-                  className="flex items-center gap-3 p-2 border border-[#f5f5f5] hover:bg-[#faf9f6] transition-colors"
+                  className="flex items-center gap-3 p-2 border border-[#dbe6d2] rounded-2xl hover:bg-[#F0FDF4] transition-colors"
                 >
-                  <span className="text-[10px] font-bold text-[#9d7799] w-5">#{idx + 1}</span>
-                  <span className="text-sm text-[#555]">{cat}</span>
+                  <span className="text-[10px] font-bold text-[#81A1C1] w-5">#{idx + 1}</span>
+                  <span className="text-sm text-[#4C566A]">{cat}</span>
                 </div>
               ))}
             </div>
@@ -147,8 +150,8 @@ const ProfilePage = ({ userId, myCollection, readingStats }) => {
       </div>
 
       {/* Rating Distribution */}
-      <div className="bg-white border border-[#eee] p-6 shadow-sm">
-        <h3 className="text-xs font-bold uppercase tracking-widest text-[#b392ac] mb-4 flex items-center gap-2">
+      <div className="bg-white border border-[#d3dfc8] p-6 rounded-[32px] shadow-soft">
+        <h3 className="text-xs font-bold uppercase tracking-widest text-[#5E81AC] mb-4 flex items-center gap-2">
           <Star className="w-4 h-4" /> Rating Distribution
         </h3>
         <div className="space-y-3">
@@ -158,14 +161,13 @@ const ProfilePage = ({ userId, myCollection, readingStats }) => {
                 {[1, 2, 3, 4, 5].map((s) => (
                   <Star
                     key={s}
-                    className={`w-3 h-3 ${s <= star ? "text-[#f4acb7] fill-current" : "text-gray-200"
-                      }`}
+                    className={`w-3 h-3 ${s <= star ? "text-[#D08770] fill-current" : "text-gray-200"}`}
                   />
                 ))}
               </div>
-              <div className="flex-1 bg-gray-100 h-4 relative overflow-hidden">
+              <div className="flex-1 bg-gray-100 h-4 relative overflow-hidden rounded-full">
                 <div
-                  className="h-full bg-gradient-to-r from-[#f4acb7] to-[#b392ac] transition-all duration-500"
+                  className="h-full bg-[#D08770] transition-all duration-500 rounded-full"
                   style={{ width: `${(count / maxRatingCount) * 100}%` }}
                 />
               </div>
@@ -176,8 +178,8 @@ const ProfilePage = ({ userId, myCollection, readingStats }) => {
       </div>
 
       {/* Completion Progress */}
-      <div className="bg-white border border-[#eee] p-6 shadow-sm">
-        <h3 className="text-xs font-bold uppercase tracking-widest text-[#b392ac] mb-4 flex items-center gap-2">
+      <div className="bg-white border border-[#d3dfc8] p-6 rounded-[32px] shadow-soft">
+        <h3 className="text-xs font-bold uppercase tracking-widest text-[#5E81AC] mb-4 flex items-center gap-2">
           <Target className="w-4 h-4" /> Reading Progress
         </h3>
         <div className="space-y-3">
@@ -186,11 +188,11 @@ const ProfilePage = ({ userId, myCollection, readingStats }) => {
             <span>Reading ({readingStats.reading})</span>
             <span>Finished ({readingStats.finished})</span>
           </div>
-          <div className="h-6 bg-gray-100 flex overflow-hidden">
+          <div className="h-6 bg-gray-100 flex overflow-hidden rounded-full">
             {readingStats.total > 0 && (
               <>
                 <div
-                  className="bg-[#f4acb7] h-full transition-all duration-500 flex items-center justify-center"
+                  className="bg-[#D08770] h-full transition-all duration-500 flex items-center justify-center"
                   style={{ width: `${(readingStats.want_to_read / readingStats.total) * 100}%` }}
                 >
                   {readingStats.want_to_read > 0 && (
@@ -200,7 +202,7 @@ const ProfilePage = ({ userId, myCollection, readingStats }) => {
                   )}
                 </div>
                 <div
-                  className="bg-[#9d7799] h-full transition-all duration-500 flex items-center justify-center"
+                  className="bg-[#81A1C1] h-full transition-all duration-500 flex items-center justify-center"
                   style={{ width: `${(readingStats.reading / readingStats.total) * 100}%` }}
                 >
                   {readingStats.reading > 0 && (
@@ -210,7 +212,7 @@ const ProfilePage = ({ userId, myCollection, readingStats }) => {
                   )}
                 </div>
                 <div
-                  className="bg-[#735d78] h-full transition-all duration-500 flex items-center justify-center"
+                  className="bg-[#5E81AC] h-full transition-all duration-500 flex items-center justify-center"
                   style={{ width: `${(readingStats.finished / readingStats.total) * 100}%` }}
                 >
                   {readingStats.finished > 0 && (
@@ -226,26 +228,26 @@ const ProfilePage = ({ userId, myCollection, readingStats }) => {
       </div>
 
       {/* Recently Finished */}
-      <div className="bg-white border border-[#eee] p-6 shadow-sm">
-        <h3 className="text-xs font-bold uppercase tracking-widest text-[#b392ac] mb-4 flex items-center gap-2">
+      <div className="bg-white border border-[#d3dfc8] p-6 rounded-[32px] shadow-soft">
+        <h3 className="text-xs font-bold uppercase tracking-widest text-[#5E81AC] mb-4 flex items-center gap-2">
           <Clock className="w-4 h-4" /> Recently Finished
         </h3>
         {recentlyFinished.length > 0 ? (
           <div className="grid grid-cols-5 gap-4">
             {recentlyFinished.map((book, idx) => (
               <div key={book.isbn || idx} className="text-center">
-                <div className="border border-[#eee] p-1 bg-white shadow-sm mb-2">
+                <div className="border border-[#d3dfc8] p-1 bg-white shadow-soft mb-2 rounded-2xl">
                   <img
                     src={book.img || book.thumbnail || PLACEHOLDER_IMG}
                     alt={book.title}
-                    className="w-full aspect-[3/4] object-cover"
+                    className="w-full aspect-[3/4] object-cover rounded-xl"
                     onError={(e) => {
                       e.target.onerror = null;
                       e.target.src = PLACEHOLDER_IMG;
                     }}
                   />
                 </div>
-                <p className="text-[10px] font-bold text-[#555] truncate" title={book.title}>
+                <p className="text-[10px] font-bold text-[#4C566A] truncate" title={book.title}>
                   {book.title}
                 </p>
                 {book.rating > 0 && (
@@ -253,8 +255,7 @@ const ProfilePage = ({ userId, myCollection, readingStats }) => {
                     {[1, 2, 3, 4, 5].map((s) => (
                       <Star
                         key={s}
-                        className={`w-2 h-2 ${s <= book.rating ? "text-[#f4acb7] fill-current" : "text-gray-200"
-                          }`}
+                        className={`w-2 h-2 ${s <= book.rating ? "text-[#D08770] fill-current" : "text-gray-200"}`}
                       />
                     ))}
                   </div>

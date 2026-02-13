@@ -9,14 +9,14 @@ env-update:
 
 # Development
 run:
-	uvicorn src.main:app --reload --port 6006
+	uvicorn src.app.main:app --reload --port 6006
 
 # Data Pipeline
 data-pipeline:
 	python scripts/run_pipeline.py
 
 data-validate:
-	python scripts/data/validate_data.py
+	python data/scripts/validate_data.py
 
 data-prep:
 	python scripts/run_pipeline.py --skip-models

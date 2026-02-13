@@ -22,11 +22,11 @@ Several files in the codebase exceed 300 lines. While not critical, breaking the
 
 | File | Lines | Complexity | Priority | Suggested Split |
 |------|-------|------------|----------|-----------------|
-| `src/ranking/features.py` | 470 | High | P0 | Extract feature groups into separate modules |
-| `src/core/web_search.py` | 427 | Medium | P1 | Separate API client from result parsing |
-| `src/vector_db.py` | 368 | High | P0 | Split hybrid search from small-to-big retrieval |
-| `src/recall/sasrec_recall.py` | 337 | Medium | P2 | Extract embedding logic |
-| `src/recall/embedding.py` | 333 | Medium | P2 | Extract training vs inference |
+| `src/recsys/ranking/features.py` | 470 | High | P0 | Extract feature groups into separate modules |
+| `src/rag/web_search.py` | 427 | Medium | P1 | Separate API client from result parsing |
+| `src/rag/vector_db.py` | 368 | High | P0 | Split hybrid search from small-to-big retrieval |
+| `src/recsys/recall/sasrec_recall.py` | 337 | Medium | P2 | Extract embedding logic |
+| `src/recsys/recall/embedding.py` | 333 | Medium | P2 | Extract training vs inference |
 | `src/services/recommend_service.py` | 313 | High | P1 | Extract diversity reranking orchestration |
 | `src/core/recommendation_orchestrator.py` | 293 | Medium | P2 | Extract query preprocessing |
 | `src/core/metadata_store.py` | 288 | Low | P3 | Already well-structured (mostly SQL) |
@@ -69,7 +69,7 @@ class FeatureEngineer:
 **New Structure**:
 
 ```
-src/ranking/
+src/recsys/ranking/
 ├── features.py              # Orchestrator (100 lines)
 ├── feature_groups/
 │   ├── __init__.py
@@ -83,11 +83,11 @@ src/ranking/
 **Refactored `features.py`** (100 lines):
 
 ```python
-from src.ranking.feature_groups.user_features import UserFeatureExtractor
-from src.ranking.feature_groups.item_features import ItemFeatureExtractor
-from src.ranking.feature_groups.sasrec_features import SASRecFeatureExtractor
-from src.ranking.feature_groups.cf_features import CFFeatureExtractor
-from src.ranking.feature_groups.sequence_features import SequenceFeatureExtractor
+from src.recsys.ranking.feature_groups.user_features import UserFeatureExtractor
+from src.recsys.ranking.feature_groups.item_features import ItemFeatureExtractor
+from src.recsys.ranking.feature_groups.sasrec_features import SASRecFeatureExtractor
+from src.recsys.ranking.feature_groups.cf_features import CFFeatureExtractor
+from src.recsys.ranking.feature_groups.sequence_features import SequenceFeatureExtractor
 
 class FeatureEngineer:
     """Orchestrates feature extraction from multiple sources."""
@@ -254,7 +254,7 @@ class VectorDB:
 
 ### Proposed (3 files, each <150 lines)
 
-**src/vector_db.py** (80 lines):
+**src/rag/vector_db.py** (80 lines):
 ```python
 from src.retrieval.hybrid_retriever import HybridRetriever
 from src.retrieval.hierarchical_retriever import HierarchicalRetriever
@@ -445,11 +445,11 @@ def old_method(self, x):
 **Solution**: Update imports incrementally
 ```python
 # Before
-from src.ranking.features import FeatureEngineer
+from src.recsys.ranking.features import FeatureEngineer
 
 # After
-from src.ranking.features import FeatureEngineer  # Facade
-from src.ranking.feature_groups.sasrec_features import SASRecFeatureExtractor  # Specific
+from src.recsys.ranking.features import FeatureEngineer  # Facade
+from src.recsys.ranking.feature_groups.sasrec_features import SASRecFeatureExtractor  # Specific
 ```
 
 ---
@@ -491,9 +491,9 @@ Track refactoring work here:
 
 | File | Priority | Assigned | Status | Target Date |
 |------|----------|----------|--------|-------------|
-| `ranking/features.py` | P0 | Unassigned | Not Started | TBD |
-| `core/web_search.py` | P1 | Unassigned | Not Started | TBD |
-| `vector_db.py` | P0 | Unassigned | Not Started | TBD |
+| `recsys/ranking/features.py` | P0 | Unassigned | Not Started | TBD |
+| `rag/web_search.py` | P1 | Unassigned | Not Started | TBD |
+| `rag/vector_db.py` | P0 | Unassigned | Not Started | TBD |
 
 ---
 

@@ -13,6 +13,13 @@ const BookshelfPage = ({
   const [shelfFilter, setShelfFilter] = useState("all");
   const [shelfSort, setShelfSort] = useState("recent");
 
+  const statusAccent = {
+    all: "bg-[#5E81AC] text-white border-[#5E81AC] shadow-sm",
+    want_to_read: "bg-[#D08770] text-white border-[#D08770] shadow-sm",
+    reading: "bg-[#81A1C1] text-white border-[#81A1C1] shadow-sm",
+    finished: "bg-[#4C566A] text-white border-[#4C566A] shadow-sm",
+  };
+
   const getFilteredShelf = () => {
     let filtered = [...myCollection];
 
@@ -42,16 +49,16 @@ const BookshelfPage = ({
     <>
       <div className="mb-8 space-y-4">
         {/* Shelf Controls */}
-        <div className="flex justify-between items-center bg-white p-3 border border-[#eee] shadow-sm mb-4">
+        <div className="flex justify-between items-center bg-white p-4 border border-[#d0dcc2] shadow-soft mb-4 rounded-[32px]">
           <div className="flex gap-2">
             {["all", "want_to_read", "reading", "finished"].map((status) => (
               <button
                 key={status}
                 onClick={() => setShelfFilter(status)}
-                className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors border ${
+                className={`px-4 py-2 text-[10px] font-semibold uppercase tracking-wider transition-all border rounded-full ${
                   shelfFilter === status
-                    ? "bg-[#b392ac] text-white border-[#b392ac]"
-                    : "bg-white text-gray-400 border-[#eee] hover:border-[#b392ac]"
+                    ? statusAccent[status]
+                    : "bg-white text-[#81A1C1] border-[#88C0D0] hover:border-[#5E81AC] hover:text-[#5E81AC]"
                 }`}
               >
                 {status.replace(/_/g, " ")}
@@ -60,11 +67,11 @@ const BookshelfPage = ({
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-[9px] font-bold text-gray-400 uppercase">Sort by</span>
+            <span className="text-[10px] font-semibold text-text-secondary uppercase">Sort by</span>
             <select
               value={shelfSort}
               onChange={(e) => setShelfSort(e.target.value)}
-              className="text-[10px] bg-transparent border-b border-[#eee] outline-none font-bold text-[#b392ac]"
+              className="text-[10px] bg-transparent border-b border-[#d3dfc8] outline-none font-semibold text-text-primary py-1"
             >
               <option value="recent">Recently Added</option>
               <option value="rating_high">Rating (High to Low)</option>
@@ -76,26 +83,26 @@ const BookshelfPage = ({
 
         {/* Statistics Card */}
         <div className="grid grid-cols-4 gap-4">
-          <div className="bg-white border border-[#eee] p-4 text-center">
-            <div className="text-2xl font-bold text-[#b392ac]">{readingStats.total}</div>
-            <div className="text-[10px] text-gray-400 uppercase tracking-wider">Total Books</div>
+          <div className="bg-white border border-[#d3dfc8] p-4 text-center rounded-3xl shadow-soft">
+            <div className="text-2xl font-bold text-[#5E81AC]">{readingStats.total}</div>
+            <div className="text-[10px] text-[#81A1C1] uppercase tracking-wider">Total Books</div>
           </div>
-          <div className="bg-white border border-[#eee] p-4 text-center">
-            <div className="text-2xl font-bold text-[#f4acb7]">{readingStats.want_to_read}</div>
-            <div className="text-[10px] text-gray-400 uppercase tracking-wider">Want to Read</div>
+          <div className="bg-white border border-[#E5C49D] p-4 text-center rounded-3xl shadow-soft">
+            <div className="text-2xl font-bold text-[#D08770]">{readingStats.want_to_read}</div>
+            <div className="text-[10px] text-[#81A1C1] uppercase tracking-wider">Want to Read</div>
           </div>
-          <div className="bg-white border border-[#eee] p-4 text-center">
-            <div className="text-2xl font-bold text-[#9d7799]">{readingStats.reading}</div>
-            <div className="text-[10px] text-gray-400 uppercase tracking-wider">Reading</div>
+          <div className="bg-white border border-[#c8d9d4] p-4 text-center rounded-3xl shadow-soft">
+            <div className="text-2xl font-bold text-[#81A1C1]">{readingStats.reading}</div>
+            <div className="text-[10px] text-[#81A1C1] uppercase tracking-wider">Reading</div>
           </div>
-          <div className="bg-white border border-[#eee] p-4 text-center">
-            <div className="text-2xl font-bold text-[#735d78]">{readingStats.finished}</div>
-            <div className="text-[10px] text-gray-400 uppercase tracking-wider">Finished</div>
+          <div className="bg-white border border-[#d3dfc8] p-4 text-center rounded-3xl shadow-soft">
+            <div className="text-2xl font-bold text-[#4C566A]">{readingStats.finished}</div>
+            <div className="text-[10px] text-[#81A1C1] uppercase tracking-wider">Finished</div>
           </div>
         </div>
 
         {/* Mood Preference */}
-        <div className="flex items-center gap-4 text-xs font-bold text-[#b392ac] bg-[#e5d9f2]/30 p-4 border border-[#b392ac]/20">
+        <div className="flex items-center gap-4 text-xs font-semibold text-text-primary bg-[#F0FDF4] p-4 border border-[#d4e2cb] rounded-[32px] shadow-soft">
           <BarChart3 className="w-4 h-4" />
           Your collection shows a preference for:{" "}
           {myCollection

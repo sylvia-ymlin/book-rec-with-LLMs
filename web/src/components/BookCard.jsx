@@ -1,7 +1,6 @@
 import React from "react";
 import { Heart, Star, Trash2 } from "lucide-react";
-
-const PLACEHOLDER_IMG = "/content/cover-not-found.jpg";
+import { PLACEHOLDER_IMG } from "../constants";
 
 const BookCard = ({
   book,
@@ -12,13 +11,25 @@ const BookCard = ({
   onRatingChange,
   onStatusChange,
 }) => {
+  const moodColor = (book?.mood || "").toLowerCase();
+  const moodClass =
+    moodColor === "happy"
+      ? "bg-[#D08770]/12 border-[#D08770]/30 text-[#D08770]"
+      : moodColor === "sad"
+        ? "bg-[#81A1C1]/12 border-[#81A1C1]/30 text-[#5E81AC]"
+        : moodColor === "angry"
+          ? "bg-[#BF616A]/12 border-[#BF616A]/30 text-[#BF616A]"
+          : moodColor === "surprising" || moodColor === "suspenseful"
+            ? "bg-[#5E81AC]/10 border-[#5E81AC]/25 text-[#5E81AC]"
+            : "bg-[#d3dec7]/30 border-[#d3dec7] text-text-secondary";
+
   return (
-    <div className="group cursor-pointer transform hover:-translate-y-1 transition-all">
-      <div className="bg-white border border-[#eee] p-1 relative shadow-sm group-hover:shadow-md overflow-hidden">
+    <div className="group cursor-pointer transform hover:-translate-y-1 transition-all duration-200">
+      <div className="bg-white border border-[#d3dec7] p-1.5 relative shadow-soft overflow-hidden rounded-2xl">
         <img
           src={book.img || PLACEHOLDER_IMG}
           alt={book.title}
-          className="w-full aspect-[3/4] object-cover opacity-90 group-hover:opacity-100 transition-opacity"
+          className="w-full aspect-[3/4] object-cover rounded-xl opacity-95 group-hover:opacity-100 transition-opacity"
           onClick={() => onOpenBook(book)}
           onError={(e) => {
             e.target.onerror = null;
@@ -28,23 +39,23 @@ const BookCard = ({
         {/* Hover highlight overlay (Discovery mode only) */}
         {!showShelfControls && (
           <div
-            className="absolute inset-0 bg-white/80 flex items-center justify-center p-4 opacity-0 group-hover:opacity-100 transition-opacity text-center px-4"
+            className="absolute inset-1.5 rounded-xl bg-white flex items-center justify-center p-4 opacity-0 group-hover:opacity-95 transition-opacity text-center"
             onClick={() => onOpenBook(book)}
           >
-            <p className="text-[10px] font-bold text-[#b392ac] leading-relaxed italic">
+            <p className="text-[10px] font-medium text-text-secondary leading-relaxed italic">
               {book.aiHighlight}
             </p>
           </div>
         )}
         {/* Collection badge */}
         {isInCollection && (
-          <div className="absolute top-1 right-1 bg-[#f4acb7] p-1 shadow-sm">
-            <Heart className="w-3 h-3 text-white fill-current" />
+          <div className="absolute top-2.5 right-2.5 bg-[#BF616A] p-1 rounded-full shadow-sm">
+            <Heart className="w-2.5 h-2.5 text-white fill-current" />
           </div>
         )}
         {/* Rank Badge - Discovery mode only */}
         {!showShelfControls && book.rank && (
-          <div className="absolute top-1 left-1 bg-black/70 text-white text-[10px] font-bold px-1.5 py-0.5 shadow-sm z-10 backdrop-blur-sm">
+          <div className="absolute top-2.5 left-2.5 bg-text-primary text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
             #{book.rank}
           </div>
         )}
@@ -55,39 +66,39 @@ const BookCard = ({
               e.stopPropagation();
               onRemove(book.isbn);
             }}
-            className="absolute top-1 left-1 bg-red-400 p-1 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"
+            className="absolute top-2.5 left-2.5 bg-[#BF616A] p-1 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[#D08770]"
             title="Remove from collection"
           >
-            <Trash2 className="w-3 h-3 text-white" />
+            <Trash2 className="w-2.5 h-2.5 text-white" />
           </button>
         )}
       </div>
       <h3
-        className="mt-3 text-[12px] font-bold text-[#555] truncate"
+        className="mt-3 text-[13px] font-serif font-semibold text-text-primary truncate"
         onClick={() => onOpenBook(book)}
       >
         {book.title}
       </h3>
       <div className="flex justify-between items-center mt-1">
         <div className="flex flex-col">
-          <span className="text-[9px] text-gray-400 tracking-tighter truncate w-24">
+          <span className="text-[10px] text-text-secondary tracking-tight truncate w-24">
             {book.author}
           </span>
           {!showShelfControls && book.rating > 0 && (
             <div className="flex items-center gap-0.5 mt-0.5">
-              <Star className="w-2 h-2 text-[#f4acb7] fill-current" />
-              <span className="text-[8px] font-bold text-[#f4acb7]">
+              <Star className="w-2.5 h-2.5 text-accent fill-current" />
+              <span className="text-[9px] font-semibold text-accent">
                 {book.rating.toFixed(1)}
               </span>
             </div>
           )}
         </div>
         {book.emotions && Object.keys(book.emotions).length > 0 ? (
-          <span className="text-[9px] bg-[#f8f9fa] border border-[#eee] px-1 text-[#999] capitalize">
+          <span className={`text-[9px] border px-2 py-0.5 rounded-full capitalize ${moodClass}`}>
             {Object.entries(book.emotions).reduce((a, b) => (a[1] > b[1] ? a : b))[0]}
           </span>
         ) : (
-          <span className="text-[9px] bg-[#f8f9fa] border border-[#eee] px-1 text-[#999]">&mdash;</span>
+          <span className="text-[9px] bg-[#F0FDF4] border border-[#d3dec7] px-2 py-0.5 rounded-full text-text-secondary">&mdash;</span>
         )}
       </div>
 
@@ -106,10 +117,11 @@ const BookCard = ({
                 className="focus:outline-none"
               >
                 <Star
-                  className={`w-3.5 h-3.5 transition-colors ${star <= (book.rating || 0)
-                      ? "text-[#f4acb7] fill-current"
-                      : "text-gray-200 hover:text-[#f4acb7]"
-                    }`}
+                  className={`w-3.5 h-3.5 transition-colors ${
+                    star <= (book.rating || 0)
+                      ? "text-accent fill-current"
+                      : "text-[#d3dec7] hover:text-accent"
+                  }`}
                 />
               </button>
             ))}
@@ -122,7 +134,7 @@ const BookCard = ({
               onStatusChange && onStatusChange(book.isbn, e.target.value);
             }}
             onClick={(e) => e.stopPropagation()}
-            className="w-full text-[9px] p-1 border border-[#eee] bg-white text-gray-500 outline-none focus:border-[#b392ac]"
+            className="w-full text-[9px] p-1.5 border border-[#d3dec7] bg-white text-text-primary outline-none focus:border-[#5E81AC]/60 rounded-lg"
           >
             <option value="want_to_read">Want to Read</option>
             <option value="reading">Reading</option>

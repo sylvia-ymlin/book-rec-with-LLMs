@@ -8,8 +8,8 @@ import sqlite3
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from src.config import DATA_DIR
-from src.utils import setup_logger
+from src.infra.config import DATA_DIR
+from src.infra.utils import setup_logger
 
 
 logger = setup_logger(__name__)

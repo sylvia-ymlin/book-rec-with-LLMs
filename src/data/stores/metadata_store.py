@@ -10,9 +10,9 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
-from src.config import DATA_DIR
+from src.infra.config import DATA_DIR
 from src.core.models import BookMetadata
-from src.utils import setup_logger
+from src.infra.utils import setup_logger
 from src.data.stores.online_books_store import online_books_store
 
 

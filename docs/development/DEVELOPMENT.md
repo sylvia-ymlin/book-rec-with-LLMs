@@ -29,10 +29,10 @@ def recommend(self, user_id: str, history_items=None, top_k: int = 100, **kwargs
 
 ### 1.2 添加步骤
 
-**Step 1**: 在 `src/recall/` 下实现新召回器
+**Step 1**: 在 `src/recsys/recall/` 下实现新召回器
 
 ```python
-# src/recall/my_recall.py
+# src/recsys/recall/my_recall.py
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -61,7 +61,7 @@ class MyRecall:
 
 **Step 2**: 在 `RecallFusion` 中注册
 
-编辑 `src/recall/fusion.py`：
+编辑 `src/recsys/recall/fusion.py`：
 
 1. 在 `DEFAULT_CHANNEL_CONFIG` 中增加配置：
 
@@ -97,7 +97,7 @@ if cfg.get("my_recall", {}).get("enabled", False):
 编辑 `scripts/run_pipeline.py` 的 `run_training()`：
 
 ```python
-from src.recall.my_recall import MyRecall
+from src.recsys.recall.my_recall import MyRecall
 self._run_step("Train MyRecall", lambda: MyRecall().fit(df))
 ```
 
@@ -106,7 +106,7 @@ self._run_step("Train MyRecall", lambda: MyRecall().fit(df))
 通过 `channel_config` 覆盖默认配置：
 
 ```python
-from src.recall.fusion import RecallFusion
+from src.recsys.recall.fusion import RecallFusion
 
 fusion = RecallFusion(channel_config={
     "my_recall": {"enabled": True, "weight": 0.8},
@@ -214,9 +214,9 @@ if decision["strategy"] == "custom":
 
 | 模块 | 路径 |
 |------|------|
-| 召回融合 | `src/recall/fusion.py` |
-| 路由逻辑 | `src/core/router.py` |
-| 路由配置加载 | `src/config.py` (`_load_router_config`) |
+| 召回融合 | `src/recsys/recall/fusion.py` |
+| 路由逻辑 | `src/rag/router.py` |
+| 路由配置加载 | `src/infra/config.py` (`_load_router_config`) |
 | 关键词配置 | `config/router.json` |
 | 训练流水线 | `scripts/run_pipeline.py` |
 
@@ -226,4 +226,4 @@ if decision["strategy"] == "custom":
 
 - **召回**：对单通道单独 `fit()` 后 `recommend()`，验证返回格式与数量
 - **路由**：调用 `QueryRouter().route("your query")` 查看决策
-- **关键词**：在 `config.py` 中 `print(ROUTER_DETAIL_KEYWORDS)` 等，确认加载正确
+- **关键词**：在 `src/infra/config.py` 中 `print(ROUTER_DETAIL_KEYWORDS)` 等，确认加载正确

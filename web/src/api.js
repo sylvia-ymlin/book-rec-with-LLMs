@@ -1,6 +1,6 @@
 const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? "" : "http://127.0.0.1:6006");
 
-export async function recommend(query, category = "All", tone = "All", user_id = "local", use_agentic = false, fast = false, async_rerank = false) {
+export async function recommend(query, category = "All", tone = "All", user_id = "Coconut", use_agentic = false, fast = false, async_rerank = false) {
   const body = { query, category, tone, user_id, use_agentic, fast, async_rerank };
   const resp = await fetch(`${API_URL}/recommend`, {
     method: "POST",
@@ -19,7 +19,7 @@ export async function getOnboardingBooks(limit = 24) {
   return data.books || [];
 }
 
-export async function getPersonalizedRecommendations(user_id = "local", limit = 20, recent_isbns = null, intent_query = null) {
+export async function getPersonalizedRecommendations(user_id = "Coconut", limit = 20, recent_isbns = null, intent_query = null) {
   // P1: recent_isbns — session-level ISBNs for cold-start (1+ clicks)
   // P2: intent_query — zero-shot intent probing when user has no history
   const params = new URLSearchParams({ user_id, limit: limit.toString() });
@@ -43,7 +43,7 @@ export async function getSimilarBooks(isbn, k = 6, category = "All") {
   return data.recommendations || [];
 }
 
-export async function addFavorite(isbn, userId = "local") {
+export async function addFavorite(isbn, userId = "Coconut") {
   const resp = await fetch(`${API_URL}/favorites/add`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -53,20 +53,20 @@ export async function addFavorite(isbn, userId = "local") {
   return resp.json();
 }
 
-export async function getPersona(userId = "local") {
+export async function getPersona(userId = "Coconut") {
   const resp = await fetch(`${API_URL}/user/${userId}/persona`);
   if (!resp.ok) throw new Error(await resp.text());
   return resp.json();
 }
 
-export async function getFavorites(userId = "local") {
+export async function getFavorites(userId = "Coconut") {
   const resp = await fetch(`${API_URL}/favorites/list/${userId}`);
   if (!resp.ok) throw new Error(await resp.text());
   const data = await resp.json();
   return data.favorites || [];
 }
 
-export async function updateBook(isbn, updates, userId = "local") {
+export async function updateBook(isbn, updates, userId = "Coconut") {
   const resp = await fetch(`${API_URL}/favorites/update`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
@@ -76,7 +76,7 @@ export async function updateBook(isbn, updates, userId = "local") {
   return resp.json();
 }
 
-export async function removeFromFavorites(isbn, userId = "local") {
+export async function removeFromFavorites(isbn, userId = "Coconut") {
   const resp = await fetch(`${API_URL}/favorites/remove`, {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
@@ -86,13 +86,13 @@ export async function removeFromFavorites(isbn, userId = "local") {
   return resp.json();
 }
 
-export async function getUserStats(userId = "local") {
+export async function getUserStats(userId = "Coconut") {
   const resp = await fetch(`${API_URL}/user/${userId}/stats`);
   if (!resp.ok) throw new Error(await resp.text());
   return resp.json();
 }
 
-export async function getHighlights(isbn, userId = "local") {
+export async function getHighlights(isbn, userId = "Coconut") {
   const resp = await fetch(`${API_URL}/marketing/highlights`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -101,7 +101,7 @@ export async function getHighlights(isbn, userId = "local") {
   if (!resp.ok) throw new Error(await resp.text());
   return resp.json();
 }
-export async function streamChat({ isbn, query, apiKey, provider, onChunk, onError }) {
+export async function streamChat({ isbn, query, userId = "Coconut", apiKey, provider, onChunk, onError }) {
   try {
     const resp = await fetch(`${API_URL}/chat/completions`, {
       method: "POST",
@@ -112,7 +112,7 @@ export async function streamChat({ isbn, query, apiKey, provider, onChunk, onErr
       body: JSON.stringify({
         isbn,
         query,
-        user_id: "local",
+        user_id: userId,
         provider: provider || "ollama"
       }),
     });

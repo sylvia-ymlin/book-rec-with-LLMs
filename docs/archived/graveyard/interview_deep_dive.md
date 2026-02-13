@@ -31,7 +31,7 @@
 
 ### 3. Retrieval Strategy Optimization (The Core Battlefield)
 *   **A. User Intent Recognition**:
-    *   *Tech*: RegEx & Keyword Routing (`src/core/router.py`).
+    *   *Tech*: RegEx & Keyword Routing (`src/rag/router.py`).
     *   *Logic*: Distinguishes **Identificational** (ISBN), **Informational** (Topic), and **Recency** (Latest) queries.
 *   **B. Hybrid Search**:
     *   *Tech*: Reciprocal Rank Fusion (RRF) of BM25 (Sparse) + Chroma (Dense).

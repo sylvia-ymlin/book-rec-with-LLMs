@@ -10,7 +10,7 @@ import hashlib
 import logging
 from typing import Optional
 
-from src.utils import setup_logger
+from src.infra.utils import setup_logger
 
 logger = setup_logger(__name__)
 
