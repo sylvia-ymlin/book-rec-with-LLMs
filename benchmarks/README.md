@@ -423,7 +423,7 @@ jobs:
 - **Memory leak?** Use `memory_profiler`: `python -m memory_profiler benchmark.py`
 - **CPU bottleneck?** Use `py-spy`: `py-spy record -o profile.svg -- python benchmark.py`
 
-For deeper investigation, see [performance_debugging_report.md](../docs/performance/performance_debugging_report.md).
+For deeper investigation, see [performance_debugging_report.md](docs/2026-02-11-performance_debugging_report.md).
 
 ---
 

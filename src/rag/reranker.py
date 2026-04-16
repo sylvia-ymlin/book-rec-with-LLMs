@@ -95,12 +95,17 @@ class RerankerService:
         return cls._instance
 
     def __init__(self):
-        if self.model is None:
-            self._load_model()
+        # Lazy-load on first use to reduce import-time latency/memory spikes.
+        # This matters for FastAPI startup and for codepaths that don't need reranking.
+        if self._backend is None:
+            backend = (RERANKER_BACKEND or "").lower()
+            if backend == "colbert":
+                self._backend = "colbert"
+            else:
+                self._backend = "onnx" if backend == "onnx" else "cross_encoder"
 
     def _load_model(self):
-        backend = (RERANKER_BACKEND or "").lower()
-
+        backend = (self._backend or "").lower()
         if backend == "colbert":
             self.model = _load_colbert()
             self._backend = "colbert" if self.model else "cross_encoder"
@@ -115,8 +120,15 @@ class RerankerService:
         Rerank documents by relevance to query.
         docs: List of dicts or LangChain Document with description/page_content.
         """
-        if not self.model or not docs:
+        if not docs:
             return docs[:top_k]
+
+        if self.model is None:
+            try:
+                self._load_model()
+            except Exception as e:
+                logger.warning("Reranker lazy-load failed: %s", e)
+                return docs[:top_k]
 
         if self._backend == "colbert":
             return self._rerank_colbert(query, docs, top_k)
@@ -167,4 +179,3 @@ class RerankerService:
 reranker = RerankerService()
 
 __all__ = ["RerankerService", "reranker"]
-

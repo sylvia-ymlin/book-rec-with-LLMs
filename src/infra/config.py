@@ -37,6 +37,14 @@ class Settings(BaseSettings):
     ab_experiments_enabled: bool = Field(default=False, validation_alias="AB_EXPERIMENTS_ENABLED")
     # RAG path: apply diversity reranker (MMR + category constraint) to reduce homogeneity.
     enable_rag_diversity: bool = Field(default=True, validation_alias="ENABLE_RAG_DIVERSITY")
+    # LLM evaluate node (v2.0): semantic quality assessment replacing rule-based evaluate_node.
+    use_llm_evaluate: bool = Field(default=False, validation_alias="USE_LLM_EVALUATE")
+    llm_evaluate_timeout: float = Field(default=5.0, validation_alias="LLM_EVALUATE_TIMEOUT")
+    llm_quality_threshold: float = Field(default=0.6, validation_alias="LLM_QUALITY_THRESHOLD")
+    llm_evaluate_max_books: int = Field(default=5, validation_alias="LLM_EVALUATE_MAX_BOOKS")
+    llm_evaluate_desc_chars: int = Field(default=80, validation_alias="LLM_EVALUATE_DESC_CHARS")
+    llm_provider: str = Field(default="deepseek", validation_alias="LLM_PROVIDER")
+    deepseek_api_key: Optional[str] = Field(default=None, validation_alias="DEEPSEEK_API_KEY")
 
 
 # -----------------------------------------------------------------------------
@@ -78,6 +86,14 @@ RERANKER_BACKEND = _settings.reranker_backend
 DEBUG = _settings.debug
 AB_EXPERIMENTS_ENABLED = _settings.ab_experiments_enabled
 ENABLE_RAG_DIVERSITY = _settings.enable_rag_diversity
+# LLM evaluate node feature flags
+USE_LLM_EVALUATE = _settings.use_llm_evaluate
+LLM_EVALUATE_TIMEOUT = _settings.llm_evaluate_timeout
+LLM_QUALITY_THRESHOLD = _settings.llm_quality_threshold
+LLM_EVALUATE_MAX_BOOKS = _settings.llm_evaluate_max_books
+LLM_EVALUATE_DESC_CHARS = _settings.llm_evaluate_desc_chars
+LLM_PROVIDER = _settings.llm_provider
+DEEPSEEK_API_KEY = _settings.deepseek_api_key
 # Algorithm constants (defined above, re-exported for imports)
 # RRF_K, MMR_LAMBDA_DEFAULT, POPULARITY_GAMMA_DEFAULT, MAX_PER_CATEGORY_DEFAULT,
 # FRESHNESS_THRESHOLD, SMALL_TO_BIG_OVER_RETRIEVE_FACTOR, HYBRID_DEFAULT_ALPHA
@@ -127,12 +143,8 @@ if _path_override and Path(_path_override).exists():
         import logging
         logging.getLogger(__name__).warning("ROUTER_CONFIG_PATH load failed: %s", e)
 
-# Env: ROUTER_DETAIL_KEYWORDS = "twist,ending,spoiler,..." (comma-separated) overrides config
-_DETAIL_KW_RAW = os.getenv("ROUTER_DETAIL_KEYWORDS", "")
-ROUTER_DETAIL_KEYWORDS: frozenset[str] = (
-    frozenset(w.strip().lower() for w in _DETAIL_KW_RAW.split(",") if w.strip())
-    if _DETAIL_KW_RAW
-    else frozenset(str(k).lower() for k in _ROUTER_CFG.get("detail_keywords", []))
+ROUTER_DETAIL_KEYWORDS: frozenset[str] = frozenset(
+    str(k).lower() for k in _ROUTER_CFG.get("detail_keywords", [])
 )
 
 ROUTER_FRESHNESS_KEYWORDS: frozenset[str] = frozenset(

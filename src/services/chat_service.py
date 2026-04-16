@@ -1,4 +1,6 @@
 from typing import Generator, Optional, Dict, Any, List
+import time
+from collections import OrderedDict
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, BaseMessage
 
 from src.rag.llm import LLMFactory
@@ -17,7 +19,12 @@ class ChatService:
     Uses DataRepository for all book metadata lookups.
     """
     _instance = None
-    _history: Dict[str, List[BaseMessage]] = {}
+    # Process-local history for demo UX (not a durable store).
+    # Keep bounded to avoid unbounded memory growth in long-running servers.
+    _history: "OrderedDict[str, List[BaseMessage]]" = OrderedDict()
+    _history_updated_at: Dict[str, float] = {}
+    _history_ttl_sec: int = 60 * 60 * 24  # 24h
+    _max_sessions: int = 200  # cap number of active (user_id:isbn) sessions
 
     def __new__(cls):
         if cls._instance is None:
@@ -26,6 +33,24 @@ class ChatService:
 
     def __init__(self):
         pass
+
+    def _purge_history(self) -> None:
+        """Purge expired sessions and enforce LRU cap."""
+        now = time.time()
+
+        # 1) Expire old sessions
+        expired_keys = []
+        for key, updated_at in list(self._history_updated_at.items()):
+            if now - updated_at > self._history_ttl_sec:
+                expired_keys.append(key)
+        for key in expired_keys:
+            self._history_updated_at.pop(key, None)
+            self._history.pop(key, None)
+
+        # 2) Enforce max sessions (LRU eviction)
+        while len(self._history) > self._max_sessions:
+            old_key, _ = self._history.popitem(last=False)
+            self._history_updated_at.pop(old_key, None)
 
     def _get_book_context(self, isbn: str) -> Optional[Dict[str, Any]]:
         """Retrieve full context for a specific book by ISBN via DataRepository."""
@@ -59,10 +84,18 @@ class ChatService:
         return f"{user_id}:{isbn}"
 
     def _update_history(self, key: str, human: str, ai: str):
+        self._purge_history()
+
         if key not in self._history:
             self._history[key] = []
+        else:
+            # Mark as recently used for LRU eviction order
+            self._history.move_to_end(key, last=True)
+
         self._history[key].append(HumanMessage(content=human))
         self._history[key].append(AIMessage(content=ai))
+        self._history_updated_at[key] = time.time()
+
         # Limit to last 10 messages (5 turns)
         if len(self._history[key]) > 10:
             self._history[key] = self._history[key][-10:]
@@ -71,6 +104,7 @@ class ChatService:
         key = self._get_history_key(user_id, isbn)
         if key in self._history:
             del self._history[key]
+        self._history_updated_at.pop(key, None)
 
     async def chat_stream(
         self, 
@@ -99,6 +133,7 @@ class ChatService:
         
         # Compress History (if needed)
         key = self._get_history_key(user_id, isbn)
+        self._purge_history()
         raw_history = self._history.get(key, [])
         compressed_history = []
         

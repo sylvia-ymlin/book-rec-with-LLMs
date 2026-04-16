@@ -177,18 +177,21 @@ class RecommendationOrchestrator:
         enable_diversity_rerank: bool = True,
     ) -> List[BookResponseDict]:
         """Classic Router -> Hybrid/Small-to-Big -> optional Diversity Rerank -> Web Fallback."""
+        import asyncio
         from src.rag.router import QueryRouter as _QueryRouter
 
         router = _QueryRouter()
-        decision = router.route(query)
+        # Execute routing and retrieval in threads to avoid blocking the event loop
+        decision = await asyncio.to_thread(router.route, query)
         logger.info(f"Retrieval Strategy: {decision}")
 
         do_rerank = decision["rerank"] and not skip_rerank
 
         if decision["strategy"] == "small_to_big":
-            recs = self.vector_db.small_to_big_search(query, k=TOP_K_INITIAL)
+            recs = await asyncio.to_thread(self.vector_db.small_to_big_search, query, k=TOP_K_INITIAL)
         else:
-            recs = self.vector_db.hybrid_search(
+            recs = await asyncio.to_thread(
+                self.vector_db.hybrid_search,
                 query,
                 k=TOP_K_INITIAL,
                 alpha=decision.get("alpha", HYBRID_DEFAULT_ALPHA),

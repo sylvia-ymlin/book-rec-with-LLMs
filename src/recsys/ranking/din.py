@@ -110,7 +110,10 @@ class DIN(nn.Module):
         return logits
 
 
-class DINRanker:
+from src.recsys.ranking.base import BaseRanker
+
+
+class DINRanker(BaseRanker):
     """
     Wrapper for DIN model: load, predict, compatible with RecommendationService.
     """
@@ -131,6 +134,10 @@ class DINRanker:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         if torch.backends.mps.is_available():
             self.device = torch.device("mps")
+
+    @property
+    def feature_names(self) -> list[str]:
+        return self.aux_feature_names
 
     def load(self) -> bool:
         """Load trained DIN and aux data."""
@@ -164,12 +171,17 @@ class DINRanker:
         self,
         user_id: str,
         candidate_items: list[str],
-        aux_features: Optional[np.ndarray] = None,
-        override_hist: Optional[list] = None,
+        features_df: Optional[Any] = None,
+        **kwargs,
     ) -> np.ndarray:
         """
         Predict scores for (user_id, candidate_items).
         """
+        override_hist = kwargs.get("override_hist")
+        aux_features = None
+        if features_df is not None and self.aux_feature_names:
+            # Extract aux features from features_df if provided
+            aux_features = features_df[self.aux_feature_names].values.astype(np.float32)
         if self.model is None:
             self.load()
         if self.model is None:

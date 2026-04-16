@@ -9,6 +9,7 @@ from src.recsys.recall.fusion import RecallFusion
 from src.recsys.ranking.features import FeatureEngineer
 from src.recsys.ranking.explainer import RankingExplainer
 from src.recsys.ranking.din import DINRanker
+from src.recsys.ranking.model_ranker import BaseRanker, LGBMRanker, StackingRanker
 from src.core.diversity_reranker import DiversityReranker
 from src.infra.utils import setup_logger
 
@@ -23,13 +24,8 @@ class RecommendationService:
         self.fusion = RecallFusion(data_dir, f'{model_dir}/recall')
         self.fe = FeatureEngineer(data_dir, f'{model_dir}/recall')
 
-        self.ranker = None
+        self.ranker: Optional[BaseRanker] = None
         self.ranker_loaded = False
-        self.din_ranker = DINRanker(str(data_dir), str(model_dir))
-        self.din_ranker_loaded = False
-        self.xgb_ranker = None
-        self.meta_model = None
-        self.use_stacking = False
         self.explainer = None  # SHAP explainer (V2.7)
 
     def load_resources(self):
@@ -40,56 +36,54 @@ class RecommendationService:
         self.fusion.load_models()
         self.fe.load_base_data()
 
-        # Prefer DIN ranker when available (deep model)
+        # 1. Try to load DIN ranker (highest priority)
         din_path = self.model_dir / 'ranking/din_ranker.pt'
         if din_path.exists():
-            if self.din_ranker.load():
-                self.din_ranker_loaded = True
-                logger.info("DIN ranker loaded — using deep model for ranking")
+            din = DINRanker(str(self.data_dir), str(self.model_dir.parent))
+            if din.load():
+                self.ranker = din
+                self.ranker_loaded = True
+                logger.info("Unified Ranker: DIN loaded")
 
-        # Load LGBM ranker (fallback when DIN not available)
-        ranker_path = self.model_dir / 'ranking/lgbm_ranker.txt'
-        if ranker_path.exists():
-            self.ranker = lgb.Booster(model_file=str(ranker_path))
-            logger.info(f"Ranker loaded from {ranker_path}")
-            self.ranker_loaded = True
-
-            # Initialize SHAP explainer (V2.7)
-            try:
-                self.explainer = RankingExplainer(self.ranker)
-            except Exception as e:
-                logger.warning(f"Failed to initialize SHAP explainer: {e}")
-                self.explainer = None
-
-            # Load XGBoost ranker (for stacking)
+        # 2. Try to load Stacking ranker (second priority)
+        if not self.ranker_loaded:
+            lgbm_path = self.model_dir / 'ranking/lgbm_ranker.txt'
             xgb_path = self.model_dir / 'ranking/xgb_ranker.json'
-            if xgb_path.exists():
-                try:
-                    self.xgb_ranker = xgb.XGBClassifier()
-                    # For older models/new xgboost versions, loading might raise TypeError if type isn't set
-                    self.xgb_ranker.load_model(str(xgb_path))
-                    logger.info(f"XGBoost ranker loaded from {xgb_path}")
-                except Exception as e:
-                    logger.warning(f"Failed to load XGBoost ranker (stacking might be suboptimal): {e}")
-                    # Fallback to booster if it's a raw booster dump
-                    try:
-                        self.xgb_ranker = xgb.Booster()
-                        self.xgb_ranker.load_model(str(xgb_path))
-                        logger.info("XGBoost ranker loaded as raw Booster.")
-                    except Exception as e:
-                        logger.debug("XGBoost Booster fallback failed: %s", e)
-                        self.xgb_ranker = None
-
-            # Load stacking meta-model
             meta_path = self.model_dir / 'ranking/stacking_meta.pkl'
-            if meta_path.exists():
-                with open(meta_path, 'rb') as f:
-                    meta_data = pickle.load(f)
-                    self.meta_model = meta_data['meta_model']
-                self.use_stacking = True
-                logger.info(f"Stacking meta-model loaded — stacking ENABLED")
-        else:
-            logger.warning(f"Ranker model not found at {ranker_path}, prediction will be skipped")
+            if lgbm_path.exists() and meta_path.exists():
+                stacker = StackingRanker(lgbm_path, xgb_path, meta_path)
+                if stacker.load():
+                    self.ranker = stacker
+                    self.ranker_loaded = True
+                    logger.info("Unified Ranker: Stacking loaded")
+
+        # 3. Try to load plain LGBM ranker (lowest priority)
+        if not self.ranker_loaded:
+            lgbm_path = self.model_dir / 'ranking/lgbm_ranker.txt'
+            if lgbm_path.exists():
+                lgbm = LGBMRanker(lgbm_path)
+                if lgbm.load():
+                    self.ranker = lgbm
+                    self.ranker_loaded = True
+                    logger.info("Unified Ranker: LGBM loaded")
+
+        if not self.ranker_loaded:
+            logger.warning("No ranking model found. Predictions will be skipped.")
+
+        # 4. Initialize SHAP explainer if LGBM is available (it's the base for both LGBM and Stacking)
+        if self.ranker_loaded:
+            base_lgbm_booster = None
+            if isinstance(self.ranker, LGBMRanker):
+                base_lgbm_booster = self.ranker.model
+            elif isinstance(self.ranker, StackingRanker):
+                base_lgbm_booster = self.ranker.lgbm_ranker.model
+
+            if base_lgbm_booster:
+                try:
+                    self.explainer = RankingExplainer(base_lgbm_booster)
+                except Exception as e:
+                    logger.warning(f"Failed to initialize SHAP explainer: {e}")
+                    self.explainer = None
 
         # Deduplication now uses MetadataStore for Title lookups (Zero-RAM mode)
         from src.data.stores.metadata_store import metadata_store
@@ -180,60 +174,38 @@ class RecommendationService:
         if not valid_candidates:
             return []
 
-        if self.din_ranker_loaded:
-            # DIN: deep model; P1: override_hist for real-time
-            aux_arr = None
-            if self.din_ranker.aux_feature_names:
-                X_df = self.fe.generate_features_batch(
-                    user_id,
-                    valid_candidates,
-                    override_user_emb=override_user_emb,
-                    override_user_seq=effective_seq,
-                )
-                for col in self.din_ranker.aux_feature_names:
-                    if col not in X_df.columns:
-                        X_df[col] = 0
-                aux_arr = X_df[self.din_ranker.aux_feature_names].values.astype(np.float32)
-            scores = self.din_ranker.predict(
-                user_id,
-                valid_candidates,
-                aux_arr,
-                override_hist=effective_seq,
-            )
-            explanations_list = [[] for _ in valid_candidates]
-            final_scores = list(zip(valid_candidates, scores, explanations_list))
-            final_scores.sort(key=lambda x: x[1], reverse=True)
-        elif self.ranker_loaded:
-            # LGBM / stacking path. P1: override for real-time
+        if self.ranker_loaded:
+            # Generate features for ranker
             X_df = self.fe.generate_features_batch(
                 user_id,
                 valid_candidates,
                 override_user_emb=override_user_emb,
                 override_user_seq=effective_seq,
             )
-            model_features = self.ranker.feature_name()
-            for col in model_features:
-                if col not in X_df.columns:
-                    X_df[col] = 0
-            X_df = X_df[model_features]
 
-            if self.use_stacking and self.xgb_ranker is not None and self.meta_model is not None:
-                lgb_scores = self.ranker.predict(X_df)
-                if isinstance(self.xgb_ranker, xgb.Booster):
-                    dtest = xgb.DMatrix(X_df)
-                    xgb_scores = self.xgb_ranker.predict(dtest)
-                else:
-                    xgb_scores = self.xgb_ranker.predict_proba(X_df)[:, 1]
-                meta_features = np.column_stack([lgb_scores, xgb_scores])
-                scores = self.meta_model.predict_proba(meta_features)[:, 1]
-            else:
-                scores = self.ranker.predict(X_df)
+            # Predict using unified interface
+            scores = self.ranker.predict(
+                user_id,
+                valid_candidates,
+                features_df=X_df,
+                override_hist=effective_seq,
+                override_user_emb=override_user_emb,
+            )
 
+            # Explanations (only for LGBM-based models)
             explanations_list = []
             if self.explainer is not None:
                 try:
-                    explanations_list = self.explainer.explain(X_df, top_k=3)
+                    # Explainer needs the subset of features the model was trained on
+                    model_features = self.ranker.feature_name() if hasattr(self.ranker, "feature_name") else self.ranker.feature_names
+                    # Handle if ranker.feature_name is method or property
+                    if callable(model_features):
+                        model_features = model_features()
+                    
+                    X_expl = X_df[model_features]
+                    explanations_list = self.explainer.explain(X_expl, top_k=3)
                 except Exception as e:
+                    logger.warning(f"SHAP explanation failed: {e}")
                     explanations_list = [[] for _ in valid_candidates]
             else:
                 explanations_list = [[] for _ in valid_candidates]

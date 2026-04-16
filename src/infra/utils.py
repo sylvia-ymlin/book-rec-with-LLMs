@@ -5,14 +5,37 @@ import html
 
 
 def setup_logger(name: str):
-    """Configure and return a logger. Use DEBUG=1 for verbose output."""
+    """
+    Configure and return a logger.
+
+    Log levels:
+        DEBUG=true  → DEBUG  (verbose, all messages)
+        default     → INFO   (structured operational logs, e.g. LLM Evaluate)
+        LOG_LEVEL env can override: DEBUG | INFO | WARNING | ERROR
+
+    IMPORTANT: Do NOT default to WARNING — INFO-level structured logs from
+    llm_evaluate_node are the primary observability signal in production.
+    """
+    import os
     from src.infra.config import DEBUG
+
     logger = logging.getLogger(name)
-    logger.setLevel(logging.DEBUG if DEBUG else logging.WARNING)
+
+    if DEBUG:
+        level = logging.DEBUG
+    else:
+        # Respect explicit LOG_LEVEL env; fall back to INFO (not WARNING)
+        level_name = os.getenv("LOG_LEVEL", "INFO").upper()
+        level = getattr(logging, level_name, logging.INFO)
+
+    logger.setLevel(level)
 
     if not logger.handlers:
         handler = logging.StreamHandler(sys.stdout)
-        handler.setFormatter(logging.Formatter("%(levelname)s | %(name)s | %(message)s"))
+        # Format: machine-parseable for log aggregators (Loki, Splunk, etc.)
+        handler.setFormatter(
+            logging.Formatter("%(asctime)s %(levelname)s | %(name)s | %(message)s")
+        )
         logger.addHandler(handler)
     return logger
 

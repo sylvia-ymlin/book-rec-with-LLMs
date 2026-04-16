@@ -66,10 +66,11 @@ class VectorDB:
                     persist_directory=str(CHROMA_DB_DIR),
                     embedding_function=self.embeddings,
                 )
-                logger.info(
-                    "Loaded %s documents from vector database",
-                    self.db._collection.count(),
-                )
+                try:
+                    count = self.db._collection.count()
+                    logger.info("Loaded %s documents from vector database", count)
+                except Exception:
+                    logger.info("Loaded vector database (document count unavailable)")
             else:
                 error_msg = (
                     f"Vector Database not found at {CHROMA_DB_DIR}.\n"
@@ -406,4 +407,3 @@ class VectorDB:
 
 
 __all__ = ["VectorDB"]
-

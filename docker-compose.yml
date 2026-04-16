@@ -1,28 +1,113 @@
 version: '3.8'
 
+# ── Services ──────────────────────────────────────────────────────────────────
 services:
+
   api:
     build: .
-    entrypoint: ["uvicorn", "src.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    entrypoint: ["uvicorn", "src.app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
     ports:
       - "8000:8000"
     volumes:
       - ./data:/app/data
     environment:
+      # ── Infrastructure ──────────────────────────────────────────────────────
       - HUGGINGFACEHUB_API_TOKEN=${HUGGINGFACEHUB_API_TOKEN}
       - REDIS_URL=redis://redis:6379/0
+
+      # ── LLM Evaluate node (v2.1) ────────────────────────────────────────────
+      - LLM_PROVIDER=${LLM_PROVIDER:-deepseek}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - USE_LLM_EVALUATE=${USE_LLM_EVALUATE:-false}
+      - LLM_EVALUATE_TIMEOUT=${LLM_EVALUATE_TIMEOUT:-5.0}
+      - LLM_QUALITY_THRESHOLD=${LLM_QUALITY_THRESHOLD:-0.6}
+      - LLM_EVALUATE_MAX_BOOKS=${LLM_EVALUATE_MAX_BOOKS:-5}
+      - LLM_EVALUATE_DESC_CHARS=${LLM_EVALUATE_DESC_CHARS:-80}
+
+      # ── Observability ───────────────────────────────────────────────────────
+      - DEBUG=${DEBUG:-false}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s     # allow model loading
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: "2.0"
+        reservations:
+          memory: 1G
 
   redis:
-    image: redis:alpine
+    image: redis:7-alpine
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "512mb", "--maxmemory-policy", "allkeys-lru"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.enable-lifecycle"
+    restart: unless-stopped
+    depends_on:
+      - api
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./deploy/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+    environment:
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
     restart: unless-stopped
 
+  grafana:
+    image: grafana/grafana:10.4.0
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-changeme}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./deploy/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./deploy/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+# ── Volumes ───────────────────────────────────────────────────────────────────
 volumes:
   chroma_data:
   redis_data:
+  prometheus_data:
+  grafana_data:

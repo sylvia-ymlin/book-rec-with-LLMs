@@ -106,5 +106,37 @@
         "comment": "This is a great book!"
       }
     }
+  },
+  "test_user": {
+    "favorites": {}
+  },
+  "Coconut": {
+    "favorites": {
+      "B000GQG5MA": {
+        "added_at": "2026-04-05T11:43:34.212440",
+        "rating": null,
+        "status": "want_to_read"
+      },
+      "B000NWQXBA": {
+        "added_at": "2026-04-05T11:43:34.226461",
+        "rating": null,
+        "status": "want_to_read"
+      },
+      "B000GQK706": {
+        "added_at": "2026-04-05T11:43:34.229369",
+        "rating": null,
+        "status": "want_to_read"
+      },
+      "6GzuBgAAQBAJ": {
+        "added_at": "2026-04-05T11:44:03.392827",
+        "rating": null,
+        "status": "want_to_read"
+      },
+      "9781449379322": {
+        "added_at": "2026-04-05T11:53:01.489250",
+        "rating": null,
+        "status": "want_to_read"
+      }
+    }
   }
 }

@@ -266,6 +266,30 @@ class YoutubeDNNRecall:
             state_dict = torch.load(
                 self.model_dir / "youtube_dnn.pt", map_location=self.device
             )
+            # Remap old named-layer keys (user_fc_0, item_fc_0 …) to the
+            # current nn.Sequential integer-index keys (0, 3, …).
+            # Old format: user_mlp.user_fc_0.weight → new: user_mlp.0.weight
+            #             user_mlp.user_fc_1.weight → new: user_mlp.3.weight
+            #             item_mlp.item_fc_0.weight → new: item_mlp.0.weight
+            #             item_mlp.item_fc_1.weight → new: item_mlp.3.weight
+            _KEY_MAP = {
+                "user_mlp.user_fc_0.": "user_mlp.0.",
+                "user_mlp.user_fc_1.": "user_mlp.3.",
+                "item_mlp.item_fc_0.": "item_mlp.0.",
+                "item_mlp.item_fc_1.": "item_mlp.3.",
+            }
+            remapped = {}
+            for k, v in state_dict.items():
+                new_k = k
+                for old_prefix, new_prefix in _KEY_MAP.items():
+                    if k.startswith(old_prefix):
+                        new_k = new_prefix + k[len(old_prefix):]
+                        break
+                remapped[new_k] = v
+            if remapped.keys() != state_dict.keys():
+                logger.info("YoutubeDNN: remapped %d legacy state-dict keys.",
+                            sum(1 for k in state_dict if k != remapped.get(k, k)))
+                state_dict = remapped
             self.model.load_state_dict(state_dict)
             self.model.eval()
 

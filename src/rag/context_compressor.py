@@ -62,6 +62,8 @@ class ContextCompressor:
         self, messages: List[BaseMessage]
     ) -> str:
         """Use LLM to summarize a list of messages."""
+        import asyncio
+
         conversation_text = ""
         for msg in messages:
             role = "User" if isinstance(msg, HumanMessage) else "AI"
@@ -80,8 +82,11 @@ class ContextCompressor:
             # Fallback to mock when env/keys not set (e.g. tests, benchmarks)
             llm = LLMFactory.create(provider="mock")
 
-        response = llm.invoke([HumanMessage(content=prompt)])
-        return response.content
+        # Avoid blocking the FastAPI event loop: run sync invoke in a thread.
+        response = await asyncio.to_thread(
+            llm.invoke, [HumanMessage(content=prompt)]
+        )
+        return getattr(response, "content", str(response))
 
     def format_docs(
         self,
@@ -112,4 +117,3 @@ class ContextCompressor:
 compressor = ContextCompressor()
 
 __all__ = ["ContextCompressor", "compressor"]
-

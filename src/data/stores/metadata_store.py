@@ -8,8 +8,6 @@ import sqlite3
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import pandas as pd
-
 from src.infra.config import DATA_DIR
 from src.core.models import BookMetadata
 from src.infra.utils import setup_logger
@@ -45,6 +43,13 @@ class MetadataStore:
                     str(self.db_path), check_same_thread=False
                 )
                 self._conn.row_factory = sqlite3.Row
+                # Enable WAL mode: concurrent readers no longer blocked by writers.
+                # Persisted in the DB file — only needs to run once per DB lifecycle.
+                self._conn.execute("PRAGMA journal_mode=WAL")
+                # Relax fsync on each commit (safe for read-heavy workload; OS crash
+                # safe because WAL itself is atomic).
+                self._conn.execute("PRAGMA synchronous=NORMAL")
+                logger.info("MetadataStore: SQLite WAL mode enabled")
             except Exception as e:
                 logger.error("MetadataStore: Failed to connect to SQLite: %s", e)
         return self._conn
@@ -72,6 +77,46 @@ class MetadataStore:
             return dict(row)
         return online_books_store.get_book_metadata(isbn) or {}
 
+    def batch_get_book_metadata(self, isbn_list: List[str]) -> Dict[str, Dict[str, Any]]:
+        """
+        Fetch metadata for multiple ISBNs in a single SQL query.
+
+        Returns a dict mapping each isbn → metadata dict (may be empty if not found).
+        Falls back to online_books_store for any ISBNs missed by the SQLite query.
+
+        Avoids N+1 queries when building LLM evaluation context.
+        """
+        if not isbn_list:
+            return {}
+
+        normalised = [str(i).strip().replace(".0", "") for i in isbn_list]
+        result: Dict[str, Dict[str, Any]] = {}
+
+        conn = self.connection
+        if conn:
+            try:
+                placeholders = ",".join("?" * len(normalised))
+                cursor = conn.cursor()
+                cursor.execute(
+                    f"SELECT * FROM books WHERE isbn13 IN ({placeholders})",
+                    normalised,
+                )
+                for row in cursor.fetchall():
+                    row_dict = dict(row)
+                    isbn_key = str(row_dict.get("isbn13", "")).strip()
+                    if isbn_key:
+                        result[isbn_key] = row_dict
+            except Exception as e:
+                logger.error("MetadataStore batch_get_book_metadata error: %s", e)
+
+        # Fall back to online store for any missed ISBNs
+        for isbn in normalised:
+            if isbn not in result:
+                online = online_books_store.get_book_metadata(isbn)
+                result[isbn] = dict(online) if online else {}
+
+        return result
+
     def get_image(self, isbn: str, default: str = "") -> str:
         isbn = str(isbn).strip().replace(".0", "")
         row = self._query_one(
@@ -91,18 +136,9 @@ class MetadataStore:
         except (TypeError, ValueError):
             return default
 
-    @property
-    def isbn_to_title(self) -> Dict[str, str]:
-        return {}
-
-    @property
-    def item_category(self) -> Dict[str, str]:
-        return {}
-
-    @property
-    def item_author(self) -> Dict[str, str]:
-        return {}
-
+    # The four properties below return empty dicts when pre-computed recall model
+    # data is unavailable. The RecSys feature extractor (recsys/ranking/features.py)
+    # reads them at startup and falls back to default values for any missing keys.
     @property
     def user_stats(self) -> Dict[str, Any]:
         return {}
@@ -112,19 +148,12 @@ class MetadataStore:
         return {}
 
     @property
-    def books_df(self) -> pd.DataFrame:
-        """
-        [DEPRECATED] DANGER: This loads all books into RAM.
-        Prefer get_book_metadata() or SQL queries instead.
-        """
-        logger.warning(
-            "MetadataStore: Loading full books_df into RAM. "
-            "This is a potential OOM risk!"
-        )
-        conn = self.connection
-        if conn:
-            return pd.read_sql("SELECT * FROM books", conn)
-        return pd.DataFrame()
+    def item_category(self) -> Dict[str, str]:
+        return {}
+
+    @property
+    def item_author(self) -> Dict[str, str]:
+        return {}
 
     def get_all_categories(self) -> List[str]:
         """Efficiently fetch unique categories from main + online store."""
@@ -308,13 +337,6 @@ class MetadataStore:
             logger.debug("get_books_by_year_distribution failed: %s", e)
             return {}
 
-    def load_books_processed(self):
-        """Deprecated stub (kept for compatibility)."""
-        pass
-
-    def load_train_data(self):
-        """Deprecated stub (kept for compatibility)."""
-        pass
 
 
 metadata_store = MetadataStore()
