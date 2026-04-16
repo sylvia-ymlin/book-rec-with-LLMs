@@ -45,7 +45,8 @@ data/rec/
 data/chroma_db/
 data/chroma_chunks/
 data/review_chunks.jsonl
-data/*.db
+data/*.db*
+data/eval/
 
 # Model artifacts
 *.pkl
@@ -57,6 +58,9 @@ data/*.db
 # Logs
 *.log
 logs/
+.coverage
+results/
+deploy/
 
 # Temp
 *.tmp
@@ -75,3 +79,6 @@ node_modules/
 
 # Jupyter
 .ipynb_checkpoints
+
+# Project specific
+docs/
