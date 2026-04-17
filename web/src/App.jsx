@@ -308,12 +308,15 @@ const App = () => {
 
         {showOnboarding && (
           <OnboardingModal
-            onComplete={async () => {
+            onComplete={async (selectedIsbns) => {
               setShowOnboarding(false);
+              // Track in session for subsequent calls
+              selectedIsbns.forEach(trackRecentIsbn);
+              
               const [favs, stats, personalRecs] = await Promise.all([
                 getFavorites(userId).catch(() => []),
                 getUserStats(userId).catch(() => ({ total: 0, want_to_read: 0, reading: 0, finished: 0 })),
-                getPersonalizedRecommendations(userId, 20, recentIsbns).catch(() => []),
+                getPersonalizedRecommendations(userId, 20, selectedIsbns).catch(() => []), 
               ]);
               setMyCollection(favs);
               setReadingStats(stats);

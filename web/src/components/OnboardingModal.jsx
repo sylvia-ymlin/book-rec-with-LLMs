@@ -36,11 +36,12 @@ const OnboardingModal = ({ onComplete, onAddFavorite, onSkip }) => {
   const handleComplete = async () => {
     if (selected.size < MIN_SELECT) return;
     try {
-      for (const isbn of selected) {
+      const selectedIsbns = Array.from(selected);
+      for (const isbn of selectedIsbns) {
         await onAddFavorite(isbn);
       }
       localStorage.setItem("onboarding_complete", "true");
-      onComplete();
+      onComplete(selectedIsbns);
     } catch (e) {
       setError(e.message);
     }
